@@ -166,6 +166,7 @@ fn default_true() -> bool {
 /// Convert xberg's process config to TSLP's `ProcessConfig`.
 ///
 /// The language field is left empty — callers must set it before use.
+#[cfg(feature = "tree-sitter")]
 impl From<&TreeSitterProcessConfig> for tree_sitter_language_pack::ProcessConfig {
     fn from(p: &TreeSitterProcessConfig) -> Self {
         Self {

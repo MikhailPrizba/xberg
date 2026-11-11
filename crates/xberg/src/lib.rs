@@ -111,6 +111,10 @@ pub mod service;
 #[cfg(feature = "api")]
 pub mod api;
 
+#[cfg(all(feature = "api-types", not(feature = "api")))]
+#[path = "api/types_only.rs"]
+pub mod api;
+
 #[cfg(feature = "mcp")]
 pub mod mcp;
 
@@ -198,7 +202,7 @@ pub use heuristics::{
 #[cfg(feature = "presets")]
 pub mod presets;
 
-#[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
+#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
 pub mod ocr;
 
 /// Canonical OCR metadata key names, shared across every OCR-producing and
@@ -246,7 +250,7 @@ mod sceptre_languages;
 #[cfg(feature = "sceptre-wasm")]
 pub mod sceptre_wasm;
 
-#[cfg(feature = "candle-ocr")]
+#[cfg(any(feature = "candle-ocr", feature = "candle-ocr-types"))]
 pub mod candle_ocr;
 
 #[cfg(feature = "auto-rotate-types")]
@@ -400,7 +404,7 @@ pub use layout::types::{BBox, DetectionResult, LayoutClass, LayoutDetection};
 
 #[cfg(feature = "layout-types")]
 pub use layout::types::RecognizedTable;
-#[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
+#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
 pub use ocr::types::PSMMode;
 
 pub use core::config::{OcrPipelineConfig, OcrPipelineStage, OcrQualityThresholds, OcrStrategy, VlmFallbackPolicy};
@@ -426,7 +430,7 @@ pub use text::markdown_footnotes::{
 #[cfg(feature = "diff")]
 pub use diff::{DiffHunk, DiffOptions, EmbeddedChanges, EmbeddedDiff, ExtractionDiff, TableDiff, compare};
 
-#[cfg(feature = "tree-sitter")]
+#[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
 pub use core::config::{CodeContentMode, TreeSitterConfig, TreeSitterProcessConfig};
 #[cfg(feature = "tree-sitter")]
 pub use tree_sitter_language_pack::{
@@ -930,7 +934,7 @@ pub use enrich::{EnrichedResult, EnrichmentConfig};
 #[cfg(feature = "ner")]
 pub use enrich::NerEnrichmentConfig;
 
-#[cfg(feature = "classification")]
+#[cfg(any(feature = "classification", feature = "classification-types"))]
 pub use enrich::{ChunkClassificationEnrichmentConfig, ClassificationEnrichmentConfig};
 
 #[cfg(feature = "captioning")]

@@ -1,0 +1,67 @@
+{
+  "date": "2026-11-11",
+  "source_commit": "ff69566bc3757104fbf28c7afdededda6c1adaac",
+  "git_shallow": true,
+  "repository_before_mib_approx": 695,
+  "repository_after_mib": 151.45,
+  "git_before_mib": 495.5,
+  "git_after_mib": 56.41,
+  "old_generated_target_gib": 9.88,
+  "wheel": {
+    "filename": "xberg-1.4.0-cp311-abi3-linux_x86_64.whl",
+    "mib": 26.14,
+    "sha256": "c5f5d88805614fd10fd6221e8d671d2758abac7b42ad540fb1537afa3a4f9d04",
+    "python_abi": "cp311 abi3",
+    "platform": "Linux x86_64; built on this host, not a manylinux wheel",
+    "artifact_path": "/home/mikhail/Desktop/sber/textractor/.cache/xberg-compact/wheels/xberg-1.4.0-cp311-abi3-linux_x86_64.whl",
+    "runtime_libraries": [
+      "libgcc_s",
+      "libm",
+      "libc",
+      "dynamic loader"
+    ]
+  },
+  "normal_and_build_dependency_packages": 482,
+  "excluded_from_active_graph": [
+    "ONNX Runtime",
+    "Candle",
+    "built-in Tesseract",
+    "libheif",
+    "tree-sitter-language-pack",
+    "liter-llm",
+    "Axum",
+    "MCP/RMCP",
+    "model2vec",
+    "tokenizers",
+    "hf-hub"
+  ],
+  "validation": {
+    "cargo_check_workspace_release": "passed from final source path with --locked",
+    "git_fsck_connectivity": "passed",
+    "uv_lock_check_offline": "passed",
+    "python_314": {
+      "passed": 440,
+      "skipped": 2
+    },
+    "python_313": {
+      "passed": 440,
+      "skipped": 2
+    },
+    "corpus": {
+      "passed": 16,
+      "total": 16
+    },
+    "advertised_textractor_extensions": 42,
+    "builtin_ocr_backends": [],
+    "external_ocr": "covered by the textractor tests using stubs and local HTTP; no remote GPU service called",
+    "environment": "isolated test environments; existing textractor runtime dependency pin remains as configured"
+  },
+  "compatibility_adaptations": [
+    "Data-only Candle/Tree-sitter/classification/API types for generated Python DTOs",
+    "OCR pipeline and PSM types without Tesseract",
+    "EXIF/image metadata parser independent of built-in OCR",
+    "Explicit NotImplementedError for disabled optional classify/crawl/layout-inference entrypoints"
+  ],
+  "rollback_cleanup": "old clone, full Git history and generated target removed after final source verification",
+  "unpublished": true
+}

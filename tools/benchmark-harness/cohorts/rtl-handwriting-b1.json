@@ -1,7 +1,0 @@
-{
-  "schema_version": 1,
-  "name": "rtl-handwriting-b1-v1",
-  "batch_size": 1,
-  "ocr_enabled": true,
-  "fixtures": ["pinkas_page_132_1.json"]
-}

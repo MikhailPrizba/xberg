@@ -963,7 +963,7 @@ impl<'a> RedactionPass<'a> {
         if let Some(structured) = doc.structured_output.as_mut() {
             self.redact_json_value(structured);
         }
-        #[cfg(feature = "tree-sitter")]
+        #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
         if let Some(code) = doc.code_intelligence.as_mut() {
             self.redact_json_value(code);
         }
@@ -1319,7 +1319,7 @@ impl<'a> RedactionPass<'a> {
             FormatMetadata::Html(html) => {
                 self.redact_html_metadata_fields(html);
             }
-            #[cfg(feature = "tree-sitter")]
+            #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
             FormatMetadata::Code(code) => {
                 for chunk in code.chunks.iter_mut() {
                     self.redact_in_place(&mut chunk.text);
@@ -1418,12 +1418,12 @@ impl<'a> RedactionPass<'a> {
 
     /// Rewrite a code-format data-tree node (JSON/YAML/TOML/XML/CSV structural
     /// tree) and its children, bounded by [`MAX_BLOCK_NESTING_DEPTH`].
-    #[cfg(feature = "tree-sitter")]
+    #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
     fn redact_code_data_node(&mut self, node: &mut crate::types::metadata::CodeDataNode) {
         self.redact_code_data_node_at_depth(node, 0);
     }
 
-    #[cfg(feature = "tree-sitter")]
+    #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
     fn redact_code_data_node_at_depth(&mut self, node: &mut crate::types::metadata::CodeDataNode, depth: usize) {
         self.redact_optional(&mut node.value);
         if depth >= MAX_BLOCK_NESTING_DEPTH {

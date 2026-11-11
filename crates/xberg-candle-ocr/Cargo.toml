@@ -1,4 +1,5 @@
 [package]
+workspace = "../.."
 name = "xberg-candle-ocr"
 version.workspace = true
 edition = "2024"

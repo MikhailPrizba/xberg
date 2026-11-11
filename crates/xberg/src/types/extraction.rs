@@ -356,7 +356,7 @@ pub struct ExtractedDocument {
     /// Stored as an opaque JSON value so that all language bindings (Go, Java,
     /// C#, …) can deserialize it as a raw JSON object rather than a typed struct.
     /// The underlying type is `tree_sitter_language_pack::ProcessResult`.
-    #[cfg(feature = "tree-sitter")]
+    #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub code_intelligence: Option<serde_json::Value>,
 

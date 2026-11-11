@@ -3,6 +3,7 @@
 # Re-generate with: alef scaffold
 
 [build]
+target-dir = "../.cache/xberg-compact/target"
 incremental = true
 jobs = 4
 

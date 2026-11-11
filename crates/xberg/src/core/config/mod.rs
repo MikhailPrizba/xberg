@@ -34,7 +34,7 @@ pub mod sparse_embedding;
 pub mod summarization;
 pub mod transcription;
 pub mod translation;
-#[cfg(feature = "tree-sitter")]
+#[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
 pub mod tree_sitter;
 
 pub use acceleration::{AccelerationConfig, ExecutionProviderType};
@@ -77,7 +77,7 @@ pub use processing::{
 };
 pub use reranker::{RerankerConfig, RerankerHead, RerankerModelType};
 pub use sparse_embedding::{SparseEmbeddingConfig, SparseEmbeddingModelType};
-#[cfg(feature = "tree-sitter")]
+#[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
 pub use tree_sitter::{CodeContentMode, TreeSitterConfig, TreeSitterProcessConfig};
 
 pub use captioning::{CaptionAltTextMode, CaptioningConfig};

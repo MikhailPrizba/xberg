@@ -234,8 +234,11 @@ image-encode = ["dep:image"]
 # `language-detection`) depends only on `hashbrown`, so this is wasm/Android-safe -- both
 # `wasm-target` and `android-target` already carry `language-detection` independently via
 # `no-ort-target`. ~keep
-ocr-pipeline = ["dep:image", "image-encode", "dep:fast_image_resize", "language-detection"]
+image-metadata = ["dep:nom-exif"]
+ocr-pipeline = ["image-metadata", "dep:image", "image-encode", "dep:fast_image_resize", "language-detection"]
 
+tree-sitter-types = []
+classification-types = []
 tree-sitter = ["dep:tree-sitter-language-pack"]
 tree-sitter-wasm = ["tree-sitter"]
 
@@ -295,7 +298,9 @@ paddle-ocr-types = []
 # Per-model sub-features live in xberg-candle-ocr; enable them via
 # `--features candle-ocr,xberg-candle-ocr/trocr` or by depending on
 # xberg-candle-ocr directly with the sub-feature.
+candle-ocr-types = []
 candle-ocr = [
+    "candle-ocr-types",
     "dep:xberg-candle-ocr",
     "dep:image",
     "dep:hf-hub",

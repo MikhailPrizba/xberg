@@ -1,4 +1,5 @@
 [package]
+workspace = "../.."
 name = "xberg-libwpd"
 version.workspace = true
 edition.workspace = true

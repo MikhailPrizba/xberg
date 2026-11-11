@@ -9,7 +9,10 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+#[cfg(feature = "candle-ocr")]
 use xberg_candle_ocr::DevicePreference;
+#[cfg(not(feature = "candle-ocr"))]
+use CandleDevicePreference as DevicePreference;
 
 #[cfg(any(
     test,
@@ -31,6 +34,7 @@ pub enum CandleDevicePreference {
     Metal,
 }
 
+#[cfg(feature = "candle-ocr")]
 impl From<CandleDevicePreference> for DevicePreference {
     fn from(value: CandleDevicePreference) -> Self {
         match value {
@@ -42,6 +46,7 @@ impl From<CandleDevicePreference> for DevicePreference {
     }
 }
 
+#[cfg(feature = "candle-ocr")]
 impl From<DevicePreference> for CandleDevicePreference {
     fn from(value: DevicePreference) -> Self {
         match value {

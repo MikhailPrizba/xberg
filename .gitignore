@@ -152,7 +152,8 @@ packages/*/TestResults/
 # IDE / Editor
 .idea/
 *.iml
-.vscode/
+.vscode/*
+!.vscode/settings.json
 .run/
 .DS_store
 

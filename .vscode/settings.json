@@ -1,0 +1,21 @@
+{
+  "rust-analyzer.check.overrideCommand": [
+    "cargo",
+    "check",
+    "--message-format=json",
+    "--package",
+    "xberg-py",
+    "--features",
+    "extension-module"
+  ],
+  "rust-analyzer.cargo.buildScripts.overrideCommand": [
+    "cargo",
+    "check",
+    "--message-format=json",
+    "--package",
+    "xberg-py",
+    "--features",
+    "extension-module"
+  ],
+  "rust-analyzer.cargo.allTargets": false
+}

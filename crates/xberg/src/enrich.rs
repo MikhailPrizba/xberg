@@ -77,7 +77,7 @@ pub struct NerEnrichmentConfig {
 }
 
 /// Classification enrichment knob: how to label the document.
-#[cfg(feature = "classification")]
+#[cfg(any(feature = "classification", feature = "classification-types"))]
 pub struct ClassificationEnrichmentConfig {
     /// Label set and LLM settings for the classification stage.
     pub config: crate::core::config::PageClassificationConfig,
@@ -88,7 +88,7 @@ pub struct ClassificationEnrichmentConfig {
 /// Operates on `ExtractedDocument::chunks` in place — the caller must have
 /// already produced chunks (e.g. via `ExtractionConfig::chunking`) for this
 /// stage to have any effect; a document with no chunks is a no-op.
-#[cfg(feature = "classification")]
+#[cfg(any(feature = "classification", feature = "classification-types"))]
 pub struct ChunkClassificationEnrichmentConfig {
     /// Label-definition set and LLM/batching settings for the chunk-classification stage.
     pub config: crate::core::config::ChunkClassificationConfig,

@@ -456,7 +456,7 @@ pub struct ExtractionConfig {
     ///
     /// When set, enables code file extraction using tree-sitter parsers.
     /// Controls grammar download behavior and code analysis options.
-    #[cfg(feature = "tree-sitter")]
+    #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
     #[serde(default)]
     pub tree_sitter: Option<super::super::tree_sitter::TreeSitterConfig>,
 
@@ -643,7 +643,7 @@ impl Default for ExtractionConfig {
             concurrency: None,
             url: UrlExtractionConfig::default(),
             max_archive_depth: ExtractionConfig::default_archive_depth(),
-            #[cfg(feature = "tree-sitter")]
+            #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
             tree_sitter: None,
             structured_extraction: None,
             ner: None,
@@ -771,7 +771,7 @@ impl ExtractionConfig {
             #[cfg(feature = "transcription-types")]
             ref transcription,
             ref timeout_secs,
-            #[cfg(feature = "tree-sitter")]
+            #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
             ref tree_sitter,
             ref structured_extraction,
             ref url,
@@ -869,7 +869,7 @@ impl ExtractionConfig {
         if let Some(v) = timeout_secs {
             config.extraction_timeout_secs = Some(*v);
         }
-        #[cfg(feature = "tree-sitter")]
+        #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
         if let Some(v) = tree_sitter {
             config.tree_sitter = Some(v.clone());
         }

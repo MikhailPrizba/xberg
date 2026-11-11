@@ -10,23 +10,7 @@ alef_version = "0.129.1"
 # Alef 0.115.5 emits a redundant PathBuf conversion closure in the Dart bridge. ~keep
 # This supported allow-list applies only to generated Rust bindings. ~keep
 extra_clippy_allows = ["redundant_closure"]
-languages = [
-  "python",
-  "node",
-  "ruby",
-  "php",
-  "ffi",
-  "go",
-  "java",
-  "csharp",
-  "elixir",
-  "wasm",
-  "dart",
-  "jni",
-  "kotlin_android",
-  "swift",
-  "zig",
-]
+languages = ["python"]
 
 
 [workspace.tools]
@@ -1448,92 +1432,45 @@ sources = [
 ]
 
 features = [
-  "full",
   "pdf",
-  # GH#1863 reverses the decision recorded on `[crates.ffi].extra_features` below, for the
-  # bindings that inherit THIS array (python, node, ruby, php, elixir) only. That note keeps
-  # `pdf-pdfium` declare-only because the engine dlopen()s libpdfium at run time, so
-  # compiling it in hands a consumer a backend that fails with MissingDependency unless they
-  # install the library; leaving it out instead fails with "rebuild with --features
-  # pdf-pdfium", which is the better message of the two. The trade is real and is being taken
-  # the other way now because these five bindings ship prebuilt artifacts nobody can rebuild:
-  # `PdfBackend::Pdfium` is documented in every one of their generated API references, so the
-  # good error message was being paid for with an API surface that advertises a value no
-  # published wheel, addon or gem can honour. The install guide now names
-  # PDFIUM_DYNAMIC_LIB_PATH, which is what made the MissingDependency path actionable enough
-  # to accept. The feature compiles xberg-pdfium-render in and links nothing
-  # (crates/xberg-pdfium-render/build.rs is a no-op without PDFIUM_STATIC_LIB_PATH /
-  # PDFIUM_DYNAMIC_LIB_PATH); reported cost is +182 KB on an abi3 wheel. It does NOT reach
-  # the Windows or Intel-macOS artifacts, which build from the `windows-target` /
-  # `macos-intel-target` aggregates, nor wasm/android/ios, which cannot dlopen at all. ~keep
-  "pdf-pdfium",
-  "ocr",
-  "paddle-ocr",
-  "paddle-ocr-types",
-  "layout-detection",
+  "office",
+  "excel",
+  "html",
+  "xml",
+  "email",
+  "ocr-pipeline",
+  "tokio-runtime",
+  "simd-utf8",
+  "auto-rotate-types",
   "layout-types",
-  "embeddings",
+  "paddle-ocr-types",
   "embedding-presets",
-  "reranker",
   "reranker-presets",
-  "sparse-embeddings",
   "sparse-embedding-presets",
-  "late-interaction",
   "late-interaction-presets",
+  "transcription-types",
+  "url-config-types",
+  "api-types",
+  "candle-ocr-types",
   "chunking",
   "keywords-yake",
   "keywords-rake",
-  "language-detection",
-  "html",
-  "tree-sitter",
-  "office",
-  "email",
-  "archives",
-  "stopwords",
-  "auto-rotate",
-  "auto-rotate-types",
-  "tokio-runtime",
-  "api",
-  "api-types",
-  "mcp",
-  "liter-llm",
   "quality",
-  # alef-emitted `#[cfg(feature = "X")]` arms in binding lib.rs don't trip
-  "svg",
-  "transcription",
-  "transcription-types",
-  "classification",
-  "captioning",
-  "formula-recognition",
-  "ner-onnx",
-  "ner-llm",
-  "diff",
-  "markdown-footnotes",
   "redaction",
+  "redaction-rehydrate",
+  "diff",
   "enrichment",
   "heuristics",
   "presets",
-  "structured",
-  "url-ingestion",
+  "markdown-footnotes",
+  "tree-sitter-types",
+  "classification-types",
+  "svg"
 ]
 
 # Keep these published native-wrapper Cargo feature names even when their only Rust
 # cfg-gated symbols are intentionally excluded from generated binding surfaces. ~keep
-wrapper_default_features = [
-  "captioning",
-  "chunking",
-  "embeddings",
-  "formula-recognition",
-  "liter-llm",
-  "mcp",
-  "mcp-http",
-  "ner-onnx",
-  "paddle-ocr-types",
-  "redaction-rehydrate",
-  "sparse-embeddings",
-  "tokio-runtime",
-  "transcription",
-]
+wrapper_default_features = ["pdf", "office", "html", "xml", "tokio-runtime", "auto-rotate-types", "layout-types", "paddle-ocr-types", "embedding-presets", "reranker-presets", "sparse-embedding-presets", "late-interaction-presets", "transcription-types", "url-config-types", "api-types", "chunking", "keywords-yake", "keywords-rake", "quality", "redaction", "redaction-rehydrate", "diff", "heuristics", "presets", "markdown-footnotes", "svg", "tree-sitter-types", "classification-types", "candle-ocr-types"]
 
 [[crates.source_crates]]
 name = "crawlberg"
@@ -1616,16 +1553,6 @@ output = "packages/python/xberg/"
 # core `xberg` crate. It must NOT be copied to `[[crates.swift.ffi_target_dep_overrides]]`,
 # which governs the dep on `xberg-ffi` — a crate that has no `simd-utf8` feature at
 # all, so listing it there makes the generated swift manifest fail to resolve. ~keep
-[[crates.python.target_dep_overrides]]
-cfg = 'target_os = "windows"'
-features = ["windows-target", "simd-utf8"]
-default_features = false
-
-[[crates.python.target_dep_overrides]]
-cfg = 'all(target_os = "macos", target_arch = "x86_64")'
-features = ["macos-intel-target", "simd-utf8"]
-default_features = false
-
 [crates.node]
 package_name = "@xberg-io/xberg"
 # Intel macOS (darwin-x64) is dropped: Microsoft ships no x86_64-macOS ONNX

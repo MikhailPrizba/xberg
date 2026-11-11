@@ -117,7 +117,7 @@ pub enum FormatMetadata {
     /// map to live in. Wrapping a struct gives serde a map to hold the tag, and keeps this
     /// variant shape consistent with every sibling (`Variant(XMetadata)`) so the derived
     /// OpenAPI discriminator can reference a named component schema.
-    #[cfg(feature = "tree-sitter")]
+    #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
     Code(CodeMetadata),
 }
 
@@ -126,7 +126,7 @@ pub enum FormatMetadata {
 /// Wrapped by [`FormatMetadata::Code`]. Kept as a named struct (rather than an inline
 /// enum-variant body) so serde can tag it under internal tagging and utoipa can emit a
 /// referenceable `CodeMetadata` component in the OpenAPI schema.
-#[cfg(feature = "tree-sitter")]
+#[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 pub struct CodeMetadata {
@@ -144,7 +144,7 @@ pub struct CodeMetadata {
 /// Purpose-built payload owned by xberg — deliberately does not expose the upstream
 /// `tree_sitter_language_pack` types, so binding generators never need to resolve an
 /// external crate's types across FFI/language boundaries.
-#[cfg(feature = "tree-sitter")]
+#[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 pub struct CodeChunkInfo {
@@ -166,7 +166,7 @@ pub struct CodeChunkInfo {
 /// Purpose-built mirror of `tree_sitter_language_pack::DataNodeKind` — kept as an
 /// xberg-owned type so binding generators never need to resolve the upstream crate's
 /// types across FFI/language boundaries.
-#[cfg(feature = "tree-sitter")]
+#[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
@@ -186,7 +186,7 @@ pub enum CodeDataNodeKind {
 ///
 /// Populated only for `CodeDataNodeKind::Element`; always empty for `KeyValue` and
 /// `Sequence` nodes.
-#[cfg(feature = "tree-sitter")]
+#[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 pub struct CodeDataAttribute {
@@ -206,7 +206,7 @@ pub struct CodeDataAttribute {
 /// `tree_sitter_language_pack::DataNode` but flattens its `Span` down to plain byte
 /// offsets, so binding generators never need to resolve an external crate's types
 /// across FFI/language boundaries.
-#[cfg(feature = "tree-sitter")]
+#[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[cfg_attr(feature = "api", schema(no_recursion))]
@@ -291,7 +291,7 @@ impl std::fmt::Display for FormatMetadata {
             Self::Pst(_) => f.write_str("pst"),
             #[cfg(feature = "transcription-types")]
             Self::Audio(_) => f.write_str("audio"),
-            #[cfg(feature = "tree-sitter")]
+            #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
             Self::Code(_) => f.write_str("code"),
         }
     }
@@ -340,7 +340,7 @@ impl utoipa::PartialSchema for FormatMetadata {
                     ("pst", "#/components/schemas/PstMetadata"),
                     #[cfg(feature = "transcription-types")]
                     ("audio", "#/components/schemas/AudioMetadata"),
-                    #[cfg(feature = "tree-sitter")]
+                    #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
                     ("code", "#/components/schemas/CodeMetadata"),
                 ],
             )));
@@ -390,9 +390,9 @@ impl utoipa::PartialSchema for FormatMetadata {
             #[cfg(not(feature = "transcription-types"))]
             let builder = builder;
 
-            #[cfg(feature = "tree-sitter")]
+            #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
             let builder = builder.item(Ref::from_schema_name("CodeMetadata"));
-            #[cfg(not(feature = "tree-sitter"))]
+            #[cfg(not(any(feature = "tree-sitter", feature = "tree-sitter-types")))]
             let builder = builder;
 
             builder
@@ -440,7 +440,7 @@ impl utoipa::ToSchema for FormatMetadata {
         push_schema!(PstMetadata);
         #[cfg(feature = "transcription-types")]
         push_schema!(AudioMetadata);
-        #[cfg(feature = "tree-sitter")]
+        #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
         push_schema!(CodeMetadata);
     }
 }

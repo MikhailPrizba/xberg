@@ -158,7 +158,7 @@ pub struct FileExtractionConfig {
     pub timeout_secs: Option<u64>,
 
     /// Override tree-sitter configuration for this file.
-    #[cfg(feature = "tree-sitter")]
+    #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tree_sitter: Option<super::super::tree_sitter::TreeSitterConfig>,
 
