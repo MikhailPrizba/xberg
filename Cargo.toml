@@ -1,20 +1,17 @@
+# Maintained compact extraction fork; see compact-profile.json.
+
 [workspace]
 members = [
     "crates/xberg",
     "crates/xberg-native-pdf",
-    "crates/xberg-py"
+    "crates/xberg-py",
 ]
 exclude = [
-    "crates/xberg-candle-ocr",
-    "crates/xberg-gliner",
-    "crates/xberg-libheif",
-    "crates/xberg-libwpd",
-    "crates/xberg-paddle-ocr",
     "crates/xberg-pdfium-render",
-    "crates/xberg-tesseract",
-    "vendored/sysinfo"
 ]
-default-members = ["crates/xberg-py"]
+default-members = [
+    "crates/xberg-py",
+]
 resolver = "2"
 
 [workspace.package]
@@ -22,8 +19,8 @@ version = "1.4.0"
 edition = "2024"
 rust-version = "1.99"
 authors = [
-  "Na'aman Hirschfeld <naaman@xberg.io>",
-  "Tobias Perlstein <tobias@xberg.io>",
+    "Na'aman Hirschfeld <naaman@xberg.io>",
+    "Tobias Perlstein <tobias@xberg.io>",
 ]
 license = "MIT"
 repository = "https://github.com/xberg-io/xberg"
@@ -31,167 +28,135 @@ homepage = "https://xberg.io"
 
 [workspace.lints.rust]
 unsafe_code = "deny"
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(alef)', 'cfg(feature, values("alef-meta"))'] }
+
+[workspace.lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = [
+    "cfg(alef)",
+    "cfg(feature, values(\"alef-meta\"))",
+    "cfg(feature, values(\"analysis\", \"android-target\", \"api\", \"archives\", \"auto-rotate\", \"auto-rotate-tract\", \"bedrock\", \"bundle-tessdata-eng\", \"candle-accelerate\", \"candle-cuda\", \"candle-deepseek-ocr\", \"candle-glm-ocr\", \"candle-metal\", \"candle-mkl\", \"candle-ocr\", \"candle-paddleocr-vl\", \"candle-trocr\", \"candle-vlm-ocr\", \"captioning\", \"chunking-tokenizers\", \"classification\", \"classification-onnx\", \"classification-onnx-types\", \"cli\", \"coreml\", \"cuda\", \"embeddings\", \"excel-wasm\", \"formats\", \"formats-no-heic\", \"formula-recognition\", \"full\", \"full-no-heic\", \"heic\", \"hwp\", \"hwpx\", \"iwork\", \"keywords\", \"late-interaction\", \"layout-detection\", \"layout-tract\", \"liter-llm\", \"macos-intel-target\", \"mcp\", \"mcp-http\", \"mdx\", \"mobile\", \"ner\", \"ner-candle\", \"ner-candle-backend\", \"ner-candle-wasm\", \"ner-llm\", \"ner-onnx\", \"no-ort-target\", \"ocr\", \"ocr-wasm\", \"onnx-runtime\", \"ort-bundled\", \"ort-dynamic\", \"otel\", \"paddle-ocr\", \"paddle-ocr-ort\", \"paddle-ocr-tract\", \"profiling\", \"prometheus\", \"qr-codes\", \"redaction-ml\", \"reranker\", \"sceptre-ocr\", \"sceptre-ocr-candle\", \"sceptre-ocr-candle-cuda\", \"sceptre-ocr-candle-metal\", \"sceptre-ocr-ort\", \"sceptre-ocr-tract\", \"sceptre-wasm\", \"server\", \"services\", \"sparse-embeddings\", \"sqlite\", \"static-embeddings\", \"structured\", \"summarization\", \"summarization-llm\", \"tensorrt\", \"tesseract-dynamic\", \"tower-service\", \"tract\", \"transcription\", \"translation\", \"tree-sitter\", \"tree-sitter-wasm\", \"url-ingestion\", \"url-ingestion-browser\", \"wasm-target\", \"windows-gnu-target\", \"windows-target\", \"wordperfect\"))",
+]
 
 [workspace.lints.clippy]
-all = { level = "warn", priority = -1 }
-# Diagnostics belong in `tracing` (stderr), not raw stdout/stderr writes. The CLI's
-# actual data output opts back in locally via `#[expect(clippy::print_stdout)]`;
-# build-script `cargo:` directives are exempt natively. ~keep
 print_stdout = "deny"
 print_stderr = "deny"
 dbg_macro = "deny"
 
+[workspace.lints.clippy.all]
+level = "warn"
+priority = -1
+
 [workspace.dependencies]
-ahash = { version = "0.8.12", features = ["serde"] }
-anyhow = "1.0"
 async-trait = "0.1.92"
 base64 = "0.23.1"
 blake3 = "1"
-bytes = { version = "1", features = ["serde"] }
-candle-core = { version = "0.11.1", default-features = false }
-candle-nn = { version = "0.11.1", default-features = false }
-candle-transformers = { version = "0.11.1", default-features = false }
-cc = "1.11"
 cfb = "0.16"
 chrono = "0.4"
-clap = { version = "4.6", features = ["derive", "color", "suggestions"] }
-comrak = { version = "0.59", default-features = false }
-console_error_panic_hook = "0.1"
-crawlberg = { version = "1.13.0", default-features = false }
-criterion = { version = "0.8", features = ["html_reports"] }
 dbase = "0.8"
-flate2 = "1.1"
-fs2 = "0.4.3"
 futures = "0.3"
-getrandom = { version = "0.4.3", features = ["wasm_js"] }
 hex = "0.4.3"
-html-to-markdown-rs = { version = "3.22.0", default-features = false }
-image = { version = "0.25.10", default-features = false }
 itertools = "0.15"
-js-sys = "0.3"
-
-lazy_static = "1.5.1"
 libc = "0.2.191"
-# Builds a bundled zlib from source (`static`) for the target, so the vendored
-# librevenge RVNGZipStream.cpp can `#include <zlib.h>` and link zlib even under
-# cross-compilation (zigbuild aarch64/musl) where no host libz is usable.
-# Only consumed by crates/xberg-libwpd. ~keep
-libz-sys = { version = "1.1", features = ["static"] }
-liter-llm = { version = "2.7.0", default-features = false }
-# `std` is NOT a default feature of `log`. `pdf::render`'s glyph-drop warning capture
-# calls `log::set_boxed_logger`, which only exists behind it, so a feature set that
-# happens not to pull `log/std` in transitively fails to compile (`pdf` without `ocr`
-# did exactly that). Requesting it here makes the requirement explicit instead of
-# leaving it to whichever unrelated crate enables it first.
-log = { version = "0.4", features = ["std"] }
 memmap2 = "0.9"
 mime = "0.3.18"
-minijinja = "3"
-nom-exif = { version = "3.8", default-features = false }
 num_cpus = "1.17.0"
 once_cell = "1.21.4"
-
-ort = { version = "2.0.0-rc.15", default-features = false, features = ["std", "api-18"] }
 parking_lot = "0.13.0"
-# Our fork of pdfium-render. `package =` keeps the extern crate name `pdfium_render`
-# (matches the `[lib] name = "pdfium_render"` in crates/xberg-pdfium-render/Cargo.toml),
-# so any `use pdfium_render::...` call site is unaffected. Path dependency inside the
-# workspace; needs no [patch.crates-io] entry (see the note above that block).
-pdfium-render = { package = "xberg-pdfium-render", path = "./crates/xberg-pdfium-render", version = "1.4.0" }
 rayon = "1.12.0"
-reqwest = { version = "0.13.5", default-features = false }
-# SVG rendering (resvg re-exports tiny_skia and usvg; default-features = false
-# drops text, system-fonts, memmap-fonts, raster-images — all pure-Rust, WASM-safe).
-resvg = { version = "0.49", default-features = false }
-rusqlite = { version = "0.41", default-features = false, features = ["bundled", "hooks", "serialize"] }
-same-file = "1.0.6"
-sceptre = { version = "0.10.1", default-features = false }
-
-serde = { version = "1.0.229", features = ["derive"] }
-serde_json = { version = "1.0.154" }
 serde_toon_format = "0.2"
 sha2 = "0.11"
 similar = "3"
-sqlite-vec = "0.1"
-tar = "0.4"
 tempfile = "3.27.0"
 thiserror = "2.0.21"
-# `process`, `fs`, and `rt-multi-thread` are deliberately excluded from this baseline: tokio's
-# own wasm32 gate (tokio-1.x src/lib.rs) hard-`compile_error!`s unless only
-# sync/macros/io-util/rt/time are active (`process` additionally pulls mio's
-# `net`/`os-poll`/`os-ext`, which fails to build on wasm32 regardless). These OS-dependent
-# features are re-added only on consuming crates' `[target.'cfg(not(target_arch =
-# "wasm32"))'.dependencies]` blocks (see crates/xberg/Cargo.toml and crates/xberg-cli/Cargo.toml).
-tokio = { version = "1.54.1", features = [
+toml = "1.2.1"
+tracing = "0.1"
+url = "2.5.8"
+
+[workspace.dependencies.ahash]
+version = "0.8.12"
+features = [
+    "serde",
+]
+
+[workspace.dependencies.bytes]
+version = "1"
+features = [
+    "serde",
+]
+
+[workspace.dependencies.comrak]
+version = "0.59"
+default-features = false
+
+[workspace.dependencies.crawlberg]
+version = "1.13.0"
+default-features = false
+
+[workspace.dependencies.criterion]
+version = "0.8"
+features = [
+    "html_reports",
+]
+
+[workspace.dependencies.html-to-markdown-rs]
+version = "3.22.0"
+default-features = false
+
+[workspace.dependencies.image]
+version = "0.25.10"
+default-features = false
+
+[workspace.dependencies.log]
+version = "0.4"
+features = [
+    "std",
+]
+
+[workspace.dependencies.nom-exif]
+version = "3.8"
+default-features = false
+
+[workspace.dependencies.pdfium-render]
+package = "xberg-pdfium-render"
+path = "./crates/xberg-pdfium-render"
+version = "1.4.0"
+
+[workspace.dependencies.resvg]
+version = "0.49"
+default-features = false
+
+[workspace.dependencies.serde]
+version = "1.0.229"
+features = [
+    "derive",
+]
+
+[workspace.dependencies.serde_json]
+version = "1.0.154"
+
+[workspace.dependencies.tokio]
+version = "1.54.1"
+features = [
     "rt",
     "macros",
     "sync",
     "time",
     "io-util",
-] }
-toml = "1.2.1"
-tracing = "0.1"
-# Pure-Rust ONNX inference engine (Sonos). Alternative InferenceBackend to `ort` on
-# no-ORT targets (wasm32, x86_64-linux-android). The ONNX frontend crate is CPU-only
-# and WASM-safe; the top-level `tract` facade instead defaults to CUDA and bundles
-# GPU backends, so it is unusable here. See issue #1275.
-tract-onnx = { version = "0.23.10", default-features = false }
-tree-sitter-language-pack = { version = "1.25.0", default-features = false, features = ["serde"] }
-url = "2.5.8"
-# usvg (re-exported by resvg) with only the `writer` feature so `Tree::to_string`
-# / `WriteOptions` are available for SVG sanitize re-serialization. `writer` pulls
-# just xmlwriter + base64 — pure-Rust, WASM-safe, no fonts. resvg forwards no
-# `writer` feature, so usvg is enabled directly at the matching version. ~keep
-usvg = { version = "0.49", default-features = false, features = ["writer"] }
-wasm-bindgen = { version = "0.2", features = ["enable-interning"] }
-wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = [
-    "Blob",
-    "File",
-    "FileReader",
-    "console",
-    "TextDecoder",
-    "ImageData",
-    "Window",
-    "Response",
-] }
-xberg = { path = "./crates/xberg", version = "1.4.0", default-features = false }
-xberg-gliner = { path = "./crates/xberg-gliner", version = "1.4.0", default-features = false }
-# The native PDF engine, vendored into this workspace at crates/xberg-native-pdf. It began as
-# a fork of a third-party project; see ATTRIBUTIONS.md, which is now the ONLY place in this
-# repo that names the upstream. There is deliberately no `package =` alias: the extern crate
-# name is the real one, so `use xberg_native_pdf::...` at every call site, and the tracing log
-# target (`module_path!()`, rooted at `[lib] name`) matches the crate you are reading. An alias
-# hiding a different lib name is what cost twelve days of dropped font warnings in GH#697.
-# Path dependency inside the workspace; needs no [patch.crates-io] entry.
-xberg-native-pdf = { path = "./crates/xberg-native-pdf", version = "1.4.0" }
+]
 
-[patch.crates-io]
-# Out-of-tree overrides are forbidden here: CI and standalone documentation snippets
-# must resolve the same source as local builds. ~keep
-#
-# The liter-llm entry that lived here is gone: the in-flight provider-request limiter
-# (GH#1465) shipped in liter-llm 1.18.0, which is now on crates.io, and the requirement above
-# was bumped to 1.18.0 in the same commit that deleted the override -- doing only one of the
-# two would silently resolve a liter-llm with no `in_flight_limit` field.
-#
-# The native PDF engine needs no entry: it is a workspace member at crates/xberg-native-pdf
-# and resolves by path (see the note above that dependency).
+[workspace.dependencies.usvg]
+version = "0.49"
+default-features = false
+features = [
+    "writer",
+]
 
-# Xet 1.7.1 still requires sysinfo 0.39; keep its iOS compatibility fix local
-# until that dependency chain accepts a published version with the fix. ~keep
-sysinfo = { path = "vendored/sysinfo" }
+[workspace.dependencies.xberg-native-pdf]
+path = "./crates/xberg-native-pdf"
+version = "1.4.0"
 
-# The five entries below are self-patches of our own workspace members, which are already
-# declared as `path = ..., version = ...` deps -- so path resolution wins locally with or
-# without them. They only bite if some third-party crates.io dependency ever depends on
-# `xberg*`. Left in place deliberately; see task #751 before removing. ~keep
-xberg = { path = "crates/xberg" }
-xberg-gliner = { path = "crates/xberg-gliner" }
-xberg-tesseract = { path = "crates/xberg-tesseract" }
-xberg-paddle-ocr = { path = "crates/xberg-paddle-ocr" }
-xberg-candle-ocr = { path = "crates/xberg-candle-ocr" }
+[patch.crates-io.xberg]
+path = "crates/xberg"
 
 [profile.release]
 lto = "thin"
@@ -199,32 +164,9 @@ codegen-units = 16
 opt-level = 3
 strip = true
 
-# Archive crates crash with SIGBUS under opt-level=3 on macOS ARM64.
-# Reduce optimization to prevent miscompilation of unsafe code.
-# sevenz-rust2 requires opt-level=1 specifically (opt-level=2 still SIGBUS'd in go:e2e).
-# Retained under `lto = "fat"`: a local 7z round-trip passes at opt-level=3, but the crash was
-# only ever observed through go:e2e's cgo boundary, which that probe does not cover.
-[profile.release.package.sevenz-rust2]
-opt-level = 1
-
 [profile.release.package.zip]
-opt-level = 2
-
-[profile.release-musl]
-inherits = "release"
-lto = "thin"
-
-[profile.release-musl.package.sevenz-rust2]
-opt-level = 1
-
-[profile.release-musl.package.zip]
 opt-level = 2
 
 [profile.dev]
 opt-level = 0
 debug = true
-
-[profile.profiling]
-inherits = "release"
-debug = true
-strip = false

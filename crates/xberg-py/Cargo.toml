@@ -1,101 +1,252 @@
-# Maintained compact Python binding; see compact-profile.json.
+# Maintained compact extraction fork; see compact-profile.json.
 
 [package]
 name = "xberg-py"
-version.workspace = true
 edition = "2024"
-authors.workspace = true
-license.workspace = true
 description = "High-performance document intelligence library"
 readme = false
-keywords = ["document", "extraction", "ocr", "pdf", "text"]
+keywords = [
+    "document",
+    "extraction",
+    "ocr",
+    "pdf",
+    "text",
+]
 categories = []
 
-# `pyo3-async-runtimes` and `serde_json` are emitted unconditionally above so
-# the manifest is stable across regens, but for umbrella crates with no
-# async fns or no JSON-marshalled return types they are genuinely unused.
-# The conditional `async-trait` / `tokio` / `futures` deps are similarly
-# flagged when the umbrella has trait-bridge / streaming adapters configured
-# but no actual async-trait / async callsite in the generated PyO3 shim.
+[package.version]
+workspace = true
+
+[package.authors]
+workspace = true
+
+[package.license]
+workspace = true
+
 [package.metadata.cargo-machete]
-ignored = ["pyo3-async-runtimes", "serde_json", "async-trait", "tracing", "tokio"]
+ignored = [
+    "pyo3-async-runtimes",
+    "serde_json",
+    "async-trait",
+    "tracing",
+    "tokio",
+]
 
 [lib]
 name = "_xberg"
-crate-type = ["cdylib"]
+crate-type = [
+    "cdylib",
+]
 
 [features]
-tree-sitter-types = ["xberg/tree-sitter-types"]
-classification-types = ["xberg/classification-types"]
-candle-ocr-types = ["xberg/candle-ocr-types"]
-extension-module = ["pyo3/extension-module", "pyo3/abi3-py311"]
-
-default = ["pdf", "office", "html", "xml", "tokio-runtime", "auto-rotate-types", "layout-types", "paddle-ocr-types", "embedding-presets", "reranker-presets", "sparse-embedding-presets", "late-interaction-presets", "transcription-types", "url-config-types", "api-types", "chunking", "keywords-yake", "keywords-rake", "quality", "redaction", "redaction-rehydrate", "diff", "heuristics", "presets", "markdown-footnotes", "svg", "tree-sitter-types", "classification-types", "candle-ocr-types"]
-api = ["xberg/api"]
-api-types = ["xberg/api-types"]
-auto-rotate-types = ["xberg/auto-rotate-types"]
-candle-ocr = ["xberg/candle-ocr"]
-captioning = ["xberg/captioning"]
-chunking = ["xberg/chunking"]
-chunking-tokenizers = ["xberg/chunking-tokenizers"]
-classification = ["xberg/classification"]
-diff = ["xberg/diff"]
-embedding-presets = ["xberg/embedding-presets"]
-embeddings = ["xberg/embeddings"]
-formula-recognition = ["xberg/formula-recognition"]
-heuristics = ["xberg/heuristics"]
-html = ["xberg/html"]
-keywords-rake = ["xberg/keywords-rake"]
-keywords-yake = ["xberg/keywords-yake"]
-late-interaction = ["xberg/late-interaction"]
-late-interaction-presets = ["xberg/late-interaction-presets"]
-layout-detection = ["xberg/layout-detection"]
-layout-types = ["xberg/layout-types"]
-liter-llm = ["xberg/liter-llm"]
-markdown-footnotes = ["xberg/markdown-footnotes"]
-mcp = ["xberg/mcp"]
-mcp-http = ["xberg/mcp-http"]
-ner-onnx = ["xberg/ner-onnx"]
-ocr = ["xberg/ocr"]
-ocr-wasm = ["xberg/ocr-wasm"]
-office = ["xberg/office"]
-paddle-ocr-types = ["xberg/paddle-ocr-types"]
-pdf = ["xberg/pdf"]
-presets = ["xberg/presets"]
-quality = ["xberg/quality"]
-redaction = ["xberg/redaction"]
-redaction-rehydrate = ["xberg/redaction-rehydrate"]
-reranker = ["xberg/reranker"]
-reranker-presets = ["xberg/reranker-presets"]
-sparse-embedding-presets = ["xberg/sparse-embedding-presets"]
-sparse-embeddings = ["xberg/sparse-embeddings"]
-svg = ["xberg/svg"]
-tokio-runtime = ["xberg/tokio-runtime"]
-transcription = ["xberg/transcription"]
-transcription-types = ["xberg/transcription-types"]
-tree-sitter = ["xberg/tree-sitter"]
-url-config-types = ["xberg/url-config-types"]
-url-ingestion = ["xberg/url-ingestion"]
-xml = ["xberg/xml"]
+tree-sitter-types = [
+    "xberg/tree-sitter-types",
+]
+classification-types = [
+    "xberg/classification-types",
+]
+candle-ocr-types = [
+    "xberg/candle-ocr-types",
+]
+extension-module = [
+    "pyo3/extension-module",
+    "pyo3/abi3-py311",
+]
+default = [
+    "pdf",
+    "office",
+    "html",
+    "xml",
+    "tokio-runtime",
+    "auto-rotate-types",
+    "layout-types",
+    "paddle-ocr-types",
+    "embedding-presets",
+    "reranker-presets",
+    "sparse-embedding-presets",
+    "late-interaction-presets",
+    "transcription-types",
+    "url-config-types",
+    "api-types",
+    "chunking",
+    "keywords-yake",
+    "keywords-rake",
+    "quality",
+    "redaction",
+    "redaction-rehydrate",
+    "diff",
+    "heuristics",
+    "presets",
+    "markdown-footnotes",
+    "svg",
+    "tree-sitter-types",
+    "classification-types",
+    "candle-ocr-types",
+]
+api-types = [
+    "xberg/api-types",
+]
+auto-rotate-types = [
+    "xberg/auto-rotate-types",
+]
+chunking = [
+    "xberg/chunking",
+]
+diff = [
+    "xberg/diff",
+]
+embedding-presets = [
+    "xberg/embedding-presets",
+]
+heuristics = [
+    "xberg/heuristics",
+]
+html = [
+    "xberg/html",
+]
+keywords-rake = [
+    "xberg/keywords-rake",
+]
+keywords-yake = [
+    "xberg/keywords-yake",
+]
+late-interaction-presets = [
+    "xberg/late-interaction-presets",
+]
+layout-types = [
+    "xberg/layout-types",
+]
+markdown-footnotes = [
+    "xberg/markdown-footnotes",
+]
+office = [
+    "xberg/office",
+]
+paddle-ocr-types = [
+    "xberg/paddle-ocr-types",
+]
+pdf = [
+    "xberg/pdf",
+]
+presets = [
+    "xberg/presets",
+]
+quality = [
+    "xberg/quality",
+]
+redaction = [
+    "xberg/redaction",
+]
+redaction-rehydrate = [
+    "xberg/redaction-rehydrate",
+]
+reranker-presets = [
+    "xberg/reranker-presets",
+]
+sparse-embedding-presets = [
+    "xberg/sparse-embedding-presets",
+]
+svg = [
+    "xberg/svg",
+]
+tokio-runtime = [
+    "xberg/tokio-runtime",
+]
+transcription-types = [
+    "xberg/transcription-types",
+]
+url-config-types = [
+    "xberg/url-config-types",
+]
+xml = [
+    "xberg/xml",
+]
+pdf-pdfium = [
+    "xberg/pdf-pdfium",
+]
 
 [dependencies]
 async-trait = "0.1"
-crawlberg = { default-features = false, version = "1.13.0" }
-html-to-markdown-rs = { default-features = false, version = "3.22.0" }
-pyo3 = { version = "0.30" }
-pyo3-async-runtimes = { version = "0.30", features = ["tokio-runtime"] }
-serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["rt-multi-thread"] }
 tracing = "0.1"
 
-xberg = { version = "1.4.0", path = "../xberg", default-features = false, features = ["pdf", "office", "excel", "html", "xml", "email", "ocr-pipeline", "tokio-runtime", "simd-utf8", "auto-rotate-types", "layout-types", "paddle-ocr-types", "embedding-presets", "reranker-presets", "sparse-embedding-presets", "late-interaction-presets", "transcription-types", "url-config-types", "api-types", "candle-ocr-types", "chunking", "keywords-yake", "keywords-rake", "quality", "redaction", "redaction-rehydrate", "diff", "enrichment", "heuristics", "presets", "markdown-footnotes", "tree-sitter-types", "classification-types", "svg"] }
+[dependencies.crawlberg]
+default-features = false
+version = "1.13.0"
 
-# This crate deliberately does not use `[lints]` / `workspace = true`: its C-ABI /
-# PyO3 / napi / ext-php-rs / NIF boundary requires `unsafe` code. Local lint tables
-# avoid inheriting workspace policies that could reject these boundaries, and select
-# the lints this binding can actually satisfy. ~keep
+[dependencies.html-to-markdown-rs]
+default-features = false
+version = "3.22.0"
+
+[dependencies.pyo3]
+version = "0.30"
+
+[dependencies.pyo3-async-runtimes]
+version = "0.30"
+features = [
+    "tokio-runtime",
+]
+
+[dependencies.serde]
+version = "1"
+features = [
+    "derive",
+]
+
+[dependencies.tokio]
+version = "1"
+features = [
+    "rt-multi-thread",
+]
+
+[dependencies.xberg]
+version = "1.4.0"
+path = "../xberg"
+default-features = false
+features = [
+    "pdf",
+    "office",
+    "excel",
+    "html",
+    "xml",
+    "email",
+    "ocr-pipeline",
+    "tokio-runtime",
+    "simd-utf8",
+    "auto-rotate-types",
+    "layout-types",
+    "paddle-ocr-types",
+    "embedding-presets",
+    "reranker-presets",
+    "sparse-embedding-presets",
+    "late-interaction-presets",
+    "transcription-types",
+    "url-config-types",
+    "api-types",
+    "candle-ocr-types",
+    "chunking",
+    "keywords-yake",
+    "keywords-rake",
+    "quality",
+    "redaction",
+    "redaction-rehydrate",
+    "diff",
+    "enrichment",
+    "heuristics",
+    "presets",
+    "markdown-footnotes",
+    "tree-sitter-types",
+    "classification-types",
+    "svg",
+]
+
 [lints.clippy]
 dbg_macro = "deny"
 print_stderr = "deny"
 print_stdout = "deny"
+
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = [
+    "cfg(feature, values(\"analysis\", \"android-target\", \"api\", \"archives\", \"auto-rotate\", \"auto-rotate-tract\", \"bedrock\", \"bundle-tessdata-eng\", \"candle-accelerate\", \"candle-cuda\", \"candle-deepseek-ocr\", \"candle-glm-ocr\", \"candle-metal\", \"candle-mkl\", \"candle-ocr\", \"candle-paddleocr-vl\", \"candle-trocr\", \"candle-vlm-ocr\", \"captioning\", \"chunking-tokenizers\", \"classification\", \"classification-onnx\", \"classification-onnx-types\", \"cli\", \"coreml\", \"cuda\", \"embeddings\", \"excel-wasm\", \"formats\", \"formats-no-heic\", \"formula-recognition\", \"full\", \"full-no-heic\", \"heic\", \"hwp\", \"hwpx\", \"iwork\", \"keywords\", \"late-interaction\", \"layout-detection\", \"layout-tract\", \"liter-llm\", \"macos-intel-target\", \"mcp\", \"mcp-http\", \"mdx\", \"mobile\", \"ner\", \"ner-candle\", \"ner-candle-backend\", \"ner-candle-wasm\", \"ner-llm\", \"ner-onnx\", \"no-ort-target\", \"ocr\", \"ocr-wasm\", \"onnx-runtime\", \"ort-bundled\", \"ort-dynamic\", \"otel\", \"paddle-ocr\", \"paddle-ocr-ort\", \"paddle-ocr-tract\", \"profiling\", \"prometheus\", \"qr-codes\", \"redaction-ml\", \"reranker\", \"sceptre-ocr\", \"sceptre-ocr-candle\", \"sceptre-ocr-candle-cuda\", \"sceptre-ocr-candle-metal\", \"sceptre-ocr-ort\", \"sceptre-ocr-tract\", \"sceptre-wasm\", \"server\", \"services\", \"sparse-embeddings\", \"sqlite\", \"static-embeddings\", \"structured\", \"summarization\", \"summarization-llm\", \"tensorrt\", \"tesseract-dynamic\", \"tower-service\", \"tract\", \"transcription\", \"translation\", \"tree-sitter\", \"tree-sitter-wasm\", \"url-ingestion\", \"url-ingestion-browser\", \"wasm-target\", \"windows-gnu-target\", \"windows-target\", \"wordperfect\"))",
+]

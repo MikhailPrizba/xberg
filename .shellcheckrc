@@ -1,3 +1,0 @@
-# Disable SC1091: Not following sourced files
-# This is expected for shared utility libraries in scripts/lib/
-disable=SC1091

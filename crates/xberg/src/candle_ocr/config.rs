@@ -9,9 +9,6 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[cfg(feature = "candle-ocr")]
-use xberg_candle_ocr::DevicePreference;
-#[cfg(not(feature = "candle-ocr"))]
 use CandleDevicePreference as DevicePreference;
 
 #[cfg(any(
@@ -34,29 +31,7 @@ pub enum CandleDevicePreference {
     Metal,
 }
 
-#[cfg(feature = "candle-ocr")]
-impl From<CandleDevicePreference> for DevicePreference {
-    fn from(value: CandleDevicePreference) -> Self {
-        match value {
-            CandleDevicePreference::Auto => Self::Auto,
-            CandleDevicePreference::Cpu => Self::Cpu,
-            CandleDevicePreference::Cuda => Self::Cuda,
-            CandleDevicePreference::Metal => Self::Metal,
-        }
-    }
-}
 
-#[cfg(feature = "candle-ocr")]
-impl From<DevicePreference> for CandleDevicePreference {
-    fn from(value: DevicePreference) -> Self {
-        match value {
-            DevicePreference::Auto => Self::Auto,
-            DevicePreference::Cpu => Self::Cpu,
-            DevicePreference::Cuda => Self::Cuda,
-            DevicePreference::Metal => Self::Metal,
-        }
-    }
-}
 
 /// TrOCR model variant accepted by `candle-trocr` backend options.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]

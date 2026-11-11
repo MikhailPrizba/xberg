@@ -77,14 +77,6 @@ pub mod error;
 /// Format-specific document extraction implementations and office metadata types.
 pub mod extraction;
 pub mod extractors;
-#[cfg(any(
-    feature = "classification-onnx",
-    all(
-        feature = "layout-detection",
-        any(feature = "pdf", feature = "ocr", feature = "ocr-wasm")
-    )
-))]
-pub mod model_cache;
 pub mod plugins;
 pub mod rendering;
 pub mod telemetry;
@@ -105,18 +97,12 @@ pub(crate) mod script_run;
 #[cfg(any(feature = "ocr", feature = "pdf", paddle_ocr))]
 pub mod table_core;
 
-#[cfg(feature = "tower-service")]
-pub mod service;
 
-#[cfg(feature = "api")]
-pub mod api;
 
 #[cfg(all(feature = "api-types", not(feature = "api")))]
 #[path = "api/types_only.rs"]
 pub mod api;
 
-#[cfg(feature = "mcp")]
-pub mod mcp;
 
 #[cfg(all(test, any(feature = "api", feature = "mcp")))]
 mod batch_layout_probe;
@@ -127,8 +113,6 @@ pub mod chunking;
 #[cfg(feature = "diff")]
 pub mod diff;
 
-#[cfg(all(feature = "liter-llm", not(target_arch = "wasm32")))]
-pub mod llm;
 
 #[cfg(feature = "embedding-presets")]
 pub mod embeddings;
@@ -136,9 +120,6 @@ pub mod embeddings;
 #[cfg(any(feature = "reranker-presets", feature = "reranker"))]
 pub mod reranking;
 
-/// Shared ONNX Runtime model-loading helpers (download, tokenizer, session).
-#[cfg(feature = "onnx-runtime")]
-pub(crate) mod onnx;
 
 #[cfg(feature = "onnx-runtime")]
 #[cfg_attr(alef, alef(skip))]
@@ -152,19 +133,6 @@ pub mod sparse_embeddings;
 #[cfg(any(feature = "late-interaction-presets", feature = "late-interaction"))]
 pub mod late_interaction;
 
-/// Process-wide caches of loaded model engines.
-#[cfg(any(
-    feature = "embeddings",
-    feature = "static-embeddings",
-    feature = "reranker",
-    feature = "sparse-embeddings",
-    feature = "late-interaction",
-    feature = "candle-trocr",
-    feature = "candle-paddleocr-vl",
-    feature = "candle-glm-ocr",
-    feature = "candle-deepseek-ocr"
-))]
-mod engine_cache;
 
 // `layout-detection` renders PDF pages itself and needs `image::dpi` to honour a configured
 // render DPI (#1577); it does not imply `ocr-pipeline`, so the module gate has to cover both or
@@ -211,44 +179,16 @@ pub(crate) mod ocr_metadata_keys;
 
 pub mod doctor;
 
-#[cfg(any(
-    paddle_ocr,
-    feature = "sceptre-ocr-ort",
-    feature = "embeddings",
-    feature = "reranker",
-    feature = "onnx-runtime",
-    feature = "layout-detection",
-    feature = "auto-rotate",
-    feature = "transcription",
-    feature = "ner-onnx"
-))]
-pub mod ort_discovery;
 
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) mod model_download;
 
-/// Engine-neutral inference seam (issue #1275): backend/session traits over ONNX
-/// Runtime on native builds and the pure-Rust `tract` engine on no-ORT targets
-/// (Android x86_64; WASM once embedded-weight loading lands). `auto_rotate` covers
-/// both the ORT `auto-rotate` and the tract `auto-rotate-tract` variants; `layout_detection`
-/// covers both the ORT `layout-detection` and the tract `layout-tract` variants.
-#[cfg(any(layout_detection, auto_rotate))]
-pub(crate) mod inference;
 
+// Keep public DTO paths used by the Python shim without shipping a Paddle engine.
+#[path = "compat/paddle_ocr.rs"]
 pub mod paddle_ocr;
 
-#[cfg(all(paddle_ocr, sceptre_ocr, not(target_arch = "wasm32")))]
-#[cfg_attr(alef, alef(skip))]
-pub mod classic_ocr_cache;
 
-#[cfg(all(sceptre_ocr, not(target_arch = "wasm32")))]
-pub mod sceptre_ocr;
 
-#[cfg(any(sceptre_ocr, feature = "sceptre-wasm"))]
-mod sceptre_languages;
 
-#[cfg(feature = "sceptre-wasm")]
-pub mod sceptre_wasm;
 
 #[cfg(any(feature = "candle-ocr", feature = "candle-ocr-types"))]
 pub mod candle_ocr;
@@ -259,28 +199,13 @@ pub mod doc_orientation;
 #[cfg(feature = "layout-types")]
 pub mod layout;
 
-/// LaTeX recognition for rasterized formula regions (RapidLaTeXOCR ONNX).
-#[cfg(feature = "formula-recognition")]
-pub mod formula_recognition;
 
 #[cfg(feature = "pdf")]
 pub mod pdf;
 
-#[cfg(feature = "transcription")]
-pub mod transcription;
 
-#[cfg(feature = "captioning")]
-pub mod captioning;
 
-/// Pinned inventory of experimental candidate models staged on owned Hugging Face repositories.
-#[cfg(feature = "onnx-runtime")]
-// No non-test consumer exists until the captioning adapters in #2335 and a supported preset land. ~keep
-#[cfg_attr(not(test), allow(dead_code))]
-pub(crate) mod candidate_models;
 
-/// Experimental Rust-only CPU natural-language-inference classification with caller-pinned artifacts.
-#[cfg(feature = "classification-onnx-types")]
-pub mod local_classification;
 
 // NOTE: `CancellationToken` is intentionally NOT re-exported here.
 pub use error::{Result, XbergError};

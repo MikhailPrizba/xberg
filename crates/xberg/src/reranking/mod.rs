@@ -20,8 +20,6 @@
 //! only reranker-specific step, applied at inference time via `EncodeInput::Dual`.
 //!
 
-#[cfg(feature = "reranker")]
-pub mod engine;
 
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;

@@ -1,142 +1,16 @@
+// Inference capabilities are intentionally absent from the compact fork.
 fn main() {
-    link_ios_compiler_runtime();
     println!("cargo::rustc-check-cfg=cfg(coverage)");
-
     println!("cargo::rustc-check-cfg=cfg(inference_ort)");
-    if std::env::var_os("CARGO_FEATURE_ORT_BUNDLED").is_some()
-        || std::env::var_os("CARGO_FEATURE_ORT_DYNAMIC").is_some()
-    {
-        println!("cargo::rustc-cfg=inference_ort");
-    }
-
     println!("cargo::rustc-check-cfg=cfg(onnx_retrieval)");
-    if ["EMBEDDINGS", "RERANKER", "SPARSE_EMBEDDINGS", "LATE_INTERACTION"]
-        .iter()
-        .any(|feature| std::env::var_os(format!("CARGO_FEATURE_{feature}")).is_some())
-    {
-        println!("cargo::rustc-cfg=onnx_retrieval");
-    }
-
     println!("cargo::rustc-check-cfg=cfg(auto_rotate)");
-    if std::env::var_os("CARGO_FEATURE_AUTO_ROTATE").is_some()
-        || std::env::var_os("CARGO_FEATURE_AUTO_ROTATE_TRACT").is_some()
-    {
-        println!("cargo::rustc-cfg=auto_rotate");
-    }
-
     println!("cargo::rustc-check-cfg=cfg(sceptre_ocr)");
-    if std::env::var_os("CARGO_FEATURE_SCEPTRE_OCR_ORT").is_some()
-        || std::env::var_os("CARGO_FEATURE_SCEPTRE_OCR_TRACT").is_some()
-        || std::env::var_os("CARGO_FEATURE_SCEPTRE_OCR_CANDLE").is_some()
-    {
-        println!("cargo::rustc-cfg=sceptre_ocr");
-    }
-
-    if std::env::var_os("CARGO_FEATURE_ORT_BUNDLED").is_some()
-        && std::env::var_os("CARGO_FEATURE_ORT_DYNAMIC").is_some()
-    {
-        println!(
-            "cargo::warning=features 'ort-bundled' and 'ort-dynamic' are both enabled; bundled ORT remains the default unless dynamic ORT is explicitly selected at runtime"
-        );
-    }
-
     println!("cargo::rustc-check-cfg=cfg(layout_detection)");
-    if std::env::var_os("CARGO_FEATURE_LAYOUT_DETECTION").is_some()
-        || std::env::var_os("CARGO_FEATURE_LAYOUT_TRACT").is_some()
-    {
-        println!("cargo::rustc-cfg=layout_detection");
-    }
-
     println!("cargo::rustc-check-cfg=cfg(paddle_ocr)");
-    if std::env::var_os("CARGO_FEATURE_PADDLE_OCR_ORT").is_some()
-        || std::env::var_os("CARGO_FEATURE_PADDLE_OCR_TRACT").is_some()
-    {
-        println!("cargo::rustc-cfg=paddle_ocr");
-    }
-
-    // See `build_id`'s doc comment for what this feeds: `cache::version::cache_version_tag`
-    // (crates/xberg/src/cache/version.rs) folds it in alongside the crate version, the cache
-    // schema version, and the debug/release profile bit.
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
         emit_rerun_directives(&manifest_dir);
     }
     println!("cargo::rustc-env=XBERG_BUILD_ID={}", build_id());
-}
-
-fn link_ios_compiler_runtime() {
-    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("ios")
-        || std::env::var_os("CARGO_FEATURE_ORT_BUNDLED").is_none()
-    {
-        return;
-    }
-    let (sdk, library) = if std::env::var("CARGO_CFG_TARGET_ABI").as_deref() == Ok("sim") {
-        ("iphonesimulator", "clang_rt.iossim")
-    } else {
-        ("iphoneos", "clang_rt.ios")
-    };
-    let arch = std::env::var("CARGO_CFG_TARGET_ARCH").expect("CARGO_CFG_TARGET_ARCH unset");
-    let apple_arch = if arch == "aarch64" { "arm64" } else { &arch };
-    let runtime = ios_compiler_runtime(sdk, library);
-    let staged = stage_ios_compiler_runtime(sdk, &runtime, apple_arch);
-    println!(
-        "cargo::rustc-link-search=native={}",
-        staged.parent().expect("runtime has no parent").display()
-    );
-    println!("cargo::rustc-link-lib=static={library}");
-    println!("cargo::rerun-if-changed={}", runtime.display());
-    for variable in ["DEVELOPER_DIR", "TOOLCHAINS", "SDKROOT"] {
-        println!("cargo::rerun-if-env-changed={variable}");
-    }
-}
-
-fn ios_compiler_runtime(sdk: &str, library: &str) -> std::path::PathBuf {
-    let output = std::process::Command::new("xcrun")
-        .args(["--sdk", sdk, "clang", "--print-resource-dir"])
-        .output()
-        .unwrap_or_else(|error| panic!("query {sdk} compiler runtime directory: {error}"));
-    assert!(
-        output.status.success(),
-        "query {sdk} compiler runtime directory ({}): {}",
-        output.status,
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let resource = String::from_utf8(output.stdout)
-        .unwrap_or_else(|error| panic!("decode {sdk} compiler runtime directory: {error}"));
-    assert!(!resource.trim().is_empty(), "empty {sdk} compiler runtime directory");
-    std::path::Path::new(resource.trim())
-        .join("lib/darwin")
-        .join(format!("lib{library}.a"))
-}
-
-fn stage_ios_compiler_runtime(sdk: &str, archive: &std::path::Path, arch: &str) -> std::path::PathBuf {
-    use std::io::Read;
-
-    let mut header = [0; 8];
-    std::fs::File::open(archive)
-        .and_then(|mut file| file.read_exact(&mut header))
-        .unwrap_or_else(|error| panic!("read {sdk} compiler runtime archive: {error}"));
-    let destination = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR unset"))
-        .join(archive.file_name().expect("runtime archive has no filename"));
-    // Rust bundles native archives into rlibs, but cannot read Xcode's universal archives. ~keep
-    if &header == b"!<arch>\n" {
-        std::fs::copy(archive, &destination)
-            .unwrap_or_else(|error| panic!("copy {sdk} compiler runtime archive: {error}"));
-    } else {
-        let output = std::process::Command::new("xcrun")
-            .arg("lipo")
-            .arg(archive)
-            .args(["-thin", arch, "-output"])
-            .arg(&destination)
-            .output()
-            .unwrap_or_else(|error| panic!("extract {arch} from {sdk} compiler runtime: {error}"));
-        assert!(
-            output.status.success(),
-            "extract {arch} from {sdk} compiler runtime ({}): {}",
-            output.status,
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
-    destination
 }
 
 /// Best-effort identifier for *this* build, embedded at compile time via `env!("XBERG_BUILD_ID")`.

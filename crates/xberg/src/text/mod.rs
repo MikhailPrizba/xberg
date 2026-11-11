@@ -26,19 +26,11 @@ pub use quality_processor::QualityProcessor;
 #[cfg(feature = "quality")]
 pub use token_reduction::{ReductionLevel, TokenReductionConfig};
 
-#[cfg(feature = "classification")]
-pub mod classification;
 
-#[cfg(feature = "ner")]
-pub mod ner;
 
 #[cfg(feature = "redaction")]
 pub mod redaction;
-#[cfg(feature = "summarization")]
-pub mod summarization;
 
-#[cfg(feature = "translation")]
-pub mod translation;
 
 #[cfg(feature = "markdown-footnotes")]
 /// Markdown footnote and citation parsing.

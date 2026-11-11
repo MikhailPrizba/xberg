@@ -16,8 +16,6 @@ use std::sync::LazyLock;
 
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "late-interaction")]
-pub mod engine;
 
 #[cfg(feature = "late-interaction")]
 use std::num::NonZeroUsize;

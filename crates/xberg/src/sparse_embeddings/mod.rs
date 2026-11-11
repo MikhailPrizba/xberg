@@ -13,8 +13,6 @@ use std::sync::LazyLock;
 
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "sparse-embeddings")]
-pub mod engine;
 
 #[cfg(feature = "sparse-embeddings")]
 use std::num::NonZeroUsize;

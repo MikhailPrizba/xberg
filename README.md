@@ -19,14 +19,16 @@ Keep compilation artifacts outside this source checkout:
 export CARGO_TARGET_DIR="$HOME/.cache/xberg-compact/target"
 uv sync --frozen
 uv run --frozen python -c 'import xberg; print(xberg.__file__)'
-uv build --package xberg --out-dir /tmp/xberg-compact-wheels
+uv build --out-dir /tmp/xberg-compact-wheels
 ```
 
 The checked Cargo manifests select the compact profile. Its feature list and
 retained workspace members are recorded in compact-profile.json. Release builds
 use thin LTO and 16 codegen units. Cargo defaults to the Python package. Only the core, native PDF and Python crates
-are workspace members. Dormant optional path crates are excluded from workspace
-builds and retained only for manifest resolution. VS Code checks only xberg-py.
+are workspace members. The only additional crate is xberg-pdfium-render, excluded
+from default workspace builds and available through the optional pdf-pdfium feature.
+Unused OCR/ML/HEIC/WordPerfect crates, model implementations, server transports and
+upstream generation/release scripts have been removed. VS Code checks only xberg-py.
 The default Cargo cache is ../.cache/xberg-compact/target, outside this checkout.
 
 ## Capabilities
@@ -37,18 +39,36 @@ models, LLM inference, transcription, tree-sitter grammar engines, HTTP/MCP serv
 HEIC, WordPerfect and PDFium are disabled in this build.
 
 The generated Python options surface keeps lightweight configuration/result types
-and a few pure-Rust helpers for compatibility. Those types do not enable models or
+and a few pure-Rust helpers for compatibility. Paddle configuration DTOs live in
+src/compat/paddle_ocr.rs inside the core crate; its engine code is removed. Those types do not enable models or
 servers. Optional classify_chunks_owned, map_url and extract_with_layout_pages
 entry points raise NotImplementedError in this extraction profile.
 
-Do not enable upstream aggregate features such as full or mobile when building
-this profile. Python binding adaptations and lightweight type gates are maintained
-in this fork; review them when merging upstream generated bindings.
+Unsupported upstream features, including full and mobile, are removed from Cargo
+manifests. Some inactive cfg branches remain in shared parser/configuration files
+to keep upstream fixes manageable; they cannot activate missing engines. Python
+binding adaptations and lightweight type gates are maintained in this fork; review
+them when merging upstream generated bindings.
+
+## Optional PDFium
+
+The default wheel uses the native Rust PDF engine. For a future PDFium comparison:
+
+```sh
+uv run maturin build --release --locked --features pdf-pdfium --out /tmp/xberg-pdfium-wheels
+```
+
+This enables the backend without changing the extraction default. Select Pdfium
+explicitly in PdfConfig when running a comparison. Set PDFIUM_DYNAMIC_LIB_PATH at runtime to the directory containing a compatible
+libpdfium shared library, or install it on the system library search path.
+The Python build configuration lives in the repository-root pyproject.toml.
+Source archives explicitly include this optional path crate.
+Compilation with this feature is checked; runtime PDFium extraction is not yet
+validated on this host.
 
 ## Maintenance
 
 The original source is available through origin; fetch additional history only
 when needed. No Git history was rewritten on the remote. Native PDF tests and
 fixtures are retained for parser fixes. License and attribution files remain.
-Validation results and exact measured sizes are recorded in compact-verification.json
-once the compact wheel has passed the textractor checks.
+Validation results and measured sizes are recorded in compact-verification.json.

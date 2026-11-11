@@ -1,6 +1,0 @@
-[adr]
-dir = "adrs"
-start = 0
-
-[lock]
-statuses = ["accepted", "rejected", "superseded", "deprecated"]

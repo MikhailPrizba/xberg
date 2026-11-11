@@ -3,14 +3,14 @@
   "source_commit": "ff69566bc3757104fbf28c7afdededda6c1adaac",
   "git_shallow": true,
   "repository_before_mib_approx": 695,
-  "repository_after_mib": 151.45,
+  "repository_after_mib": 134.9,
   "git_before_mib": 495.5,
   "git_after_mib": 56.41,
   "old_generated_target_gib": 9.88,
   "wheel": {
     "filename": "xberg-1.4.0-cp311-abi3-linux_x86_64.whl",
-    "mib": 26.14,
-    "sha256": "c5f5d88805614fd10fd6221e8d671d2758abac7b42ad540fb1537afa3a4f9d04",
+    "mib": 26.13,
+    "sha256": "b053545d137ae5f0cf5c142e29be46e03e5ecffe621ed4edc04c22391e68416c",
     "python_abi": "cp311 abi3",
     "platform": "Linux x86_64; built on this host, not a manylinux wheel",
     "artifact_path": "/home/mikhail/Desktop/sber/textractor/.cache/xberg-compact/wheels/xberg-1.4.0-cp311-abi3-linux_x86_64.whl",
@@ -36,7 +36,7 @@
     "hf-hub"
   ],
   "validation": {
-    "cargo_check_workspace_release": "passed from final source path with --locked",
+    "cargo_check_workspace_release": "passed on unpacked sdist with --release --locked --offline --workspace --all-features, including PDFium",
     "git_fsck_connectivity": "passed",
     "uv_lock_check_offline": "passed",
     "python_314": {
@@ -54,14 +54,50 @@
     "advertised_textractor_extensions": 42,
     "builtin_ocr_backends": [],
     "external_ocr": "covered by the textractor tests using stubs and local HTTP; no remote GPU service called",
-    "environment": "isolated test environments; existing textractor runtime dependency pin remains as configured"
+    "environment": "isolated test environments; existing textractor runtime dependency pin remains as configured",
+    "native_pdf_default": "unchanged",
+    "pdfium_runtime": "not tested; libpdfium is not installed",
+    "all_extensions_probe": {
+      "passed": 42,
+      "total": 42,
+      "same_result_as_previous_compact_wheel": true,
+      "image_ocr": "stubbed external OCR; real native image decoding exercised"
+    }
   },
   "compatibility_adaptations": [
     "Data-only Candle/Tree-sitter/classification/API types for generated Python DTOs",
     "OCR pipeline and PSM types without Tesseract",
     "EXIF/image metadata parser independent of built-in OCR",
-    "Explicit NotImplementedError for disabled optional classify/crawl/layout-inference entrypoints"
+    "Explicit NotImplementedError for disabled optional classify/crawl/layout-inference entrypoints",
+    "Paddle engine and language-selection implementation removed; required public DTO paths map to src/compat/paddle_ocr.rs"
   ],
   "rollback_cleanup": "old clone, full Git history and generated target removed after final source verification",
-  "unpublished": true
+  "unpublished": true,
+  "base_commit_before_pruning": "507a0a79554f901bb270dc47771fafc20d927679",
+  "working_tree_uncommitted": true,
+  "repository_before_this_pruning_mib": 151.45,
+  "lock_packages_before_pruning": 999,
+  "lock_packages_after_pruning": 647,
+  "sdist": {
+    "artifact_path": "/tmp/xberg-pruned-sdist/xberg-1.4.0.tar.gz",
+    "mib": 10.03,
+    "sha256": "53d081e717fac7f3cdad49709202fcb333f064af54bd8e75b486b2d58f103748",
+    "pdfium_included": true,
+    "build_inputs_identical_to_checked_archive": true
+  },
+  "physical_crates": [
+    "xberg",
+    "xberg-native-pdf",
+    "xberg-py",
+    "xberg-pdfium-render"
+  ],
+  "removed_crates": [
+    "xberg-candle-ocr",
+    "xberg-gliner",
+    "xberg-libheif",
+    "xberg-libwpd",
+    "xberg-paddle-ocr",
+    "xberg-tesseract"
+  ],
+  "remaining_source_scope": "Pure DTOs/helpers required by generated Python binding, parser implementations and regression fixtures; inactive cfg branches remain inside shared source files."
 }

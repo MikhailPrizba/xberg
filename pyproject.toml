@@ -1,18 +1,66 @@
+# Maintained compact Python/Rust extraction build.
+
+[build-system]
+build-backend = "maturin"
+requires = [
+    "maturin>=1.15,<2",
+]
+
 [project]
-name = "xberg-compact-dev"
+name = "xberg"
 version = "1.4.0"
+description = "High-performance document intelligence library"
+keywords = [
+    "document",
+    "extraction",
+    "ocr",
+    "pdf",
+    "text",
+]
+license = "MIT"
+license-files = [
+    "LICENSE",
+]
+authors = [
+    { name = "Na'aman Hirschfeld", email = "naaman@xberg.io" },
+    { name = "Tobias Perlstein", email = "tobias@xberg.io" },
+]
+maintainers = [
+    { name = "Na'aman Hirschfeld", email = "naaman@xberg.io" },
+    { name = "Tobias Perlstein", email = "tobias@xberg.io" },
+]
 requires-python = ">=3.11"
-dependencies = ["xberg"]
-classifiers = ["Private :: Do Not Upload"]
+classifiers = [
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+homepage = "https://xberg.io"
+
+[project.urls]
+repository = "https://github.com/MikhailPrizba/xberg"
 
 [dependency-groups]
-dev = ["maturin>=1.15,<2", "pytest>=9", "pytest-asyncio>=1.4"]
+dev = [
+    "maturin>=1.15,<2",
+    "pytest>=9",
+    "pytest-asyncio>=1.4",
+]
 
-[tool.uv]
-package = false
-
-[tool.uv.workspace]
-members = ["packages/python"]
-
-[tool.uv.sources]
-xberg = { workspace = true }
+[tool.maturin]
+include = [
+    { path = "crates/xberg-pdfium-render/**/*", format = "sdist" },
+]
+profile = "release"
+module-name = "xberg._xberg"
+manifest-path = "crates/xberg-py/Cargo.toml"
+features = [
+    "pyo3/extension-module",
+    "pyo3/abi3-py311",
+]
+python-packages = [
+    "xberg",
+]
+python-source = "packages/python"

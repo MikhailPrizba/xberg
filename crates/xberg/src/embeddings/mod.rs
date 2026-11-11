@@ -69,14 +69,7 @@
 //! }
 //! ```
 
-#[cfg(feature = "embeddings")]
-/// Core ONNX embedding inference engine with thread-safe concurrent inference.
-pub mod engine;
 
-/// Pure-Rust static (model2vec) embedding inference engine — no ONNX Runtime.
-/// The only dense-embedding backend available on `no-ort-target` (WASM/Android).
-#[cfg(feature = "static-embeddings")]
-pub mod static_engine;
 
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
@@ -558,8 +551,6 @@ const CUSTOM_MODEL_FILE: &str = "onnx/model.onnx";
 // The cache functions live in their own module so the feature gate sits on the module
 // declaration: alef copies a feature named in a function's own `#[cfg]` into every binding
 // manifest, and `static-embeddings` is not a binding feature. ~keep
-#[cfg(any(feature = "embeddings", feature = "static-embeddings"))]
-mod eviction;
 #[cfg(feature = "embeddings")]
 pub(crate) use eviction::clear_onnx_engine_cache;
 #[cfg(any(feature = "embeddings", feature = "static-embeddings"))]
