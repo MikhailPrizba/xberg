@@ -742,7 +742,7 @@ fn gh1782_majority_share_page_is_flagged_fabricated() {
 /// #1786: a page that is one full-page raster reports that raster's own density (400 px
 /// over 100 pt is 288 dpi); the same raster covering a quarter of the page is a figure and
 /// reports none; a page without images reports none.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 #[test]
 fn full_page_raster_density_reads_the_scan_density_and_ignores_figures() {
     let scan = PdfDocument::from_bytes(crate::pdf::render::build_full_page_raster_pdf(
@@ -818,7 +818,7 @@ fn full_page_raster_density_reads_the_scan_density_and_ignores_figures() {
     );
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 #[test]
 fn inset_raster_with_more_than_four_hundred_mapped_artifact_glyphs_is_a_figure() {
     let mut source = lopdf::Document::load_mem(&crate::pdf::render::build_full_page_raster_pdf(
@@ -864,7 +864,7 @@ fn inset_raster_with_more_than_four_hundred_mapped_artifact_glyphs_is_a_figure()
 /// A page carries a scan when its rasters cover at least a quarter of it, whatever its text
 /// layer: a whole-page raster, an inset one, one covering exactly a quarter, and an inset one
 /// under twenty lines of mapped text all do; a raster under a quarter of the page and a page without images do not.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[test]
 fn carries_scan_raster_reads_raster_coverage_only() {
     let page = |coverage: f32, text_lines: usize| {

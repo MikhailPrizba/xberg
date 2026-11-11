@@ -26,11 +26,11 @@ use xberg::core::config::extraction::ImageOutputFormat;
 use xberg::core::config::{ExtractionConfig, ImageExtractionConfig, OutputFormat};
 
 /// PNG magic bytes: `\x89PNG\r\n\x1a\n`
-#[cfg(any(feature = "pdf", feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+#[cfg(any(feature = "pdf", feature = "ocr-pipeline"))]
 const PNG_MAGIC: &[u8] = b"\x89PNG\r\n\x1a\n";
 
 /// JPEG SOI marker: `\xFF\xD8\xFF`
-#[cfg(any(feature = "pdf", all(feature = "ocr", feature = "image-encode")))]
+#[cfg(feature = "pdf")]
 const JPEG_MAGIC: &[u8] = b"\xFF\xD8\xFF";
 
 /// WebP container: `RIFF` at offset 0, `WEBP` at offset 8
@@ -318,7 +318,7 @@ fn office_mixed_to_png() {
 /// Requires `ocr-pipeline` (or `ocr`/`ocr-wasm`) because the `ImageExtractor`
 /// that handles `image/jpeg` standalone files is only registered under those
 /// features.
-#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[test]
 fn image_extractor_jpeg_to_png() {
     let path = fixture_path("images/example.jpg");
@@ -379,77 +379,6 @@ fn image_extractor_jpeg_to_png() {
                  source ({src_w}×{src_h}) != re-encoded ({dst_w}×{dst_h})"
             );
         }
-    }
-}
-
-/// OCR before re-encode: extract an image containing recognizable text with
-/// OCR enabled and `output_format = Jpeg`.
-///
-/// Verifies that:
-/// 1. `result.content` is non-empty (OCR ran and extracted text).
-/// 2. The final image has `format == "jpeg"` (re-encode ran after OCR).
-///
-/// If OCR had run *after* re-encode, both assertions might still pass, but
-/// the test documents the expected pipeline stage order and will catch any
-/// accidental reordering that breaks the OCR path.
-#[cfg(all(feature = "ocr", feature = "image-encode"))]
-#[test]
-fn ocr_runs_before_reencode() {
-    use xberg::core::config::OcrConfig;
-
-    let path = fixture_path("images/test_hello_world.png");
-    if !path.exists() {
-        eprintln!("skipped: images/test_hello_world.png not present");
-        return;
-    }
-
-    let config = ExtractionConfig {
-        ocr: Some(OcrConfig {
-            backend: "tesseract".to_string(),
-            language: vec!["eng".to_string()],
-            ..Default::default()
-        }),
-        force_ocr: true,
-        images: Some(ImageExtractionConfig {
-            extract_images: true,
-            output_format: ImageOutputFormat::Jpeg { quality: 85 },
-            ..Default::default()
-        }),
-        use_cache: false,
-        ..Default::default()
-    };
-
-    let result = extract_uri_document_blocking(&path, None, &config).expect("OCR + JPEG re-encode must succeed");
-
-    assert!(
-        !result.content.trim().is_empty(),
-        "OCR must populate result.content even when output_format=Jpeg; got empty content"
-    );
-
-    let images = result
-        .images
-        .as_ref()
-        .expect("images must be Some when extract_images=true");
-
-    assert!(
-        !images.is_empty(),
-        "test_hello_world.png must yield at least one image entry"
-    );
-
-    let jpeg_images: Vec<_> = images.iter().filter(|i| i.format.as_ref() == "jpeg").collect();
-    assert!(
-        !jpeg_images.is_empty(),
-        "output_format=Jpeg must re-encode at least one image to JPEG; \
-         got formats: {:?}",
-        images.iter().map(|i| i.format.as_ref()).collect::<Vec<_>>()
-    );
-
-    for img in &jpeg_images {
-        assert!(
-            img.data.starts_with(JPEG_MAGIC),
-            "JPEG-re-encoded image at index {} must start with JPEG SOI bytes",
-            img.image_index
-        );
     }
 }
 
@@ -562,57 +491,5 @@ fn unsupported_source_format_warns_and_preserves() {
                 img.image_index
             );
         }
-    }
-}
-
-/// HEIF output: extract a PDF with embedded JPEG, force `output_format = Heif`,
-/// and verify that every returned image has `format == "heif"`.
-///
-/// Requires the `heic` Cargo feature. Skipped automatically when not compiled in.
-#[cfg(all(feature = "heic", feature = "pdf"))]
-#[test]
-fn heif_output() {
-    use xberg::core::config::extraction::ImageOutputFormat;
-
-    let path = fixture_path("pdf/embedded_images_tables.pdf");
-    if !path.exists() {
-        eprintln!("skipped: pdf/embedded_images_tables.pdf not present");
-        return;
-    }
-
-    let config = config_with_output_format(ImageOutputFormat::Heif { quality: 80 });
-    let result = extract_uri_document_blocking(&path, None, &config).expect("HEIF extraction must succeed");
-
-    let images = result
-        .images
-        .as_ref()
-        .expect("images must be Some when extract_images=true");
-
-    assert!(
-        !images.is_empty(),
-        "embedded_images_tables.pdf must yield at least one image after HEIF re-encode"
-    );
-
-    for img in images {
-        assert_eq!(
-            img.format.as_ref(),
-            "heif",
-            "image at index {} must report format=\"heif\", got \"{}\"",
-            img.image_index,
-            img.format
-        );
-        assert!(
-            !img.data.is_empty(),
-            "HEIF image at index {} must have non-empty data",
-            img.image_index
-        );
-
-        let parse_result = xberg_libheif::HeifContext::read_from_bytes(&img.data);
-        assert!(
-            parse_result.is_ok(),
-            "image at index {} has format=\"heif\" but failed xberg_libheif round-trip: {:?}",
-            img.image_index,
-            parse_result.err()
-        );
     }
 }

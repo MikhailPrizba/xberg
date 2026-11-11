@@ -98,7 +98,7 @@ fn classify_markdown_uri(url: &str) -> UriKind {
 /// - Tables as structured data
 /// - Document structure (headings, links, code blocks)
 /// - Images from data URIs
-#[cfg_attr(alef, alef(skip))]
+
 pub struct MarkdownExtractor;
 
 impl MarkdownExtractor {

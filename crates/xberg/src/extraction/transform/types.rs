@@ -1,7 +1,7 @@
 //! Type definitions for transformation operations.
 
 /// Metadata about a detected list item.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ListItemMetadata {
     /// Type of list (Bullet, Numbered, etc.)

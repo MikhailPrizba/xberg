@@ -66,7 +66,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// caller_token.cancel();
 /// assert!(config.cancel_token.is_some_and(|token| token.is_cancelled()));
 /// ```
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default)]
 pub struct CancellationToken {
     cancelled: Arc<AtomicBool>,

@@ -5,8 +5,6 @@ members = [
     "crates/xberg",
     "crates/xberg-native-pdf",
     "crates/xberg-py",
-]
-exclude = [
     "crates/xberg-pdfium-render",
 ]
 default-members = [
@@ -31,11 +29,7 @@ unsafe_code = "deny"
 
 [workspace.lints.rust.unexpected_cfgs]
 level = "warn"
-check-cfg = [
-    "cfg(alef)",
-    "cfg(feature, values(\"alef-meta\"))",
-    "cfg(feature, values(\"analysis\", \"android-target\", \"api\", \"archives\", \"auto-rotate\", \"auto-rotate-tract\", \"bedrock\", \"bundle-tessdata-eng\", \"candle-accelerate\", \"candle-cuda\", \"candle-deepseek-ocr\", \"candle-glm-ocr\", \"candle-metal\", \"candle-mkl\", \"candle-ocr\", \"candle-paddleocr-vl\", \"candle-trocr\", \"candle-vlm-ocr\", \"captioning\", \"chunking-tokenizers\", \"classification\", \"classification-onnx\", \"classification-onnx-types\", \"cli\", \"coreml\", \"cuda\", \"embeddings\", \"excel-wasm\", \"formats\", \"formats-no-heic\", \"formula-recognition\", \"full\", \"full-no-heic\", \"heic\", \"hwp\", \"hwpx\", \"iwork\", \"keywords\", \"late-interaction\", \"layout-detection\", \"layout-tract\", \"liter-llm\", \"macos-intel-target\", \"mcp\", \"mcp-http\", \"mdx\", \"mobile\", \"ner\", \"ner-candle\", \"ner-candle-backend\", \"ner-candle-wasm\", \"ner-llm\", \"ner-onnx\", \"no-ort-target\", \"ocr\", \"ocr-wasm\", \"onnx-runtime\", \"ort-bundled\", \"ort-dynamic\", \"otel\", \"paddle-ocr\", \"paddle-ocr-ort\", \"paddle-ocr-tract\", \"profiling\", \"prometheus\", \"qr-codes\", \"redaction-ml\", \"reranker\", \"sceptre-ocr\", \"sceptre-ocr-candle\", \"sceptre-ocr-candle-cuda\", \"sceptre-ocr-candle-metal\", \"sceptre-ocr-ort\", \"sceptre-ocr-tract\", \"sceptre-wasm\", \"server\", \"services\", \"sparse-embeddings\", \"sqlite\", \"static-embeddings\", \"structured\", \"summarization\", \"summarization-llm\", \"tensorrt\", \"tesseract-dynamic\", \"tower-service\", \"tract\", \"transcription\", \"translation\", \"tree-sitter\", \"tree-sitter-wasm\", \"url-ingestion\", \"url-ingestion-browser\", \"wasm-target\", \"windows-gnu-target\", \"windows-target\", \"wordperfect\"))",
-]
+check-cfg = []
 
 [workspace.lints.clippy]
 print_stdout = "deny"
@@ -53,7 +47,6 @@ blake3 = "1"
 cfb = "0.16"
 chrono = "0.4"
 dbase = "0.8"
-futures = "0.3"
 hex = "0.4.3"
 itertools = "0.15"
 libc = "0.2.191"

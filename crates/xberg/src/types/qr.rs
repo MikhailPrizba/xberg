@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// One QR code decoded from an extracted image.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct QrCode {
     /// Decoded payload (text, URL, vCard string, …).
     pub payload: String,
@@ -21,13 +21,12 @@ pub struct QrCode {
     /// (`x`, `y` of the top-left corner; `width`, `height` of the rectangle).
     /// `None` if the decoder did not report a bounding box.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub bbox: Option<QrBoundingBox>,
 }
 
 /// Pixel-space bounding box of a QR code inside its source image.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct QrBoundingBox {
     /// Horizontal pixel offset of the bounding box top-left corner.
     pub x: u32,

@@ -36,7 +36,7 @@ impl From<&crate::core::config::ImageExtractionConfig> for ExtractionConfig {
 }
 
 /// Result of image normalization
-#[cfg_attr(alef, alef(skip))]
+
 pub struct NormalizeResult {
     /// Processed RGB image data (height * width * 3 bytes)
     pub rgb_data: Vec<u8>,
@@ -152,42 +152,6 @@ pub(crate) fn normalized_image_dimensions(
     }
     let (new_width, new_height, _, _) = calculate_new_dimensions(width, height, plan.scale_factor, config);
     (new_width, new_height)
-}
-
-#[cfg(feature = "ocr")]
-pub(crate) fn normalization_requires_resize(
-    width: u32,
-    height: u32,
-    config: &ExtractionConfig,
-    current_dpi: f64,
-) -> bool {
-    DpiPlan::new(width, height, config, current_dpi).requires_resize(width, height, config)
-}
-
-/// The resolution to assume for a raster whose own is unknown, chosen so that its glyphs reach
-/// [`TARGET_GLYPH_HEIGHT_PX`] at `target_dpi`.
-///
-/// Never more than the historical 72 DPI assumption would have scaled (so small text keeps its
-/// full upscale) and never a shrink. Falls back to 72 when no glyph height can be measured.
-#[cfg(feature = "ocr")]
-pub(crate) fn bounded_unknown_raster_dpi(
-    rgb_data: &[u8],
-    width: usize,
-    height: usize,
-    target_dpi: i32,
-    available_workspace: u64,
-) -> Result<f64> {
-    if f64::from(target_dpi) > PDF_POINTS_PER_INCH {
-        let peak = super::text_height::glyph_workspace_bound(width, height)
-            .ok_or_else(|| XbergError::validation("OCR image DPI estimation workspace calculation overflowed"))?;
-        if peak > available_workspace {
-            return Err(XbergError::validation(
-                "OCR image DPI estimation workspace exceeds security_limits.max_content_size. \
-                 Raise security_limits.max_content_size",
-            ));
-        }
-    }
-    Ok(unknown_raster_dpi(rgb_data, width, height, target_dpi))
 }
 
 fn unknown_raster_dpi(rgb_data: &[u8], width: usize, height: usize, target_dpi: i32) -> f64 {
@@ -449,18 +413,6 @@ mod tests {
             }
         }
         rgb
-    }
-
-    #[cfg(feature = "ocr")]
-    #[test]
-    fn bounded_unknown_dpi_keeps_the_same_glyph_result_at_the_workspace_boundary() {
-        let rgb = raster_of_glyphs(400, 200, 26, 15);
-        let peak = super::super::text_height::glyph_workspace_bound(400, 200).unwrap();
-        let expected = unknown_raster_dpi(&rgb, 400, 200, 300);
-        assert_eq!(bounded_unknown_raster_dpi(&rgb, 400, 200, 300, peak).unwrap(), expected);
-        let error = bounded_unknown_raster_dpi(&rgb, 400, 200, 300, peak - 1).unwrap_err();
-        assert!(error.to_string().contains("DPI estimation workspace"));
-        assert_eq!(bounded_unknown_raster_dpi(&rgb, 400, 200, 72, 0).unwrap(), 72.0);
     }
 
     fn normalize_unknown(glyph_height: usize, config: &ExtractionConfig) -> NormalizeResult {

@@ -15,7 +15,7 @@ use super::sentence_selection::SentenceSelector;
 use super::word_filtering::WordFilter;
 
 /// Orchestrates the token-reduction pipeline: SIMD scanning, filter chain, and optional semantic clustering.
-#[cfg_attr(alef, alef(skip))]
+
 pub struct TokenReducer {
     config: Arc<TokenReductionConfig>,
     text_processor: SimdTextProcessor,

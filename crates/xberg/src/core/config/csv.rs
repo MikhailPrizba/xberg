@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 /// ```
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-#[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+
 pub struct CsvConfig {
     /// Field delimiter, as a single-character string (e.g. `","`, `";"`,
     /// `"\t"`, `"|"`). When `None` (default), the delimiter is auto-detected

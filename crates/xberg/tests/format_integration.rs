@@ -5,19 +5,16 @@
 //! asynchronous APIs or to graceful handling when optional system
 //! dependencies are missing.
 
-#![cfg(any(feature = "pdf", feature = "office", feature = "ocr"))]
+#![cfg(any(feature = "pdf", feature = "office"))]
 
 mod helpers;
 use helpers::extract_uri_document;
 
 use helpers::{assert_mime_type, get_test_file_path, test_documents_available};
 
-#[cfg(any(feature = "office", feature = "ocr"))]
+#[cfg(feature = "office")]
 use helpers::assert_non_empty_content;
 use xberg::core::config::ExtractionConfig;
-
-#[cfg(feature = "ocr")]
-use xberg::core::config::OcrConfig;
 
 #[cfg(feature = "pdf")]
 #[tokio::test]
@@ -78,88 +75,6 @@ async fn test_legacy_doc_extraction_async() {
                 "Legacy Office extraction failed (office feature may not be enabled): {}",
                 err
             );
-        }
-    }
-}
-
-#[cfg(feature = "ocr")]
-#[tokio::test]
-async fn test_ocr_simple_english_image_async() {
-    if !test_documents_available() {
-        return;
-    }
-
-    let path = get_test_file_path("images/test_hello_world.png");
-    if !path.exists() {
-        tracing::debug!("Skipping test: OCR sample image not available");
-        return;
-    }
-
-    let config = ExtractionConfig {
-        ocr: Some(OcrConfig {
-            backend: "tesseract".to_string(),
-            language: vec!["eng".to_string()],
-            ..Default::default()
-        }),
-        force_ocr: true,
-        ..Default::default()
-    };
-
-    let result = extract_uri_document(&path, None, &config).await;
-
-    match result {
-        Ok(res) => {
-            assert_mime_type(&res, "image/png");
-            assert_non_empty_content(&res);
-            let content_lower = res.content.to_lowercase();
-            assert!(
-                content_lower.contains("hello") || content_lower.contains("world"),
-                "OCR output {:?} should contain HELLO or WORLD",
-                res.content
-            );
-        }
-        Err(err) => {
-            tracing::debug!("OCR test failed (Tesseract may not be installed): {}", err);
-        }
-    }
-}
-
-#[cfg(feature = "ocr")]
-#[tokio::test]
-async fn test_ocr_image_without_text_async() {
-    if !test_documents_available() {
-        return;
-    }
-
-    let path = get_test_file_path("images/flower_no_text.jpg");
-    if !path.exists() {
-        tracing::debug!("Skipping test: OCR flower image not available");
-        return;
-    }
-
-    let config = ExtractionConfig {
-        ocr: Some(OcrConfig {
-            backend: "tesseract".to_string(),
-            language: vec!["eng".to_string()],
-            ..Default::default()
-        }),
-        force_ocr: true,
-        ..Default::default()
-    };
-
-    let result = extract_uri_document(&path, None, &config).await;
-
-    match result {
-        Ok(res) => {
-            assert_mime_type(&res, "image/jpeg");
-            assert!(
-                res.content.len() < 200,
-                "Expected minimal OCR output, got {} bytes",
-                res.content.len()
-            );
-        }
-        Err(err) => {
-            tracing::debug!("OCR fallback test failed (Tesseract may not be installed): {}", err);
         }
     }
 }

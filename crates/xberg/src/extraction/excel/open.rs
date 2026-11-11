@@ -4,7 +4,7 @@
 
 use super::*;
 
-#[cfg(any(feature = "excel", feature = "excel-wasm"))]
+#[cfg(feature = "excel")]
 fn validate_legacy_xls_container<R: Read + Seek>(mut reader: R, limits: &SecurityLimits) -> Result<SkippedSheets> {
     let container_size = reader.seek(std::io::SeekFrom::End(0))?;
     reader.seek(std::io::SeekFrom::Start(0))?;
@@ -40,7 +40,7 @@ fn validate_legacy_xls_container<R: Read + Seek>(mut reader: R, limits: &Securit
     Ok(SkippedSheets::default())
 }
 
-#[cfg(any(feature = "excel", feature = "excel-wasm"))]
+#[cfg(feature = "excel")]
 fn is_row_only_dimension_ref(value: &[u8]) -> bool {
     let mut parts = value.split(|byte| *byte == b':');
     let Some(start) = parts.next() else { return false };
@@ -51,7 +51,7 @@ fn is_row_only_dimension_ref(value: &[u8]) -> bool {
             .all(|part| !part.is_empty() && part.iter().all(|byte| byte.is_ascii_digit() || *byte == b'$'))
 }
 
-#[cfg(any(feature = "excel", feature = "excel-wasm"))]
+#[cfg(feature = "excel")]
 fn row_only_dimension(event: &quick_xml::events::BytesStart<'_>) -> Result<bool> {
     if event.local_name().as_ref() != "dimension" {
         return Ok(false);
@@ -65,7 +65,7 @@ fn row_only_dimension(event: &quick_xml::events::BytesStart<'_>) -> Result<bool>
     Ok(false)
 }
 
-#[cfg(any(feature = "excel", feature = "excel-wasm"))]
+#[cfg(feature = "excel")]
 fn remove_row_only_xlsx_dimensions(xml: &[u8]) -> Result<(Vec<u8>, bool)> {
     use quick_xml::events::Event;
 
@@ -98,7 +98,7 @@ fn remove_row_only_xlsx_dimensions(xml: &[u8]) -> Result<(Vec<u8>, bool)> {
     Ok((writer.into_inner(), changed))
 }
 
-#[cfg(any(feature = "excel", feature = "excel-wasm"))]
+#[cfg(feature = "excel")]
 fn remove_ods_row_whitespace(xml: &[u8]) -> Result<(Vec<u8>, bool)> {
     use quick_xml::events::Event;
 
@@ -144,7 +144,7 @@ fn remove_ods_row_whitespace(xml: &[u8]) -> Result<(Vec<u8>, bool)> {
     Ok((writer.into_inner(), changed))
 }
 
-#[cfg(any(feature = "excel", feature = "excel-wasm"))]
+#[cfg(feature = "excel")]
 fn read_zip_member_bounded<R: Read + Seek>(
     reader: &mut R,
     header_start: u64,
@@ -172,7 +172,7 @@ fn read_zip_member_bounded<R: Read + Seek>(
     Ok(bytes)
 }
 
-#[cfg(any(feature = "excel", feature = "excel-wasm"))]
+#[cfg(feature = "excel")]
 fn rewrite_spreadsheet_zip(
     data: &[u8],
     limits: &SecurityLimits,
@@ -235,7 +235,7 @@ fn rewrite_spreadsheet_zip(
     write_spreadsheet_zip(entries, data.len()).map(Some)
 }
 
-#[cfg(any(feature = "excel", feature = "excel-wasm"))]
+#[cfg(feature = "excel")]
 fn write_spreadsheet_zip(entries: Vec<(String, Option<Vec<u8>>)>, capacity: usize) -> Result<Vec<u8>> {
     use std::io::Write as _;
 
@@ -267,7 +267,7 @@ fn write_spreadsheet_zip(entries: Vec<(String, Option<Vec<u8>>)>, capacity: usiz
     Ok(rewritten)
 }
 
-#[cfg(any(feature = "excel", feature = "excel-wasm"))]
+#[cfg(feature = "excel")]
 fn normalize_xlsx_dimensions(data: &[u8], limits: &SecurityLimits) -> Result<Option<Vec<u8>>> {
     rewrite_spreadsheet_zip(data, limits, |name, contents| {
         if name.starts_with("xl/worksheets/") && name.ends_with(".xml") {
@@ -278,7 +278,7 @@ fn normalize_xlsx_dimensions(data: &[u8], limits: &SecurityLimits) -> Result<Opt
     })
 }
 
-#[cfg(any(feature = "excel", feature = "excel-wasm"))]
+#[cfg(feature = "excel")]
 fn has_row_only_xlsx_dimensions<R: Read + Seek>(reader: R, limits: &SecurityLimits) -> Result<bool> {
     let archive =
         zip::ZipArchive::new(reader).map_err(|error| XbergError::parsing(format!("Invalid XLSX ZIP: {error}")))?;
@@ -313,7 +313,7 @@ fn has_row_only_xlsx_dimensions<R: Read + Seek>(reader: R, limits: &SecurityLimi
     Ok(false)
 }
 
-#[cfg(any(feature = "excel", feature = "excel-wasm"))]
+#[cfg(feature = "excel")]
 fn drop_skipped_ods_sheets(data: &[u8], limits: &SecurityLimits, skipped: &SkippedSheets) -> Result<Option<Vec<u8>>> {
     if skipped.is_empty() {
         return Ok(None);
@@ -327,7 +327,7 @@ fn drop_skipped_ods_sheets(data: &[u8], limits: &SecurityLimits, skipped: &Skipp
     })
 }
 
-#[cfg(any(feature = "excel", feature = "excel-wasm"))]
+#[cfg(feature = "excel")]
 fn normalize_ods_row_whitespace(data: &[u8], limits: &SecurityLimits) -> Result<Option<Vec<u8>>> {
     rewrite_spreadsheet_zip(data, limits, |name, contents| {
         if name == "content.xml" {
@@ -367,7 +367,7 @@ fn normalize_ods_row_whitespace(data: &[u8], limits: &SecurityLimits) -> Result<
 /// signature. An embedded ZIP can otherwise make `ZipArchive` accept the outer OLE bytes,
 /// then fail while resolving a member against the wrong container (#1938). Modern spreadsheet
 /// extensions retain ZIP validation even when their bytes begin with an OLE signature.
-#[cfg(any(feature = "excel", feature = "excel-wasm"))]
+#[cfg(feature = "excel")]
 fn validate_zip_container<R: Read + Seek>(
     mut reader: R,
     file_extension: &str,
@@ -424,7 +424,7 @@ pub(crate) fn read_excel_file(file_path: &str, limits: &SecurityLimits) -> Resul
     }
     let warnings: Vec<ProcessingWarning> = Vec::new();
 
-    #[cfg(any(feature = "excel", feature = "excel-wasm"))]
+    #[cfg(feature = "excel")]
     let skipped = {
         let check_file = std::fs::File::open(file_path)?;
         let file_extension = Path::new(file_path)
@@ -434,7 +434,7 @@ pub(crate) fn read_excel_file(file_path: &str, limits: &SecurityLimits) -> Resul
             .unwrap_or_default();
         validate_zip_container(std::io::BufReader::new(check_file), &file_extension, limits)?
     };
-    #[cfg(not(any(feature = "excel", feature = "excel-wasm")))]
+    #[cfg(not(feature = "excel"))]
     let skipped = {
         let _ = limits;
         SkippedSheets::default()
@@ -638,9 +638,9 @@ fn read_xlsb_file(
 pub(crate) fn read_excel_bytes(data: &[u8], file_extension: &str, limits: &SecurityLimits) -> Result<ExcelReadResult> {
     let warnings: Vec<ProcessingWarning> = Vec::new();
 
-    #[cfg(any(feature = "excel", feature = "excel-wasm"))]
+    #[cfg(feature = "excel")]
     let skipped = validate_zip_container(Cursor::new(data), file_extension, limits)?;
-    #[cfg(not(any(feature = "excel", feature = "excel-wasm")))]
+    #[cfg(not(feature = "excel"))]
     let skipped = {
         let _ = limits;
         SkippedSheets::default()
@@ -852,7 +852,7 @@ fn read_ods_file(
     }
 }
 
-#[cfg(all(test, any(feature = "excel", feature = "excel-wasm")))]
+#[cfg(all(test, feature = "excel"))]
 mod zip_header_consistency_tests {
     use super::validate_zip_container;
     use crate::extractors::security::SecurityLimits;

@@ -26,7 +26,7 @@ impl TokenCounter {
 
     /// Allocate the next token for `category` and `original`. If the original
     /// has been seen before in this category, the same token is reused.
-    #[cfg_attr(alef, alef(skip))]
+
     pub fn next_token(&mut self, category: &PiiCategory, original: &str) -> String {
         let cat_label = category_label(category);
         let key = (cat_label.clone(), original.to_string());
@@ -45,7 +45,7 @@ impl TokenCounter {
     /// (no other strategy allocates tokens), so this is the complete
     /// rehydration map for the pass that used this counter.
     #[cfg(feature = "redaction-rehydrate")]
-    #[cfg_attr(alef, alef(skip))]
+
     pub fn rehydration_map(&self) -> super::rehydration::RehydrationMap {
         self.cache
             .iter()
@@ -58,7 +58,7 @@ impl TokenCounter {
 ///
 /// The optional `counter` is required for [`RedactionStrategy::TokenReplace`];
 /// other strategies ignore it.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn apply_strategy(
     strategy: RedactionStrategy,
     original: &str,

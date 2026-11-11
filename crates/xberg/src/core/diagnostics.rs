@@ -47,7 +47,6 @@
 // Every consumer of these helpers is behind an extractor feature flag
 // (`xml`, `archives`, `office`, `pdf`, ...), so a build that enables none of
 // them leaves parts of this module unused. ~keep
-#![allow(dead_code)]
 
 use crate::types::ProcessingWarning;
 use std::borrow::Cow;
@@ -162,7 +161,7 @@ pub(crate) fn push_warning_deduped(accumulated: &mut Vec<ProcessingWarning>, war
 /// A backend that warns about its configuration (e.g. paddle-ocr's unsupported
 /// language warning, or a per-page model degradation) emits the same warning on
 /// every page; one copy per document is enough.
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(crate) fn dedup_extend_warnings(accumulated: &mut Vec<ProcessingWarning>, new: Vec<ProcessingWarning>) {
     for warning in new {
         push_warning_deduped(accumulated, warning);
@@ -210,7 +209,7 @@ mod convention_tests {
     }
 }
 
-#[cfg(all(test, feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(test, feature = "pdf", feature = "ocr-pipeline"))]
 mod tests {
     use super::*;
     use std::borrow::Cow;

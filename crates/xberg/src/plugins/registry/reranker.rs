@@ -20,7 +20,7 @@ use std::sync::Arc;
 /// cross-encoders return a single scalar per `(query, document)` pair, not a
 /// vector of fixed length.
 ///
-#[cfg_attr(alef, alef(skip))]
+
 pub struct RerankerBackendRegistry {
     pub(super) backends: AHashMap<String, Arc<dyn RerankerBackend>>,
 }

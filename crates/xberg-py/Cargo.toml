@@ -60,7 +60,6 @@ default = [
     "tokio-runtime",
     "auto-rotate-types",
     "layout-types",
-    "paddle-ocr-types",
     "embedding-presets",
     "reranker-presets",
     "sparse-embedding-presets",
@@ -121,9 +120,6 @@ markdown-footnotes = [
 ]
 office = [
     "xberg/office",
-]
-paddle-ocr-types = [
-    "xberg/paddle-ocr-types",
 ]
 pdf = [
     "xberg/pdf",
@@ -215,7 +211,6 @@ features = [
     "simd-utf8",
     "auto-rotate-types",
     "layout-types",
-    "paddle-ocr-types",
     "embedding-presets",
     "reranker-presets",
     "sparse-embedding-presets",
@@ -245,8 +240,4 @@ dbg_macro = "deny"
 print_stderr = "deny"
 print_stdout = "deny"
 
-[lints.rust.unexpected_cfgs]
-level = "warn"
-check-cfg = [
-    "cfg(feature, values(\"analysis\", \"android-target\", \"api\", \"archives\", \"auto-rotate\", \"auto-rotate-tract\", \"bedrock\", \"bundle-tessdata-eng\", \"candle-accelerate\", \"candle-cuda\", \"candle-deepseek-ocr\", \"candle-glm-ocr\", \"candle-metal\", \"candle-mkl\", \"candle-ocr\", \"candle-paddleocr-vl\", \"candle-trocr\", \"candle-vlm-ocr\", \"captioning\", \"chunking-tokenizers\", \"classification\", \"classification-onnx\", \"classification-onnx-types\", \"cli\", \"coreml\", \"cuda\", \"embeddings\", \"excel-wasm\", \"formats\", \"formats-no-heic\", \"formula-recognition\", \"full\", \"full-no-heic\", \"heic\", \"hwp\", \"hwpx\", \"iwork\", \"keywords\", \"late-interaction\", \"layout-detection\", \"layout-tract\", \"liter-llm\", \"macos-intel-target\", \"mcp\", \"mcp-http\", \"mdx\", \"mobile\", \"ner\", \"ner-candle\", \"ner-candle-backend\", \"ner-candle-wasm\", \"ner-llm\", \"ner-onnx\", \"no-ort-target\", \"ocr\", \"ocr-wasm\", \"onnx-runtime\", \"ort-bundled\", \"ort-dynamic\", \"otel\", \"paddle-ocr\", \"paddle-ocr-ort\", \"paddle-ocr-tract\", \"profiling\", \"prometheus\", \"qr-codes\", \"redaction-ml\", \"reranker\", \"sceptre-ocr\", \"sceptre-ocr-candle\", \"sceptre-ocr-candle-cuda\", \"sceptre-ocr-candle-metal\", \"sceptre-ocr-ort\", \"sceptre-ocr-tract\", \"sceptre-wasm\", \"server\", \"services\", \"sparse-embeddings\", \"sqlite\", \"static-embeddings\", \"structured\", \"summarization\", \"summarization-llm\", \"tensorrt\", \"tesseract-dynamic\", \"tower-service\", \"tract\", \"transcription\", \"translation\", \"tree-sitter\", \"tree-sitter-wasm\", \"url-ingestion\", \"url-ingestion-browser\", \"wasm-target\", \"windows-gnu-target\", \"windows-target\", \"wordperfect\"))",
-]
+[lints.rust]

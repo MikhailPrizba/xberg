@@ -17,14 +17,8 @@ use crate::core::config::ExtractInputKind;
 use crate::core::config::{ExternalRedactionFinding, RedactionOffsetEncoding};
 use crate::core::config::{ExtractInput, ExtractInputWithOptions, ExtractionConfig, ExtractionResult};
 
-#[cfg(all(feature = "url-ingestion", feature = "tokio-runtime", not(target_arch = "wasm32")))]
-mod crawl_handle;
 mod extract_impl;
 
-#[cfg(all(feature = "pdf", feature = "layout-detection"))]
-pub(crate) mod layout_region_text;
-#[cfg(all(feature = "pdf", feature = "layout-detection"))]
-pub use layout_region_text::{LayoutRegionText, LayoutRegionTextExtraction};
 pub mod seams;
 
 /// Generic, MIT-clean structured-extraction mechanism (rasterize, chunk, schema,
@@ -52,12 +46,6 @@ use seams::{CacheBackend, NoopCache, NoopProgressSink, ProgressSink};
 /// injected cache and progress seams. The single-URL `extract` path does not
 /// touch the crawl state.
 struct EngineInner {
-    /// Single-slot, fingerprinted memo of the last-built crawl engine. The slot
-    /// is reused when the incoming [`crawlberg::CrawlConfig`] fingerprint
-    /// matches, otherwise a fresh engine is built and stored.
-    #[cfg(all(feature = "url-ingestion", feature = "tokio-runtime", not(target_arch = "wasm32")))]
-    crawl: parking_lot::Mutex<Option<crawl_handle::CrawlHandleMemo>>,
-
     /// Content-addressed byte cache. Default: [`NoopCache`].
     cache: Arc<dyn CacheBackend>,
     cache_enabled: bool,
@@ -133,92 +121,6 @@ impl Engine {
 
         #[cfg(not(feature = "tokio-runtime"))]
         extract_impl::extract(&self.inner, input, config).await
-    }
-
-    /// Extract one PDF bytes input using request-owned explicit layout-page selection. ~keep
-    /// Enables the native layout path and bypasses both caches after resolving per-input overrides.
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    pub async fn extract_with_layout_pages(
-        &self,
-        input: ExtractInput,
-        config: &ExtractionConfig,
-        pages: Vec<u32>,
-    ) -> Result<ExtractionResult> {
-        let selection = crate::core::layout_pages::LayoutPageSelection::new(pages);
-        self.extract_with_layout_selection(input, config, &selection).await
-    }
-
-    /// Extract one PDF bytes input and collect source-proven text for explicitly selected layout pages.
-    ///
-    /// This enables page extraction and native layout reading order, and bypasses both caches.
-    /// Unsupported pages, unproved regions and redaction requests yield no region text.
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    #[cfg_attr(alef, alef(skip))]
-    pub async fn extract_with_layout_region_text(
-        &self,
-        input: ExtractInput,
-        config: &ExtractionConfig,
-        pages: Vec<u32>,
-    ) -> Result<LayoutRegionTextExtraction> {
-        let mut selection = crate::core::layout_pages::LayoutPageSelection::new(pages);
-        let pending: layout_region_text::RegionTextCollector = Default::default();
-        selection.region_text = Some(Arc::clone(&pending));
-        let extraction = self.extract_with_layout_selection(input, config, &selection).await?;
-        let pending = std::mem::take(&mut *pending.lock());
-        Ok(layout_region_text::finish(extraction, pending))
-    }
-
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    async fn extract_with_layout_selection(
-        &self,
-        input: ExtractInput,
-        config: &ExtractionConfig,
-        selection: &crate::core::layout_pages::LayoutPageSelection,
-    ) -> Result<ExtractionResult> {
-        #[cfg(all(feature = "tokio-runtime", not(target_arch = "wasm32")))]
-        let result = {
-            let (engine, config, selection) = (self.clone(), config.clone(), selection.clone());
-            let work = async move {
-                Box::pin(engine.extract_with_layout_selection_on_current_stack(input, &config, &selection)).await
-            };
-            #[cfg(test)]
-            let work = inherit_test_task_locals(work);
-            crate::core::runtime::run_on_large_stack(work).await?
-        };
-
-        #[cfg(not(all(feature = "tokio-runtime", not(target_arch = "wasm32"))))]
-        let result = self
-            .extract_with_layout_selection_on_current_stack(input, config, selection)
-            .await;
-
-        result
-    }
-
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    async fn extract_with_layout_selection_on_current_stack(
-        &self,
-        input: ExtractInput,
-        config: &ExtractionConfig,
-        selection: &crate::core::layout_pages::LayoutPageSelection,
-    ) -> Result<ExtractionResult> {
-        // ~keep The native PDF future is large; erase it before progress/public wrappers embed its state.
-        #[cfg(not(target_arch = "wasm32"))]
-        let operation: std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<ExtractionResult>> + Send + '_>,
-        > = Box::pin(extract_impl::extract_with_layout_pages(
-            &self.inner,
-            input,
-            config,
-            selection,
-        ));
-        #[cfg(target_arch = "wasm32")]
-        let operation: std::pin::Pin<Box<dyn std::future::Future<Output = Result<ExtractionResult>> + '_>> = Box::pin(
-            extract_impl::extract_with_layout_pages(&self.inner, input, config, selection),
-        );
-        #[cfg(feature = "tokio-runtime")]
-        return seams::scope_progress(Arc::clone(&self.inner.progress), None, operation).await;
-        #[cfg(not(feature = "tokio-runtime"))]
-        operation.await
     }
 
     /// Extract one bytes input and apply request-scoped external redaction findings.
@@ -402,8 +304,6 @@ impl EngineBuilder {
     pub fn build(self) -> Engine {
         let cache_enabled = self.cache.is_some();
         let inner = EngineInner {
-            #[cfg(all(feature = "url-ingestion", feature = "tokio-runtime", not(target_arch = "wasm32")))]
-            crawl: parking_lot::Mutex::new(None),
             cache: self.cache.unwrap_or_else(|| Arc::new(NoopCache)),
             cache_enabled,
             progress: self.progress.unwrap_or_else(|| Arc::new(NoopProgressSink)),
@@ -425,8 +325,6 @@ where
     let future: std::pin::Pin<Box<dyn std::future::Future<Output = F::Output> + Send>> = Box::pin(future);
     #[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
     let future = Box::pin(crate::plugins::registry::inherit_test_ocr_backend(future));
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    let future = Box::pin(crate::extractors::pdf::inherit_test_selected_page_detections(future));
     // The external-redaction scope never crosses a spawn in production; tests that scope it around a layout call do.
     #[cfg(feature = "redaction")]
     let future = {

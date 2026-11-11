@@ -67,7 +67,7 @@ async fn scanned_fixtures_report_high_confidence() {
         let (confidence, pages, content) = scan_document(fixture, &config).await;
         let confidence = confidence.unwrap_or_else(|| panic!("{fixture}: no scanned_confidence"));
         assert!(
-            !cfg!(any(feature = "ocr", feature = "ocr-pipeline")) || content.split_whitespace().count() > 50,
+            !cfg!(feature = "ocr-pipeline") || content.split_whitespace().count() > 50,
             "{fixture}: a scan must come back with its text, got {} chars",
             content.len()
         );

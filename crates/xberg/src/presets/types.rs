@@ -10,7 +10,6 @@ pub use crate::core::config::{CallMode, MergeMode};
 
 /// High-level category used to group presets in the registry UI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum PresetCategory {
     /// Invoices, receipts, statements, purchase orders, W-9.
@@ -31,7 +30,7 @@ pub enum PresetCategory {
 
 /// Pointer to a sample input + its reference output bundled with the preset.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct PresetSample {
     /// Path to the sample input file, relative to the preset directory.
     pub input_path: String,
@@ -48,7 +47,7 @@ pub struct PresetSample {
 /// [`super::registry::Registry::extend_from_dir`]. The embedded OSS library
 /// ships only the `generic_document` toy preset.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct Preset {
     /// Stable, URL-safe preset identifier (lowercase snake_case).
     pub id: String,
@@ -91,7 +90,7 @@ pub struct Preset {
 /// Lightweight projection of [`Preset`] used by the registry list endpoint
 /// (omits the full schema and prompt to keep the payload small).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct PresetSummary {
     /// Preset identifier matching [`Preset::id`].
     pub id: String,

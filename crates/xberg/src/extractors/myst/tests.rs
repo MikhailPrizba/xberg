@@ -54,50 +54,6 @@ fn should_parse_myst_notebook_cells_and_metadata() {
 }
 
 #[test]
-#[cfg(all(feature = "notebook", feature = "tree-sitter"))]
-fn should_parse_percent_cells_without_header() {
-    let content = "# %% [markdown]\n# # Report\n# %% tags=[parameters]\nx = 1\n";
-    let notebook = parse_text_notebook(content, &mut test_budget())
-        .expect("parsing should succeed")
-        .expect("percent markers identify a notebook");
-    assert_eq!(notebook.cells.len(), 2);
-    assert_eq!(notebook.cells[0].source, "# Report");
-    assert_eq!(notebook.cells[1].tags, ["parameters"]);
-}
-
-#[test]
-#[cfg(all(feature = "notebook", feature = "tree-sitter"))]
-fn should_not_treat_marker_free_source_as_notebook() {
-    assert_eq!(
-        parse_text_notebook("# ordinary source\nx = 1\n", &mut test_budget()).expect("detection should succeed"),
-        None
-    );
-}
-
-#[test]
-#[cfg(all(feature = "notebook", feature = "tree-sitter"))]
-fn should_require_light_header() {
-    let content = "# + [markdown]\n# Ordinary comment\n# -\nx = 1\n";
-    assert_eq!(
-        parse_text_notebook(content, &mut test_budget()).expect("detection should succeed"),
-        None
-    );
-}
-
-#[test]
-#[cfg(all(feature = "notebook", feature = "tree-sitter"))]
-fn should_parse_light_cells_with_header() {
-    let content = "# ---\n# jupyter:\n#   jupytext:\n#     text_representation:\n#       format_name: light\n# kernelspec:\n#   language: python\n# ---\n# + [markdown]\n# # Report\n# -\n# +\nx = 1\n# -\n";
-    let notebook = parse_text_notebook(content, &mut test_budget())
-        .expect("parsing should succeed")
-        .expect("light header identifies a notebook");
-    assert_eq!(notebook.cells.len(), 2);
-    assert_eq!(notebook.cells[0].source, "# Report");
-    assert_eq!(notebook.cells[1].source, "x = 1");
-    assert_eq!(notebook.metadata["kernelspec"]["language"], "python");
-}
-
-#[test]
 fn should_bound_deeply_nested_directive_preprocessing() {
     let deepest = MAX_MYST_DIRECTIVE_DEPTH + 16;
     let mut content = String::new();

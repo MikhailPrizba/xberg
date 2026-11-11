@@ -766,31 +766,6 @@ fn should_fail_closed_when_the_late_processor_is_disabled() {
     });
 }
 
-#[cfg(all(feature = "ner", not(feature = "ner-onnx")))]
-#[test]
-fn should_fail_closed_when_configured_findings_share_a_failing_ner_stage() {
-    run_extraction_test(async {
-        let config = ExtractionConfig {
-            redaction: Some(RedactionConfig {
-                findings: vec![text_finding("PERSON", "Zarnak Quorlim")],
-                ner: Some(xberg::NerConfig::default()),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        let error = extract(
-            ExtractInput::from_bytes(b"Zarnak Quorlim".to_vec(), "text/plain", None),
-            &config,
-        )
-        .await
-        .expect_err("a redaction backend failure must not return the original content");
-
-        assert!(matches!(error, xberg::XbergError::Plugin { .. }));
-        assert!(error.to_string().contains("ner-onnx feature is not enabled"), "{error}");
-    });
-}
-
 #[test]
 fn should_reject_uri_input_and_leave_no_scope_after_an_error() {
     run_extraction_test(async {

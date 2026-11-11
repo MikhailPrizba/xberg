@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// Classification result for a single page.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct PageClassification {
     /// 1-indexed page number this classification belongs to.
     pub page_number: u32,
@@ -19,7 +19,7 @@ pub struct PageClassification {
 
 /// A single label + confidence pair.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ClassificationLabel {
     /// Label name as configured in `PageClassificationConfig::labels`.
     pub label: String,

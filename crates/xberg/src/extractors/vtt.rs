@@ -48,7 +48,7 @@ const MILLIS_PER_HOUR: u64 = 60 * MILLIS_PER_MINUTE;
 ///
 /// Emits one paragraph element per cue, carrying the cue's timings and identifier as
 /// element attributes rather than as body text.
-#[cfg_attr(alef, alef(skip))]
+
 pub struct WebVttExtractor;
 
 impl WebVttExtractor {

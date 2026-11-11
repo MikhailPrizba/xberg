@@ -57,7 +57,7 @@ impl PSMMode {
 ///
 /// This is the internal representation used by the OCR processor.
 /// Public API uses i32 for PyO3 compatibility, converted to u8 here for efficiency.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TesseractConfig {
     /// Tesseract language code (e.g. `"eng"`, `"deu"`, `"eng+fra"`).
@@ -292,28 +292,6 @@ impl Default for TesseractConfig {
     }
 }
 
-impl TesseractConfig {
-    #[cfg(feature = "ocr")]
-    pub(crate) fn validate(&self) -> Result<(), String> {
-        if !matches!(self.output_format.as_str(), "text" | "markdown" | "hocr" | "tsv") {
-            return Err(format!(
-                "Invalid output_format: '{}'. Must be one of: text, markdown, hocr, tsv",
-                self.output_format
-            ));
-        }
-        if let Some(preprocessing) = &self.preprocessing {
-            crate::core::config_validation::validate_image_preprocessing_config(preprocessing).map_err(|error| {
-                if let crate::XbergError::Validation { message, .. } = error {
-                    message
-                } else {
-                    error.to_string()
-                }
-            })?;
-        }
-        Ok(())
-    }
-}
-
 /// Convert from public API TesseractConfig to internal OCR TesseractConfig.
 ///
 /// This conversion handles type differences (i32 → u8/u32) and clones
@@ -363,7 +341,7 @@ impl From<&crate::types::TesseractConfig> for TesseractConfig {
 }
 
 /// OCR extraction result returned by the internal OCR processor.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtractionResult {
     /// Extracted text content (plain text, Markdown, or hOCR depending on `output_format`).
@@ -377,7 +355,7 @@ pub struct ExtractionResult {
 }
 
 /// A table reconstructed from OCR output (hOCR or TSV word bounding boxes).
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Table {
     /// Cell text as a 2D grid (rows × columns).
@@ -389,7 +367,7 @@ pub struct Table {
 }
 
 /// Result for a single item in a batch OCR operation.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchItemResult {
     /// Path to the source file that was processed.
@@ -474,63 +452,6 @@ mod tests {
         assert_eq!(config.psm, 3, "native default must be PSM_AUTO (3)");
     }
 
-    #[cfg(feature = "ocr")]
-    #[test]
-    fn test_tesseract_config_validate_valid() {
-        let valid_formats = ["text", "markdown", "hocr", "tsv"];
-
-        for format in valid_formats {
-            let config = TesseractConfig {
-                output_format: format.to_string(),
-                ..Default::default()
-            };
-            assert!(config.validate().is_ok());
-        }
-
-        for method in ["none", "off"] {
-            let config = TesseractConfig {
-                preprocessing: Some(ImagePreprocessingConfig {
-                    deskew: false,
-                    binarization_method: method.to_string(),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            };
-            assert!(config.validate().is_ok(), "{method} must disable binarization");
-        }
-    }
-
-    #[cfg(feature = "ocr")]
-    #[test]
-    fn should_reject_tesseract_config_when_deskew_has_no_binarization() {
-        let config = TesseractConfig {
-            preprocessing: Some(ImagePreprocessingConfig {
-                deskew: true,
-                binarization_method: "off".to_string(),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        assert_eq!(
-            config.validate().unwrap_err(),
-            "deskew must be false when binarization_method is none or off"
-        );
-    }
-
-    #[cfg(feature = "ocr")]
-    #[test]
-    fn test_tesseract_config_validate_invalid() {
-        let config = TesseractConfig {
-            output_format: "invalid".to_string(),
-            ..Default::default()
-        };
-
-        let result = config.validate();
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Invalid output_format"));
-    }
-
     #[test]
     fn test_extraction_result_creation() {
         let mut metadata = std::collections::HashMap::new();
@@ -584,8 +505,6 @@ mod tests {
             metadata: std::collections::HashMap::new(),
             tables: vec![],
             ocr_elements: None,
-            internal_document: None,
-            raw_ocr_source_frame: None,
         };
 
         let batch_result = BatchItemResult {

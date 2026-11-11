@@ -74,14 +74,6 @@ pub const MODEL_INFERENCE_MS: &str = "xberg.model.inference_ms";
 /// The `XbergError` variant name (e.g. `Parsing`, `Timeout`, `UnsupportedFormat`).
 pub const ERROR_TYPE: &str = "xberg.error.type";
 
-/// Sanitize a file path to return only the filename (no directory).
-///
-/// Prevents PII from appearing in traces.
-#[cfg(any(feature = "otel", feature = "tower-service"))]
-pub(crate) fn sanitize_filename(path: &std::path::Path) -> &str {
-    path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown")
-}
-
 /// OpenTelemetry status code (`OK` or `ERROR`).
 pub const OTEL_STATUS_CODE: &str = "otel.status_code";
 
@@ -158,38 +150,4 @@ pub mod metrics {
 
     /// Gauge (UpDownCounter): currently in-flight extractions.
     pub const CONCURRENT_EXTRACTIONS: &str = "xberg.extraction.concurrent";
-}
-
-#[cfg(all(test, any(feature = "otel", feature = "tower-service")))]
-mod tests {
-    use super::*;
-    use std::path::Path;
-
-    #[test]
-    fn sanitize_filename_normal_path() {
-        let path = Path::new("/home/user/doc.pdf");
-        assert_eq!(sanitize_filename(path), "doc.pdf");
-    }
-
-    #[test]
-    fn sanitize_filename_root_file() {
-        let path = Path::new("doc.pdf");
-        assert_eq!(sanitize_filename(path), "doc.pdf");
-    }
-
-    #[test]
-    fn sanitize_filename_empty_path_returns_unknown() {
-        let path = Path::new("");
-        assert_eq!(sanitize_filename(path), "unknown");
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn sanitize_filename_non_utf8_path() {
-        use std::ffi::OsStr;
-        use std::os::unix::ffi::OsStrExt;
-        let bad = OsStr::from_bytes(&[0xFF, 0xFE]);
-        let path = Path::new(bad);
-        assert_eq!(sanitize_filename(path), "unknown");
-    }
 }

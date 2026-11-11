@@ -1,4 +1,4 @@
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 use crate::types::BoundingBox;
 use crate::types::internal::{ElementKind, InternalDocument, NATIVE_TABLE_GRID_ATTRIBUTE};
 use crate::types::{Table, TableGrid};
@@ -54,7 +54,7 @@ fn matching_sources(sidecars: &[TableGridSidecar]) -> GridCandidates<'_> {
     candidates
 }
 
-#[cfg(all(feature = "pdf", any(feature = "layout-detection", test)))]
+#[cfg(all(feature = "pdf", test))]
 pub(crate) fn attach_table_grids(
     document: &mut InternalDocument,
     sidecars: &[TableGridSidecar],
@@ -70,14 +70,6 @@ pub(crate) fn attach_ruled_table_grids(
     attach_table_grids_inner(document, sidecars, |table, source| {
         table.columns.is_none() && source.columns.is_some()
     })
-}
-
-#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
-pub(crate) fn attach_recognized_table_grids(
-    document: &mut InternalDocument,
-    sidecars: &[TableGridSidecar],
-) -> serde_json::Result<()> {
-    attach_table_grids_inner(document, sidecars, |_, _| true)
 }
 
 fn attach_table_grids_inner(
@@ -143,7 +135,7 @@ fn synchronize_headers(document: &mut InternalDocument, updates: Vec<HeaderUpdat
     }
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(crate) fn transform_retained_grid_bboxes(
     document: &mut InternalDocument,
     external_tables: &[Table],

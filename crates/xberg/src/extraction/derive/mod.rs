@@ -20,15 +20,15 @@ use crate::types::internal::{ElementKind, InternalDocument, InternalElement, Rel
 use crate::types::tables::Table;
 
 mod formulas;
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 mod ocr_document;
 mod pages;
 pub(crate) mod surfaces;
 use formulas::derive_formulas;
 pub(crate) use formulas::strip_math_delimiters;
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) use ocr_document::adopt_public_ocr_document;
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(crate) use ocr_document::is_invalid_public_ocr_document;
 pub(crate) use pages::build_ocr_elements;
 #[cfg(test)]
@@ -37,13 +37,6 @@ use pages::derive_pages;
 #[cfg(feature = "quality")]
 pub(crate) use pages::drop_unusable_page_boundaries;
 pub(crate) use pages::reconcile_page_boundaries;
-#[cfg(all(
-    feature = "pdf",
-    feature = "ocr",
-    feature = "tokio-runtime",
-    not(target_arch = "wasm32")
-))]
-pub(crate) use pages::render_plain_selected_pages;
 
 /// Cap on how many unresolvable keys a single warning names before it summarises
 /// the rest as a count, so a badly broken document cannot produce an unbounded
@@ -832,36 +825,6 @@ fn derive_uris(doc: &mut InternalDocument) -> Option<Vec<crate::types::uri::Extr
     }
 }
 
-/// `code_intelligence` is documented (types/extraction.rs) as carrying the full
-/// `tree_sitter_language_pack::ProcessResult` — metrics, structure, imports, exports,
-/// comments, docstrings, symbols, diagnostics, chunks and the hierarchical data tree.
-/// `extractors/code.rs` stashes that entire serialized result under
-/// `CODE_INTELLIGENCE_SCRATCH_KEY` in `metadata.additional` (the typed `CodeMetadata` on
-/// `Metadata::format` only carries `chunks`/`data`, so it has no room for the rest).
-/// Prefer that full payload; `.remove()` so it never leaks into the final
-/// `ExtractedDocument.metadata.additional` map. Fall back to serializing just
-/// `CodeMetadata` for documents that reach this point without going through
-/// `CodeExtractor` (e.g. synthetic `InternalDocument`s built by tests or other callers
-/// that set `FormatMetadata::Code` directly). ~keep
-#[cfg(feature = "tree-sitter")]
-fn derive_code_intelligence(doc: &mut InternalDocument) -> Option<serde_json::Value> {
-    let is_code_metadata = matches!(
-        doc.metadata.format.as_ref(),
-        Some(crate::types::metadata::FormatMetadata::Code(_))
-    );
-    let full_process_result = if is_code_metadata {
-        doc.metadata
-            .additional
-            .remove(crate::extractors::code::CODE_INTELLIGENCE_SCRATCH_KEY)
-    } else {
-        None
-    };
-    full_process_result.or_else(|| match doc.metadata.format.as_ref() {
-        Some(crate::types::metadata::FormatMetadata::Code(code_metadata)) => serde_json::to_value(code_metadata).ok(),
-        _ => None,
-    })
-}
-
 /// Derive a complete `ExtractedDocument` from an `InternalDocument`.
 ///
 /// This is the main entry point for the derivation pipeline. It:
@@ -872,7 +835,7 @@ fn derive_code_intelligence(doc: &mut InternalDocument) -> Option<serde_json::Va
 /// 5. Extracts OCR elements for backward compatibility
 /// 6. Optionally derives `DocumentStructure` (assumes relationships resolved)
 /// 7. Assembles the final `ExtractedDocument`
-#[cfg_attr(alef, alef(skip))]
+
 pub fn derive_extraction_result(
     doc: InternalDocument,
     include_document_structure: bool,
@@ -930,8 +893,6 @@ fn derive(
     };
 
     let uris = derive_uris(&mut doc);
-    #[cfg(feature = "tree-sitter")]
-    let code_intelligence = derive_code_intelligence(&mut doc);
 
     let images = if doc.images.is_empty() { None } else { Some(doc.images) };
 
@@ -967,8 +928,6 @@ fn derive(
         form_fields: std::mem::take(&mut doc.form_fields),
         ocr_page_failures: Some(std::mem::take(&mut doc.ocr_page_failures)).filter(|failures| !failures.is_empty()),
         formulas,
-        #[cfg(feature = "tree-sitter")]
-        code_intelligence,
         formatted_content,
         ..Default::default()
     }

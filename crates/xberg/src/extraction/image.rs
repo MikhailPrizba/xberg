@@ -6,106 +6,19 @@
 use crate::error::{Result, XbergError};
 use crate::extraction::exif::extract_exif_data;
 use crate::extraction::heif::is_heif_container;
-#[cfg(feature = "ocr")]
-use crate::extraction::image_decode::image_dimension_error;
 use crate::extraction::image_decode::{
     ImageDecodeBudget, decode_standard_image_with_security_limits, decode_standard_rgb8_with_security_limits,
     decoded_byte_count,
 };
 use crate::extractors::security::SecurityLimits;
 use std::collections::HashMap;
-#[cfg(feature = "ocr")]
-use std::io::Cursor;
-
-#[cfg(feature = "ocr")]
-mod bounded_jpeg;
-
-#[cfg(all(
-    feature = "ocr",
-    feature = "pdf",
-    feature = "tokio-runtime",
-    not(target_arch = "wasm32")
-))]
-pub(crate) use bounded_jpeg::decode_sequential_gray_jpeg;
-
-#[cfg(all(feature = "ocr", feature = "pdf"))]
-pub(crate) use bounded_jpeg::load_image_for_ocr_within;
-#[cfg(feature = "ocr")]
-pub(crate) use bounded_jpeg::{
-    DecodedOcrImage, ReducedScale, admit_jpeg_for_processing, load_image_for_ocr, load_image_for_ocr_with_processing,
-};
-#[cfg(feature = "ocr")]
-#[doc(hidden)]
-pub use bounded_jpeg::{decode_reduced_jpeg, reduced_decode_bound};
 
 /// JP2 file signature: 12-byte box starting with length 0x0000000C and type "jP  "
 const JP2_MAGIC: &[u8] = &[0x00, 0x00, 0x00, 0x0C, 0x6A, 0x50, 0x20, 0x20];
 
-#[cfg(feature = "ocr")]
-fn jp2_peak_decoded_bytes(width: u32, height: u32, num_channels: u8, has_alpha: bool) -> Result<u64> {
-    let pixel_count = decoded_byte_count(width, height, 1)?;
-    let source_channels = u64::from(num_channels) + u64::from(u8::from(has_alpha));
-    let source_bytes = pixel_count
-        .checked_mul(source_channels)
-        .ok_or_else(|| image_dimension_error(width, height, u64::MAX, u64::MAX))?;
-    let rgb_bytes = pixel_count
-        .checked_mul(u64::from(image::ColorType::Rgb8.bytes_per_pixel()))
-        .ok_or_else(|| image_dimension_error(width, height, u64::MAX, u64::MAX))?;
-    if num_channels == 3 && !has_alpha {
-        Ok(rgb_bytes)
-    } else {
-        source_bytes
-            .checked_add(rgb_bytes)
-            .ok_or_else(|| image_dimension_error(width, height, u64::MAX, u64::MAX))
-    }
-}
-
-#[cfg(feature = "ocr")]
-fn jp2_peak_live_bytes(
-    width: u32,
-    height: u32,
-    num_channels: u8,
-    has_alpha: bool,
-    encoded_bytes: usize,
-) -> Result<u64> {
-    jp2_peak_decoded_bytes(width, height, num_channels, has_alpha)?
-        .checked_add(u64::try_from(encoded_bytes).unwrap_or(u64::MAX))
-        .ok_or_else(|| image_dimension_error(width, height, u64::MAX, u64::MAX))
-}
-
-#[cfg(feature = "ocr")]
-fn jbig2_gray_peak_live_bytes(width: u32, height: u32, encoded_bytes: usize) -> Result<u64> {
-    decoded_byte_count(width, height, u64::from(image::ColorType::L8.bytes_per_pixel()))?
-        .checked_add(u64::try_from(encoded_bytes).unwrap_or(u64::MAX))
-        .ok_or_else(|| image_dimension_error(width, height, u64::MAX, u64::MAX))
-}
-
-#[cfg(feature = "ocr")]
-fn jbig2_rgb_peak_live_bytes(width: u32, height: u32, encoded_bytes: usize) -> Result<u64> {
-    let decoded_and_encoded = jbig2_gray_peak_live_bytes(width, height, encoded_bytes)?;
-    decoded_and_encoded
-        .checked_add(decoded_byte_count(
-            width,
-            height,
-            u64::from(image::ColorType::Rgb8.bytes_per_pixel()),
-        )?)
-        .ok_or_else(|| image_dimension_error(width, height, u64::MAX, u64::MAX))
-}
-
-#[cfg(feature = "ocr")]
-fn validate_encoded_image_input(bytes: &[u8], limits: &SecurityLimits) -> Result<()> {
-    ImageDecodeBudget::from_security_limits(limits).validate(1, 1, u64::try_from(bytes.len()).unwrap_or(u64::MAX))
-}
-
 /// Check if bytes start with JPEG 2000 magic bytes.
 pub(crate) fn is_jp2(bytes: &[u8]) -> bool {
     bytes.len() >= JP2_MAGIC.len() && bytes[..JP2_MAGIC.len()] == *JP2_MAGIC
-}
-
-/// Check if bytes start with J2K codestream magic (SOC marker).
-#[cfg(feature = "ocr")]
-pub(crate) fn is_j2k(bytes: &[u8]) -> bool {
-    bytes.len() >= 4 && bytes[0] == 0xFF && bytes[1] == 0x4F && bytes[2] == 0xFF && bytes[3] == 0x51
 }
 
 /// Image metadata extracted from an image file.
@@ -301,178 +214,6 @@ fn parse_j2k_siz(bytes: &[u8]) -> Result<ExtractedImageMetadata> {
     }
 
     Err(XbergError::parsing("J2K codestream missing SIZ marker".to_string()))
-}
-
-/// Decode JPEG 2000 image bytes to an RGB image using hayro-jpeg2000.
-///
-/// Pure Rust, memory-safe decoder. No temp files needed.
-#[cfg(all(feature = "ocr", test))]
-pub(crate) fn decode_jp2_to_rgb(bytes: &[u8]) -> Result<image::RgbImage> {
-    let limits = SecurityLimits::default();
-    decode_jp2_to_rgb_with_security_limits(bytes, &limits)
-}
-
-#[cfg(feature = "ocr")]
-fn decode_jp2_to_rgb_with_security_limits(bytes: &[u8], limits: &SecurityLimits) -> Result<image::RgbImage> {
-    use hayro_jpeg2000::{DecodeSettings, DecoderContext, Image as Jp2Image};
-
-    validate_encoded_image_input(bytes, limits)?;
-    let jp2 = Jp2Image::new(bytes, &DecodeSettings::default())
-        .map_err(|e| XbergError::parsing(format!("JP2 decode failed: {}", e)))?;
-    let width = jp2.width();
-    let height = jp2.height();
-    let has_alpha = jp2.has_alpha();
-    let num_channels = jp2.color_space().num_channels();
-    let peak_live_bytes = jp2_peak_live_bytes(width, height, num_channels, has_alpha, bytes.len())?;
-    ImageDecodeBudget::from_security_limits(limits).validate(width, height, peak_live_bytes)?;
-    // hayro-jpeg2000 0.4 threads a caller-owned `DecoderContext` through `decode` so the
-    // sample buffers can be reused across images, and returns a borrowing `DecodedImage`
-    // rather than the interleaved `Vec<u8>` 0.3 handed back. `data_u8` is that same
-    // interleaved unsigned-8-bit view, so everything below is unchanged.
-    let mut decoder_context = DecoderContext::default();
-    let pixels = jp2
-        .decode(&mut decoder_context)
-        .map_err(|e| XbergError::parsing(format!("JP2 pixel decode failed: {}", e)))?
-        .data_u8();
-
-    let rgb_bytes = match (num_channels, has_alpha) {
-        (1, false) => {
-            let mut rgb = Vec::with_capacity(pixels.len() * 3);
-            for &g in &pixels {
-                rgb.push(g);
-                rgb.push(g);
-                rgb.push(g);
-            }
-            rgb
-        }
-        (1, true) => {
-            let mut rgb = Vec::with_capacity((pixels.len() / 2) * 3);
-            for chunk in pixels.as_chunks::<2>().0 {
-                rgb.push(chunk[0]);
-                rgb.push(chunk[0]);
-                rgb.push(chunk[0]);
-            }
-            rgb
-        }
-        (3, false) => pixels,
-        (3, true) => {
-            let mut rgb = Vec::with_capacity((pixels.len() / 4) * 3);
-            for chunk in pixels.as_chunks::<4>().0 {
-                rgb.push(chunk[0]);
-                rgb.push(chunk[1]);
-                rgb.push(chunk[2]);
-            }
-            rgb
-        }
-        (4, false) => {
-            let mut rgb = Vec::with_capacity((pixels.len() / 4) * 3);
-            for chunk in pixels.as_chunks::<4>().0 {
-                let c = chunk[0] as f32 / 255.0;
-                let m = chunk[1] as f32 / 255.0;
-                let y = chunk[2] as f32 / 255.0;
-                let k = chunk[3] as f32 / 255.0;
-                rgb.push(((1.0 - c) * (1.0 - k) * 255.0) as u8);
-                rgb.push(((1.0 - m) * (1.0 - k) * 255.0) as u8);
-                rgb.push(((1.0 - y) * (1.0 - k) * 255.0) as u8);
-            }
-            rgb
-        }
-        _ => {
-            return Err(XbergError::parsing(format!(
-                "Unsupported JP2 color space: {} channels, alpha={}",
-                num_channels, has_alpha
-            )));
-        }
-    };
-
-    image::RgbImage::from_raw(width, height, rgb_bytes)
-        .ok_or_else(|| XbergError::parsing("Failed to construct RGB image from JP2 data".to_string()))
-}
-
-/// JBIG2 file signature: 0x97 0x4A 0x42 0x32 0x0D 0x0A 0x1A 0x0A
-#[cfg(feature = "ocr")]
-const JBIG2_MAGIC: &[u8] = &[0x97, 0x4A, 0x42, 0x32, 0x0D, 0x0A, 0x1A, 0x0A];
-
-/// Check if bytes start with JBIG2 magic bytes.
-#[cfg(feature = "ocr")]
-pub(crate) fn is_jbig2(bytes: &[u8]) -> bool {
-    bytes.len() >= JBIG2_MAGIC.len() && bytes[..JBIG2_MAGIC.len()] == *JBIG2_MAGIC
-}
-
-/// Decode JBIG2 image bytes to a grayscale image using hayro-jbig2.
-///
-/// JBIG2 is a bi-level (1-bit) image compression format commonly used in scanned PDFs.
-/// The decoder converts black/white pixels to grayscale (0/255) for OCR processing.
-#[cfg(feature = "ocr")]
-fn decode_jbig2_to_gray_with_security_limits(bytes: &[u8], limits: &SecurityLimits) -> Result<image::GrayImage> {
-    use hayro_jbig2::{DecodeSettings, Decoder, File, FormatError::MissingPageInfo};
-
-    struct GrayDecoder {
-        pixels: Vec<u8>,
-        max_pixels: usize,
-        exceeded_dimensions: bool,
-    }
-
-    impl Decoder for GrayDecoder {
-        fn push_pixel(&mut self, black: bool) {
-            if self.pixels.len() >= self.max_pixels {
-                self.exceeded_dimensions = true;
-                return;
-            }
-            self.pixels.push(if black { 0 } else { 255 });
-        }
-
-        fn push_pixel_chunk(&mut self, black: bool, chunk_count: u32) {
-            let luma = if black { 0 } else { 255 };
-            let Some(count) = (chunk_count as usize).checked_mul(8) else {
-                self.exceeded_dimensions = true;
-                return;
-            };
-            let Some(new_len) = self.pixels.len().checked_add(count) else {
-                self.exceeded_dimensions = true;
-                return;
-            };
-            if new_len > self.max_pixels {
-                self.exceeded_dimensions = true;
-                return;
-            }
-            self.pixels.resize(new_len, luma);
-        }
-
-        fn next_line(&mut self) {}
-    }
-
-    validate_encoded_image_input(bytes, limits)?;
-    let jbig2_error = |e: hayro_jbig2::DecodeError| XbergError::parsing(format!("JBIG2 decode failed: {e}"));
-    let jbig2_file = File::new(bytes, &DecodeSettings::default()).map_err(jbig2_error)?;
-    let jbig2_image = jbig2_file.page(0).ok_or_else(|| jbig2_error(MissingPageInfo.into()))?;
-    let width = jbig2_image.width();
-    let height = jbig2_image.height();
-    let decoded_bytes = decoded_byte_count(width, height, u64::from(image::ColorType::L8.bytes_per_pixel()))?;
-    let peak_live_bytes = jbig2_gray_peak_live_bytes(width, height, bytes.len())?;
-    ImageDecodeBudget::from_security_limits(limits).validate(width, height, peak_live_bytes)?;
-
-    let max_pixels = usize::try_from(decoded_bytes)
-        .map_err(|_| image_dimension_error(width, height, decoded_bytes, decoded_bytes))?;
-    let mut pixels = Vec::new();
-    pixels
-        .try_reserve_exact(max_pixels)
-        .map_err(|error| XbergError::parsing(format!("Failed to reserve JBIG2 decoded image buffer: {error}")))?;
-    let mut decoder = GrayDecoder {
-        pixels,
-        max_pixels,
-        exceeded_dimensions: false,
-    };
-    jbig2_image.decode(&mut decoder).map_err(jbig2_error)?;
-    if decoder.exceeded_dimensions {
-        return Err(XbergError::Validation {
-            message: format!("JBIG2 decompressed beyond its declared {width}x{height} image dimensions"),
-            source: None,
-        });
-    }
-
-    image::GrayImage::from_raw(width, height, decoder.pixels)
-        .ok_or_else(|| XbergError::parsing("Failed to construct grayscale image from JBIG2 data".to_string()))
 }
 
 /// Meters-per-inch, used to convert a PNG `pHYs` pixels-per-metre density into DPI.
@@ -738,41 +479,12 @@ pub(crate) fn decode_image_to_rgb8_with_security_limits(
     image_bytes: &[u8],
     limits: &SecurityLimits,
 ) -> Result<image::RgbImage> {
-    #[cfg(feature = "ocr")]
-    {
-        if is_jp2(image_bytes) || is_j2k(image_bytes) {
-            return decode_jp2_to_rgb_with_security_limits(image_bytes, limits);
-        }
-        if is_jbig2(image_bytes) {
-            let gray = decode_jbig2_to_gray_with_security_limits(image_bytes, limits)?;
-            let (width, height) = gray.dimensions();
-            let peak_bytes = jbig2_rgb_peak_live_bytes(width, height, image_bytes.len())?;
-            ImageDecodeBudget::from_security_limits(limits).validate(width, height, peak_bytes)?;
-            return Ok(image::DynamicImage::ImageLuma8(gray).into_rgb8());
-        }
-    }
     decode_standard_rgb8_with_security_limits(image_bytes, limits)
 }
 
 // Both callers are `#[cfg(feature = "ocr")]` tests in this file's `tests` module, so a
 // bare `cfg(test)` leaves it dead in any test build without `ocr` (the
 // `formula-recognition,pdf` CI leg). ~keep
-#[cfg(all(test, feature = "ocr"))]
-pub(crate) fn decode_image_with_security_limits(
-    image_bytes: &[u8],
-    limits: &SecurityLimits,
-) -> Result<image::DynamicImage> {
-    #[cfg(feature = "ocr")]
-    {
-        if is_jp2(image_bytes) || is_j2k(image_bytes) {
-            return decode_jp2_to_rgb_with_security_limits(image_bytes, limits).map(image::DynamicImage::ImageRgb8);
-        }
-        if is_jbig2(image_bytes) {
-            return decode_jbig2_to_gray_with_security_limits(image_bytes, limits).map(image::DynamicImage::ImageLuma8);
-        }
-    }
-    decode_standard_image_with_security_limits(image_bytes, limits)
-}
 
 pub(crate) fn extract_image_metadata_with_security_limits(
     bytes: &[u8],
@@ -786,7 +498,6 @@ pub(crate) fn extract_image_metadata_for_processing(
     limits: &SecurityLimits,
     fits: impl Fn(u32, u32) -> bool,
 ) -> Result<ExtractedImageMetadata> {
-    #[cfg(not(feature = "ocr"))]
     let _ = &fits;
     let budget = ImageDecodeBudget::from_security_limits(limits);
     if (is_jp2(bytes) || (bytes.len() >= 2 && bytes[0] == 0xFF && bytes[1] == 0x4F))
@@ -798,35 +509,12 @@ pub(crate) fn extract_image_metadata_for_processing(
             u64::from(image::ColorType::Rgb8.bytes_per_pixel()),
         )?;
         budget.validate(metadata.width, metadata.height, decoded_bytes)?;
-        #[cfg(feature = "ocr")]
-        decode_jp2_to_rgb_with_security_limits(bytes, limits)?;
         return Ok(metadata);
     }
 
     if is_heif_container(bytes) {
         let exif_data = extract_exif_data(bytes);
-        #[cfg(feature = "heic")]
-        {
-            use xberg_libheif::HeifContext;
 
-            let context = HeifContext::read_from_bytes(bytes)
-                .map_err(|error| XbergError::parsing(format!("Failed to read HEIF container: {error}")))?;
-            let handle = context
-                .primary_image_handle()
-                .map_err(|error| XbergError::parsing(format!("Failed to read HEIF primary image handle: {error}")))?;
-            let width = handle.width();
-            let height = handle.height();
-            let decoded_bytes =
-                decoded_byte_count(width, height, u64::from(image::ColorType::Rgba8.bytes_per_pixel()))?;
-            budget.validate(width, height, decoded_bytes)?;
-            return Ok(ExtractedImageMetadata {
-                width,
-                height,
-                format: "HEIF".to_string(),
-                exif_data,
-            });
-        }
-        #[cfg(not(feature = "heic"))]
         {
             let _ = exif_data;
             return Err(XbergError::parsing(
@@ -837,15 +525,6 @@ pub(crate) fn extract_image_metadata_for_processing(
 
     // Decoder or downstream image workspace can require JPEG reduction. Admit that
     // metadata from the header; the actual OCR decode still validates pixels. ~keep
-    #[cfg(feature = "ocr")]
-    if let Some((width, height)) = admit_jpeg_for_processing(bytes, limits, fits)? {
-        return Ok(ExtractedImageMetadata {
-            width,
-            height,
-            format: "JPEG".to_string(),
-            exif_data: extract_exif_data(bytes),
-        });
-    }
     let decoded = decode_standard_image_with_security_limits(bytes, limits)?;
     let format = image::guess_format(bytes)
         .map_err(|error| XbergError::parsing(format!("Failed to read image format: {error}")))?;
@@ -858,7 +537,7 @@ pub(crate) fn extract_image_metadata_for_processing(
 }
 
 /// Result of OCR extraction from an image with optional page tracking.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone)]
 pub struct ImageOcrResult {
     /// Extracted text content
@@ -869,131 +548,6 @@ pub struct ImageOcrResult {
     pub page_contents: Option<Vec<crate::types::PageContent>>,
 }
 
-/// Detects the number of frames in a TIFF file.
-///
-/// Returns the count of image frames/pages in a TIFF. Single-frame TIFFs return 1.
-/// Invalid or non-TIFF data returns an error.
-///
-/// # Arguments
-/// * `bytes` - Raw TIFF file bytes
-///
-/// # Returns
-/// Frame count if valid TIFF, error otherwise.
-#[cfg(feature = "ocr")]
-pub(crate) fn detect_tiff_frame_count(bytes: &[u8]) -> Result<usize> {
-    use tiff::decoder::Decoder;
-    let mut decoder =
-        Decoder::new(Cursor::new(bytes)).map_err(|e| XbergError::parsing(format!("TIFF decode: {}", e)))?;
-
-    let mut count = 1;
-    while decoder.next_image().is_ok() {
-        count += 1;
-    }
-    Ok(count)
-}
-
-/// Extract text from image bytes using OCR with optional page tracking for multi-frame TIFFs.
-///
-/// This function:
-/// - Detects if the image is a multi-frame TIFF
-/// - For multi-frame TIFFs with PageConfig enabled, iterates frames and tracks boundaries
-/// - For single-frame images or when page tracking is disabled, runs OCR on the whole image
-/// - Returns (content, boundaries, page_contents) tuple
-///
-/// # Arguments
-/// * `bytes` - Image file bytes
-/// * `mime_type` - MIME type (e.g., "image/tiff")
-/// * `ocr_result` - OCR backend result containing the text
-/// * `page_config` - Optional page configuration for boundary tracking
-///
-/// # Returns
-/// ImageOcrResult with content and optional boundaries for pagination
-#[cfg(feature = "ocr")]
-pub(crate) fn extract_text_from_image_with_ocr(
-    bytes: &[u8],
-    mime_type: &str,
-    ocr_result: String,
-    page_config: Option<&crate::core::config::PageConfig>,
-) -> Result<ImageOcrResult> {
-    let is_tiff = mime_type.to_lowercase().contains("tiff");
-    let should_track_pages = page_config.is_some() && is_tiff;
-
-    if !should_track_pages {
-        return Ok(ImageOcrResult {
-            content: ocr_result,
-            boundaries: None,
-            page_contents: None,
-        });
-    }
-
-    let frame_count = detect_tiff_frame_count(bytes)?;
-
-    if frame_count <= 1 {
-        return Ok(ImageOcrResult {
-            content: ocr_result,
-            boundaries: None,
-            page_contents: None,
-        });
-    }
-
-    let content_len = ocr_result.len();
-    let content_per_frame = content_len.checked_div(frame_count).unwrap_or(content_len);
-
-    let mut boundaries = Vec::new();
-    let mut page_contents = Vec::new();
-    let mut byte_offset = 0;
-
-    for frame_num in 1..=frame_count {
-        let frame_end = if frame_num == frame_count {
-            content_len
-        } else {
-            let raw_end = (frame_num * content_per_frame).min(content_len);
-            (raw_end..=content_len)
-                .find(|&i| ocr_result.is_char_boundary(i))
-                .unwrap_or(content_len)
-        };
-
-        boundaries.push(crate::types::PageBoundary {
-            byte_start: byte_offset,
-            byte_end: frame_end,
-            page_number: frame_num as u32,
-        });
-
-        let frame_text = &ocr_result[byte_offset..frame_end];
-        page_contents.push(crate::types::PageContent {
-            page_number: frame_num as u32,
-            content: frame_text.to_string(),
-            tables: vec![],
-            image_indices: vec![],
-            image_preprocessing: None,
-            hierarchy: None,
-            is_blank: Some(crate::extraction::blank_detection::is_page_text_blank(frame_text)),
-            layout_regions: None,
-            speaker_notes: None,
-            section_name: None,
-            sheet_name: None,
-            ocr_confidence: None,
-            native_content: None,
-        });
-
-        byte_offset = frame_end;
-    }
-
-    Ok(ImageOcrResult {
-        content: ocr_result,
-        boundaries: Some(boundaries),
-        page_contents: Some(page_contents),
-    })
-}
-
 #[cfg(test)]
 #[path = "image/tests.rs"]
 mod tests;
-
-#[cfg(all(test, feature = "ocr"))]
-#[path = "image/jp2_decode_tests.rs"]
-mod jp2_decode_tests;
-
-#[cfg(all(test, feature = "ocr"))]
-#[path = "image/jpeg_fixture.rs"]
-pub(crate) mod jpeg_fixture;

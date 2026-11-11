@@ -27,7 +27,6 @@ include = [
     "/README*",
     "/build.rs",
     "/stopwords/*.json",
-    "!/src/candle_ocr/glm_ocr_backend/tests.rs",
     "!/src/core/config/llm/tests.rs",
     "!/src/core/config/processing/tests.rs",
     "!/src/core/image_encode/tests.rs",
@@ -35,7 +34,6 @@ include = [
     "!/src/core/pipeline/tests.rs",
     "!/src/core/server_config/tests/**",
     "!/src/engine/extract_impl/tests.rs",
-    "!/src/extraction/archive/tests/**",
     "!/src/extraction/derive/test_support.rs",
     "!/src/extraction/derive/tests.rs",
     "!/src/extraction/derive/tests_extraction_result.rs",
@@ -48,7 +46,6 @@ include = [
     "!/src/extraction/email/tests.rs",
     "!/src/extraction/excel/tests.rs",
     "!/src/extraction/html/structure/tests.rs",
-    "!/src/extraction/image/jp2_decode_tests.rs",
     "!/src/extraction/image/tests.rs",
     "!/src/extraction/image_decode/tests.rs",
     "!/src/extraction/image_kind/tests.rs",
@@ -62,16 +59,11 @@ include = [
     "!/src/extractors/pdf/ocr/numeric_repair_tests.rs",
     "!/src/extractors/pdf/ocr/plausibility_tests.rs",
     "!/src/extractors/pdf/ocr/recognition_noise_tests.rs",
-    "!/src/extractors/pdf/ocr/tests.rs",
     "!/src/extractors/rtf/parser/text_extract_tests.rs",
     "!/src/extractors/security/tests.rs",
     "!/src/extractors/security_tests.rs",
     "!/src/extractors/structured/tests.rs",
-    "!/src/extractors/wordperfect/tests.rs",
     "!/src/language_detection/tests.rs",
-    "!/src/layout/models/tatr/tests.rs",
-    "!/src/paddle_ocr/tract_parity.rs",
-    "!/src/pdf/native/images/decode_skip_tests.rs",
     "!/src/pdf/native/images/parallel_tests.rs",
     "!/src/pdf/native/images/tests.rs",
     "!/src/pdf/scan_detect/tests.rs",
@@ -209,7 +201,6 @@ ocr-pipeline = [
 ]
 tree-sitter-types = []
 classification-types = []
-paddle-ocr-types = []
 candle-ocr-types = []
 language-detection = [
     "dep:whatlang",
@@ -616,12 +607,6 @@ features = [
     "deflate-flate2",
 ]
 
-[target."cfg(all(not(target_os = \"windows\"), not(target_arch = \"wasm32\")))".dependencies]
-
-[target."cfg(all(not(target_os = \"windows\"), not(target_arch = \"wasm32\"), not(target_os = \"android\")))".dependencies]
-
-[target."cfg(all(target_os = \"windows\", not(target_arch = \"wasm32\")))".dependencies]
-
 [target."cfg(not(target_arch = \"wasm32\"))".dependencies.tokio]
 workspace = true
 optional = true
@@ -651,27 +636,13 @@ features = [
     "wasm_js",
 ]
 
-[target."cfg(target_os = \"android\")".dependencies]
-
-[target."cfg(target_os = \"macos\")".dependencies]
-
-[build-dependencies]
-
 [dev-dependencies]
-dotenvy = "0.15"
 filetime = "0.2"
-jpeg-encoder = "0.7.1"
-safetensors = "0.8"
 serial_test = "4.0.1"
 tar = "^0.4"
-tokio-test = "0.4"
 uuid = "1"
-wiremock = "0.6"
 
 [dev-dependencies.criterion]
-workspace = true
-
-[dev-dependencies.futures]
 workspace = true
 
 [dev-dependencies.image]
@@ -688,13 +659,6 @@ features = [
     "resolve-file",
     "resolve-http",
     "tls-ring",
-]
-
-[dev-dependencies.qrcode]
-version = "0.14"
-default-features = false
-features = [
-    "image",
 ]
 
 [dev-dependencies.sha2]

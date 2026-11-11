@@ -1,41 +1,6 @@
 use super::*;
 use serde_json::json;
 
-#[cfg(feature = "api")]
-fn assert_named_object_schema<T: utoipa::PartialSchema>(expected: serde_json::Value) {
-    let schema = serde_json::to_value(T::schema()).expect("schema must serialize");
-    assert_eq!(schema, expected);
-}
-
-#[cfg(feature = "api")]
-#[test]
-fn should_describe_binding_dtos_as_named_object_schemas() {
-    assert_named_object_schema::<PresentationHyperlink>(json!({
-        "type": "object",
-        "required": ["url", "label"],
-        "properties": {
-            "url": {"type": "string"},
-            "label": {"type": ["string", "null"]}
-        }
-    }));
-    assert_named_object_schema::<PixelDimensions>(json!({
-        "type": "object",
-        "required": ["width", "height"],
-        "properties": {
-            "width": {"type": "integer"},
-            "height": {"type": "integer"}
-        }
-    }));
-    assert_named_object_schema::<ImageDpi>(json!({
-        "type": "object",
-        "required": ["horizontal", "vertical"],
-        "properties": {
-            "horizontal": {"type": "number"},
-            "vertical": {"type": "number"}
-        }
-    }));
-}
-
 #[test]
 fn should_serialize_presentation_hyperlink_as_named_object() {
     let legacy = json!(["https://xberg.io", "Xberg"]);

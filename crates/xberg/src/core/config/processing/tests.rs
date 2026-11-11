@@ -178,45 +178,7 @@ fn test_embedding_model_type_custom_serialization() {
     assert!(json.contains(r#""dimensions":384"#), "Should contain dimensions field");
 }
 
-#[test]
-#[cfg(feature = "embeddings")]
-fn test_resolve_preset_balanced() {
-    let config = ChunkingConfig {
-        preset: Some("balanced".to_string()),
-        ..Default::default()
-    };
-    let resolved = config.resolve_preset();
-    assert_eq!(resolved.max_characters, 1024);
-    assert_eq!(resolved.overlap, 100);
-    assert!(resolved.embedding.is_none());
-}
-
-#[test]
-#[cfg(feature = "embeddings")]
-fn test_resolve_preset_preserves_explicit_embedding() {
-    let explicit_embedding = EmbeddingConfig {
-        model: EmbeddingModelType::Custom {
-            model_id: "custom/model".to_string(),
-            dimensions: 512,
-        },
-        batch_size: 64,
-        ..Default::default()
-    };
-    let config = ChunkingConfig {
-        preset: Some("fast".to_string()),
-        embedding: Some(explicit_embedding),
-        ..Default::default()
-    };
-    let resolved = config.resolve_preset();
-    assert_eq!(resolved.max_characters, 512);
-    assert_eq!(resolved.overlap, 50);
-    match &resolved.embedding.unwrap().model {
-        EmbeddingModelType::Custom { model_id, .. } => assert_eq!(model_id, "custom/model"),
-        _ => panic!("Expected Custom model type to be preserved"),
-    }
-}
-
-#[cfg(any(feature = "embeddings", feature = "chunking"))]
+#[cfg(feature = "chunking")]
 #[test]
 fn test_resolve_preset_no_preset_returns_unchanged() {
     let config = ChunkingConfig {
@@ -230,7 +192,7 @@ fn test_resolve_preset_no_preset_returns_unchanged() {
     assert!(resolved.embedding.is_none());
 }
 
-#[cfg(any(feature = "embeddings", feature = "chunking"))]
+#[cfg(feature = "chunking")]
 #[test]
 fn test_resolve_preset_unknown_name_returns_unchanged() {
     let config = ChunkingConfig {
@@ -325,59 +287,8 @@ fn test_embedding_model_type_plugin_deserialization() {
     }
 }
 
-/// Preset with no explicit embedding: embedding must remain None.
-///
-/// Before the fix, `resolve_preset()` would silently inject an
-/// `EmbeddingConfig` whenever a preset was configured, causing every
-/// chunk to have an unexpected `.embedding` field populated.
-#[test]
-#[cfg(feature = "embeddings")]
-fn test_resolve_preset_does_not_inject_embedding_when_none() {
-    let config = ChunkingConfig {
-        preset: Some("multilingual".to_string()),
-        embedding: None,
-        ..Default::default()
-    };
-    let resolved = config.resolve_preset();
-    assert!(
-        resolved.embedding.is_none(),
-        "preset alone must not inject an EmbeddingConfig (#797)"
-    );
-}
-
-/// Preset with an explicit embedding: the embedding must be preserved unchanged.
-#[test]
-#[cfg(feature = "embeddings")]
-fn test_resolve_preset_preserves_explicit_embedding_config() {
-    let explicit = EmbeddingConfig {
-        model: EmbeddingModelType::Custom {
-            model_id: "my-org/model".to_string(),
-            dimensions: 768,
-        },
-        batch_size: 16,
-        ..Default::default()
-    };
-    let config = ChunkingConfig {
-        preset: Some("multilingual".to_string()),
-        embedding: Some(explicit),
-        ..Default::default()
-    };
-    let resolved = config.resolve_preset();
-    let emb = resolved
-        .embedding
-        .expect("explicit embedding must survive resolve_preset");
-    assert_eq!(emb.batch_size, 16);
-    match emb.model {
-        EmbeddingModelType::Custom { model_id, dimensions } => {
-            assert_eq!(model_id, "my-org/model");
-            assert_eq!(dimensions, 768);
-        }
-        other => panic!("expected Custom model type, got {other:?}"),
-    }
-}
-
 /// No preset, no embedding: embedding must stay None (regression guard).
-#[cfg(any(feature = "embeddings", feature = "chunking"))]
+#[cfg(feature = "chunking")]
 #[test]
 fn test_resolve_preset_no_preset_no_embedding_stays_none() {
     let config = ChunkingConfig {
@@ -419,7 +330,7 @@ fn chunking_config_default_has_no_sparse_or_late_interaction_config() {
 
 /// `resolve_preset()` must carry an explicitly-set `sparse_embedding`/`late_interaction`
 /// config through unchanged (#268), the same way it already preserves `embedding`.
-#[cfg(any(feature = "embeddings", feature = "chunking"))]
+#[cfg(feature = "chunking")]
 #[test]
 fn resolve_preset_preserves_explicit_sparse_and_late_interaction_configs() {
     let config = ChunkingConfig {

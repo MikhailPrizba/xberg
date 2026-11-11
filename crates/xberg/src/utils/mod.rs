@@ -35,7 +35,7 @@ pub mod string_utils;
 // with no users at all and `-D warnings` rejects it -- which is what broke the
 // `--no-default-features --features layout-tract` clippy leg. Enumerating the gates here instead
 // would have to be kept in step with every future caller; allowing the unused case would not. ~keep
-#[allow(dead_code)]
+
 pub(crate) fn read_test_fixture(relative: &str) -> Option<Vec<u8>> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../test_documents")
@@ -164,49 +164,14 @@ pub(crate) fn decode_with_provenance(byte_data: &[u8], encoding: Option<&str>) -
     }
 }
 
-#[cfg(any(
-    all(feature = "layout-detection", feature = "pdf"),
-    feature = "office",
-    feature = "markdown-footnotes"
-))]
+#[cfg(any(feature = "office", feature = "markdown-footnotes"))]
 use std::borrow::Cow;
-
-/// Escape `&`, `<`, and `>` in text destined for markdown/HTML output.
-///
-/// Underscores are intentionally **not** escaped. In extracted PDF text they are
-/// literal content (e.g. identifiers like `CTC_ARP_01`), not markdown italic
-/// delimiters.
-///
-/// Uses a single-pass scan: if no special characters are found, returns a
-/// borrowed `Cow` with no allocation.
-#[cfg(all(feature = "layout-detection", feature = "pdf"))]
-#[inline]
-pub(crate) fn escape_html_entities(text: &str) -> Cow<'_, str> {
-    let needs_amp = text.contains('&');
-    let needs_lt = text.contains('<');
-    let needs_gt = text.contains('>');
-
-    if !needs_amp && !needs_lt && !needs_gt {
-        return Cow::Borrowed(text);
-    }
-
-    let mut result = String::with_capacity(text.len() + 16);
-    for ch in text.chars() {
-        match ch {
-            '&' => result.push_str("&amp;"),
-            '<' => result.push_str("&lt;"),
-            '>' => result.push_str("&gt;"),
-            _ => result.push(ch),
-        }
-    }
-    Cow::Owned(result)
-}
 
 /// Normalizes whitespace by collapsing multiple whitespace characters into single spaces.
 /// Returns Cow::Borrowed if no normalization needed.
 #[cfg(any(feature = "office", feature = "markdown-footnotes"))]
 #[inline]
-#[cfg_attr(alef, alef(skip))]
+
 pub(crate) fn normalize_whitespace(s: &str) -> Cow<'_, str> {
     let needs_normalization = s
         .as_bytes()

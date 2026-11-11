@@ -261,12 +261,6 @@ fn restore_registration_state_after_failure(name: &str, was_suppressed: bool) {
 }
 
 #[cfg(any(
-    feature = "classification",
-    feature = "summarization",
-    feature = "translation",
-    feature = "captioning",
-    feature = "qr-codes",
-    feature = "ner",
     feature = "redaction",
     feature = "quality",
     feature = "keywords-yake",
@@ -327,11 +321,6 @@ pub(crate) mod test_support {
     #[cfg(feature = "tokio-runtime")]
     pub(crate) fn set_before_processor_snapshot_hook(hook: InitializationHook) {
         BEFORE_PROCESSOR_SNAPSHOT_HOOK.with(|slot| *slot.borrow_mut() = Some(hook));
-    }
-
-    #[cfg(all(feature = "tokio-runtime", feature = "quality", feature = "summarization"))]
-    pub(crate) fn set_before_blocking_cache_initialization_hook(hook: Option<InitializationHook>) {
-        super::BEFORE_BLOCKING_CACHE_INITIALIZATION_HOOK.with(|slot| *slot.borrow_mut() = hook);
     }
 
     #[cfg(feature = "tokio-runtime")]
@@ -555,20 +544,6 @@ fn cached_processor_stages(cache: &ProcessorCache) -> ProcessorStages {
     )
 }
 
-/// Get processors from the cache, organized by stage.
-// ~keep Liveness is configuration-dependent: the only consumers are compiled out on
-// narrow feature legs, so `-D dead-code` fires there and nowhere else. A hand-kept
-// union-of-consumers `cfg` is what drifted here and failed the 1.3.0 publish (GH#1951).
-#[cfg(test)]
-#[allow(dead_code)]
-pub(super) fn get_processors_from_cache() -> Result<ProcessorStages> {
-    let cache_lock = PROCESSOR_CACHE.read();
-    let cache = cache_lock
-        .as_ref()
-        .ok_or_else(|| crate::XbergError::Other("Processor cache not initialized".to_string()))?;
-    Ok(cached_processor_stages(cache))
-}
-
 #[cfg(all(test, feature = "tokio-runtime"))]
 mod registry_state;
 #[cfg(all(test, feature = "tokio-runtime"))]
@@ -577,160 +552,6 @@ pub(super) use registry_state::{ProcessorRegistryState, processor_snapshot_from_
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[cfg(all(feature = "quality", feature = "summarization"))]
-    fn cached_processor_names() -> Vec<String> {
-        let (early, middle, late) = get_processors_from_cache().unwrap();
-        early
-            .iter()
-            .chain(middle.iter())
-            .chain(late.iter())
-            .map(|processor| processor.name().to_string())
-            .collect()
-    }
-
-    #[test]
-    #[serial_test::serial]
-    #[cfg(all(feature = "quality", feature = "summarization"))]
-    fn cache_snapshot_rejects_clear_started_after_feature_fast_path() {
-        use crate::plugins::registry::test_support::PostProcessorRegistryGuard;
-        use std::sync::mpsc;
-
-        let _guard = PostProcessorRegistryGuard::acquire();
-        initialize_features();
-        initialize_processor_cache().unwrap();
-        assert!(!BUILTIN_REGISTRATION_REQUIRED.load(Ordering::Acquire));
-        let registration_epoch = BUILTIN_REGISTRATION_EPOCH.load(Ordering::Acquire);
-        assert!(!registration_update_in_progress(registration_epoch));
-
-        let (cleared_sender, cleared_receiver) = mpsc::channel();
-        let (release_sender, release_receiver) = mpsc::channel();
-        let clear_thread = std::thread::spawn(move || {
-            with_builtin_registration_recovery(|| {
-                let result = crate::plugins::registry::get_post_processor_registry()
-                    .write()
-                    .shutdown_all();
-                cleared_sender.send(()).unwrap();
-                release_receiver.recv().unwrap();
-                result
-            })
-        });
-        cleared_receiver.recv().unwrap();
-
-        let accepted_stale_epoch = try_initialize_processor_cache(registration_epoch).unwrap();
-        let cached_during_clear = cached_processor_names();
-        release_sender.send(()).unwrap();
-        clear_thread.join().unwrap().unwrap();
-
-        assert!(!accepted_stale_epoch);
-        assert!(cached_during_clear.iter().any(|name| name == "quality-processing"));
-
-        initialize_processor_cache().unwrap();
-        let names = cached_processor_names();
-        assert!(names.iter().any(|name| name == "quality-processing"));
-        assert!(names.iter().any(|name| name == "summarization"));
-    }
-
-    #[test]
-    #[serial_test::serial]
-    #[cfg(all(feature = "quality", feature = "summarization"))]
-    fn cache_initialization_waits_without_polling_during_registry_update() {
-        use crate::plugins::registry::test_support::PostProcessorRegistryGuard;
-        use std::sync::atomic::{AtomicUsize, Ordering};
-        use std::sync::{Arc, mpsc};
-        use std::time::Duration;
-
-        let _guard = PostProcessorRegistryGuard::acquire();
-        initialize_processor_cache().unwrap();
-        let (fast_path_sender, fast_path_receiver) = mpsc::channel();
-        let (resume_sender, resume_receiver) = mpsc::channel();
-        let retry_count = Arc::new(AtomicUsize::new(0));
-        let thread_retry_count = Arc::clone(&retry_count);
-        let initialize_thread = std::thread::spawn(move || {
-            AFTER_FEATURE_INITIALIZATION_HOOK.with(|slot| {
-                *slot.borrow_mut() = Some(Box::new(move || {
-                    fast_path_sender.send(()).unwrap();
-                    resume_receiver.recv().unwrap();
-                }));
-            });
-            REGISTRATION_RETRY_HOOK.with(|slot| {
-                *slot.borrow_mut() = Some(Box::new(move || {
-                    thread_retry_count.fetch_add(1, Ordering::Relaxed);
-                }));
-            });
-            initialize_processor_cache()
-        });
-        fast_path_receiver.recv().unwrap();
-
-        let (update_started_sender, update_started_receiver) = mpsc::channel();
-        let (update_release_sender, update_release_receiver) = mpsc::channel();
-        let update_thread = std::thread::spawn(move || {
-            with_post_processor_suppressed("unregistered-test-processor", || {
-                update_started_sender.send(()).unwrap();
-                update_release_receiver.recv().unwrap();
-                Ok::<(), crate::XbergError>(())
-            })
-        });
-        update_started_receiver.recv().unwrap();
-        resume_sender.send(()).unwrap();
-
-        std::thread::sleep(Duration::from_millis(25));
-        assert_eq!(retry_count.load(Ordering::Relaxed), 1);
-
-        update_release_sender.send(()).unwrap();
-        update_thread.join().unwrap().unwrap();
-        initialize_thread.join().unwrap().unwrap();
-    }
-
-    #[tokio::test(flavor = "current_thread")]
-    #[serial_test::serial]
-    #[cfg(all(feature = "tokio-runtime", feature = "quality", feature = "summarization"))]
-    async fn stable_cache_handoff_skips_blocking_initialization() {
-        use crate::plugins::registry::test_support::PostProcessorRegistryGuard;
-        use std::sync::Arc;
-        use std::sync::atomic::{AtomicUsize, Ordering};
-
-        let _guard = PostProcessorRegistryGuard::acquire();
-        initialize_processor_cache().unwrap();
-        let blocking_initializations = Arc::new(AtomicUsize::new(0));
-        let hook_count = Arc::clone(&blocking_initializations);
-        test_support::set_before_blocking_cache_initialization_hook(Some(Box::new(move || {
-            hook_count.fetch_add(1, Ordering::SeqCst);
-        })));
-
-        // `try_get_processor_snapshot` probes `PROCESSOR_CACHE` with a non-blocking `try_read`,
-        // which yields `None` while any other thread holds the write side -- and dozens of
-        // non-`#[serial]` tests in this binary run real extractions that take it. A single
-        // contended probe therefore diverts to the blocking path for reasons unrelated to the
-        // behaviour under test. Retrying keeps the assertion meaningful: a genuinely broken fast
-        // path fails every attempt, so this still fails outright rather than being weakened into
-        // a check no defect could trip. ~keep
-        const HANDOFF_ATTEMPTS: usize = 50;
-        const HANDOFF_RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(20);
-        let mut warm_snapshot = None;
-        for _ in 0..HANDOFF_ATTEMPTS {
-            blocking_initializations.store(0, Ordering::SeqCst);
-            let candidate = initialize_processor_cache_for_async_pipeline().await.unwrap();
-            if blocking_initializations.load(Ordering::SeqCst) == 0 {
-                warm_snapshot = Some(candidate);
-                break;
-            }
-            tokio::time::sleep(HANDOFF_RETRY_DELAY).await;
-        }
-        let snapshot =
-            warm_snapshot.expect("the warm-cache fast path never won an uncontended probe across HANDOFF_ATTEMPTS");
-        test_support::set_before_blocking_cache_initialization_hook(None);
-        let names = snapshot
-            .early
-            .iter()
-            .chain(snapshot.middle.iter())
-            .chain(snapshot.late.iter())
-            .map(|processor| processor.name())
-            .collect::<Vec<_>>();
-
-        assert!(names.contains(&"quality-processing"));
-        assert!(names.contains(&"summarization"));
-    }
 
     #[test]
     #[serial_test::serial]

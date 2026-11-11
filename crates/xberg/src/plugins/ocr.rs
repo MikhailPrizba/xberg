@@ -303,7 +303,7 @@ pub trait OcrBackend: Plugin {
     /// override whose `Arc<Vec<u8>>` parameter has no binding representation, and
     /// foreign backends satisfy the trait through [`Self::process_image`] via this
     /// default delegation.
-    #[cfg_attr(alef, alef(skip))]
+
     async fn process_image_owned(&self, image_bytes: Arc<Vec<u8>>, config: &OcrConfig) -> Result<ExtractedDocument> {
         self.process_image(image_bytes.as_slice(), config).await
     }
@@ -511,7 +511,7 @@ pub trait OcrBackend: Plugin {
     ///
     /// Excluded from the polyglot binding surface: doctor results are produced
     /// by the generated `doctor()` function, not per-backend calls.
-    #[cfg_attr(alef, alef(skip))]
+
     fn probe(&self, _config: &OcrConfig) -> crate::doctor::DoctorCheck {
         crate::doctor::DoctorCheck::skip(self.name(), "no probe implemented for this backend")
     }
@@ -574,7 +574,7 @@ pub trait OcrBackend: Plugin {
 /// # Ok::<(), xberg::XbergError>(())
 /// # });
 /// ```
-#[cfg_attr(alef, alef(skip))]
+
 pub fn register_ocr_backend(backend: Arc<dyn OcrBackend>) -> crate::Result<()> {
     use crate::plugins::registry::get_ocr_backend_registry;
 
@@ -607,7 +607,7 @@ pub fn register_ocr_backend(backend: Arc<dyn OcrBackend>) -> crate::Result<()> {
 /// # Ok::<(), xberg::XbergError>(())
 /// # });
 /// ```
-#[cfg_attr(alef, alef(skip))]
+
 pub fn unregister_ocr_backend(name: &str) -> crate::Result<()> {
     use crate::plugins::registry::get_ocr_backend_registry;
 
@@ -653,7 +653,7 @@ pub fn list_ocr_backends() -> crate::Result<Vec<String>> {
 /// determinism guarantees and the important caveat about what an empty `supported_languages`
 /// means.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct OcrBackendCapabilities {
     /// The backend's registered name, as returned by [`list_ocr_backends`].
     pub name: String,
@@ -861,7 +861,7 @@ pub fn clear_ocr_backends() -> crate::Result<()> {
 /// a *different* backend) — the plain "empty" check would leave default-config
 /// OCR without a backend. Re-seeding is non-destructive (user-registered
 /// backends are kept) and cheap to invoke before every OCR dispatch.
-#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn ensure_ocr_backends_initialized() {
     use crate::plugins::registry::get_ocr_backend_registry;
 

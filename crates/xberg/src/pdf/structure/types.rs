@@ -8,10 +8,7 @@ pub(crate) struct PdfLine {
     pub segments: Vec<SegmentData>,
     pub native_scripts: Vec<crate::pdf::native::hierarchy::script_evidence::ScriptOwner>,
     pub baseline_y: f32,
-    #[allow(dead_code)]
-    pub dominant_font_size: f32,
-    #[allow(dead_code)]
-    pub is_bold: bool,
+
     pub is_monospace: bool,
 }
 
@@ -82,7 +79,8 @@ impl PdfParagraph {
 /// Decoupled from `crate::layout::LayoutClass` so the markdown module
 /// compiles without the `layout-detection` feature.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[allow(dead_code)]
+// Native geometry tests exercise more hint labels than the compact producer emits.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) enum LayoutHintClass {
     Title,
     SectionHeader,
@@ -95,19 +93,13 @@ pub(crate) enum LayoutHintClass {
     PageFooter,
     Table,
     Picture,
-    DocumentIndex,
     Form,
-    KeyValueRegion,
     Text,
-    Other,
 }
 
 impl LayoutHintClass {
     pub(crate) const fn is_wrapper(self) -> bool {
-        matches!(
-            self,
-            Self::Table | Self::Picture | Self::DocumentIndex | Self::Form | Self::KeyValueRegion
-        )
+        matches!(self, Self::Table | Self::Picture | Self::Form)
     }
 
     pub(crate) const fn label(self) -> &'static str {
@@ -123,11 +115,8 @@ impl LayoutHintClass {
             Self::PageFooter => "page_footer",
             Self::Table => "table",
             Self::Picture => "picture",
-            Self::DocumentIndex => "document_index",
             Self::Form => "form",
-            Self::KeyValueRegion => "key_value_region",
             Self::Text => "text",
-            Self::Other => "other",
         }
     }
 }
@@ -165,16 +154,4 @@ pub(crate) struct LayoutHint {
     pub bottom: f32,
     pub right: f32,
     pub top: f32,
-}
-
-/// Layout detection results for a single page.
-///
-/// Carries the raw (unrotated MediaBox) page dimensions — the space text
-/// segments live in. Used by region validation and table recognition to map
-/// pixel predictions back to PDF coordinates.
-#[cfg(feature = "layout-detection")]
-#[derive(Debug, Clone)]
-pub struct PageLayoutResult {
-    pub page_width_pts: f32,
-    pub page_height_pts: f32,
 }

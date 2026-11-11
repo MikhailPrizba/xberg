@@ -180,43 +180,6 @@ Contact Jane Doe through [her page](https://example.com/jdoe).
         assert!(!objects.contains("jdoe"), "a redacted term survives in an object");
         assert!(objects.contains("/uri"), "the link itself is kept");
     }
-
-    /// An archive member runs its own pipeline and is laid out before the parent's
-    /// redaction pass walks into it. `JVBERi0` is how every base64-encoded PDF begins, so a
-    /// parent pass that rewrote the member's `content` would corrupt it.
-    #[cfg(feature = "archives")]
-    #[tokio::test]
-    #[serial_test::serial]
-    async fn archive_members_keep_intact_documents_when_the_parent_is_redacted() {
-        use std::io::{Cursor, Write};
-
-        let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
-        archive
-            .start_file("member.md", zip::write::SimpleFileOptions::default())
-            .unwrap();
-        archive.write_all(b"# Member\n\nJane Doe signed off.\n").unwrap();
-        let bytes = archive.finish().unwrap().into_inner();
-
-        let result = extract_one(&bytes, "application/zip", &redacting(pdf(), &["Jane Doe", "JVBERi0"])).await;
-        let children = result.children.as_ref().expect("the archive member is extracted");
-        let member = children
-            .iter()
-            .find(|child| child.path == "member.md")
-            .expect("member.md is a child");
-
-        let reread = extract_one(
-            &decode_document(&member.result),
-            PDF_MIME_TYPE,
-            &config(OutputFormat::Plain),
-        )
-        .await;
-        assert!(reread.content.contains("signed off."), "{}", reread.content);
-        assert!(
-            !reread.content.to_lowercase().contains("jane doe"),
-            "{}",
-            reread.content
-        );
-    }
 }
 
 /// A post-processor that rewrites `content` without the rendering makes the pipeline

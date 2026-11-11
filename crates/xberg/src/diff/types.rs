@@ -14,7 +14,7 @@ pub use crate::types::revisions::{CellChange, DiffLine};
 
 /// Options controlling how two `ExtractedDocument` values are compared.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct DiffOptions {
     /// Include metadata changes in the diff. Default: `true`.
     pub include_metadata: bool,
@@ -40,7 +40,7 @@ impl Default for DiffOptions {
 
 /// The complete diff between two `ExtractedDocument` values.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ExtractionDiff {
     /// Unified-diff hunks for the `content` field.
     ///
@@ -73,7 +73,7 @@ pub struct ExtractionDiff {
 
 /// A single contiguous hunk in a unified diff.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct DiffHunk {
     /// Starting line number in the old content (0-indexed).
     pub from_line: usize,
@@ -89,7 +89,7 @@ pub struct DiffHunk {
 
 /// Cell-level changes for a pair of tables that share the same index.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct TableDiff {
     /// Zero-based index of the table in both `a.tables` and `b.tables`.
     pub from_index: usize,
@@ -101,7 +101,7 @@ pub struct TableDiff {
 
 /// Changes to embedded archive children between two results.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct EmbeddedChanges {
     /// Children present in `b` but not in `a` (matched by `path`).
     pub added: Vec<ArchiveEntry>,
@@ -115,7 +115,7 @@ pub struct EmbeddedChanges {
 
 /// Diff for a single embedded archive entry that appears in both results.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct EmbeddedDiff {
     /// Archive-relative path identifying this entry.
     pub path: String,

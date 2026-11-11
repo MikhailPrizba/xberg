@@ -1,7 +1,7 @@
 //! OCR backend registry.
 
 use crate::Result;
-#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 use crate::XbergError;
 use crate::plugins::OcrBackend;
 use ahash::AHashMap;
@@ -22,26 +22,7 @@ pub(crate) fn canonical_ocr_backend_name(name: &str) -> String {
 }
 
 pub(crate) fn builtin_ocr_backend_names() -> Vec<&'static str> {
-    let mut names = vec![
-        #[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
-        "tesseract",
-        #[cfg(paddle_ocr)]
-        "paddle-ocr",
-        #[cfg(all(sceptre_ocr, not(target_arch = "wasm32")))]
-        "sceptre",
-        #[cfg(all(feature = "liter-llm", not(target_arch = "wasm32")))]
-        "vlm",
-        #[cfg(feature = "candle-trocr")]
-        "candle-trocr",
-        #[cfg(feature = "candle-paddleocr-vl")]
-        "candle-paddleocr-vl",
-        #[cfg(feature = "candle-glm-ocr")]
-        "candle-glm-ocr",
-        #[cfg(all(feature = "candle-deepseek-ocr", not(target_arch = "wasm32")))]
-        "candle-deepseek-ocr",
-    ];
-    names.sort_unstable();
-    names
+    Vec::new()
 }
 
 /// Registry for OCR backend plugins.
@@ -62,32 +43,9 @@ pub(crate) fn builtin_ocr_backend_names() -> Vec<&'static str> {
 /// // Register OCR backends
 /// // registry.register(Arc::new(TesseractBackend::new()));
 /// ```
-#[cfg_attr(alef, alef(skip))]
+
 pub struct OcrBackendRegistry {
     pub(super) backends: AHashMap<String, Arc<dyn OcrBackend>>,
-    #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-    builtin_tesseract: Option<std::sync::Weak<crate::ocr::tesseract_backend::TesseractBackend>>,
-    #[cfg(all(paddle_ocr, feature = "ocr", feature = "pdf", not(target_arch = "wasm32")))]
-    builtin_paddle: Option<std::sync::Weak<dyn OcrBackend>>,
-}
-
-#[cfg(all(test, sceptre_ocr, not(target_arch = "wasm32")))]
-mod sceptre_tests {
-    use std::sync::Arc;
-
-    use super::OcrBackendRegistry;
-
-    #[test]
-    fn registry_registers_sceptre_without_loading_models() {
-        let registry = OcrBackendRegistry::new();
-        let backend = registry.get("sceptre").expect("Sceptre backend should be registered");
-        let uppercase = registry
-            .get("SCEPTRE")
-            .expect("validated built-in backend names should be case-insensitive");
-
-        assert_eq!(backend.backend_type(), crate::plugins::OcrBackendType::Custom);
-        assert!(Arc::ptr_eq(&backend, &uppercase));
-    }
 }
 
 impl OcrBackendRegistry {
@@ -124,146 +82,11 @@ impl OcrBackendRegistry {
 
     /// Register the built-in non-Candle backends: Tesseract (native and WASM),
     /// PaddleOCR, Sceptre, and the VLM backend.
-    fn register_default_engine_backends(&mut self) {
-        #[cfg(feature = "ocr")]
-        {
-            use crate::ocr::tesseract_backend::TesseractBackend;
-            tracing::info!("Initializing Tesseract OCR backend");
-            let backend = Arc::new(TesseractBackend::new());
-            match self.register(backend.clone()) {
-                Ok(()) => {
-                    #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        self.builtin_tesseract = Some(Arc::downgrade(&backend));
-                    }
-                }
-                Err(error) => tracing::warn!("Failed to register Tesseract backend: {error}"),
-            }
-            tracing::info!("Tesseract OCR backend registered successfully");
-        }
-
-        #[cfg(all(feature = "ocr-wasm", not(feature = "ocr")))]
-        {
-            use crate::ocr::tesseract_wasm_backend::TesseractWasmBackend;
-            tracing::info!("Initializing Tesseract WASM OCR backend");
-            match TesseractWasmBackend::new() {
-                Ok(backend) => {
-                    self.register(Arc::new(backend)).unwrap_or_else(|e| {
-                        tracing::warn!("Failed to register Tesseract WASM backend: {e}");
-                    });
-                    tracing::info!("Tesseract WASM OCR backend registered successfully");
-                }
-                Err(e) => {
-                    tracing::warn!("Tesseract WASM OCR backend unavailable: {e}");
-                }
-            }
-        }
-
-        #[cfg(paddle_ocr)]
-        self.register_default_paddle_backend();
-
-        #[cfg(all(sceptre_ocr, not(target_arch = "wasm32")))]
-        {
-            use crate::sceptre_ocr::SceptreOcrBackend;
-            tracing::info!("Registering Sceptre OCR backend");
-            match SceptreOcrBackend::new() {
-                Ok(backend) => {
-                    self.register(Arc::new(backend)).unwrap_or_else(|error| {
-                        tracing::warn!("Failed to register Sceptre OCR backend: {error}");
-                    });
-                }
-                Err(error) => tracing::warn!("Failed to initialize Sceptre OCR backend: {error}"),
-            }
-        }
-
-        #[cfg(all(feature = "liter-llm", not(target_arch = "wasm32")))]
-        {
-            use crate::llm::vlm_ocr::VlmOcrBackend;
-            tracing::info!("Registering VLM OCR backend");
-            self.register(Arc::new(VlmOcrBackend)).unwrap_or_else(|e| {
-                tracing::warn!("Failed to register VLM OCR backend: {e}");
-            });
-        }
-    }
+    fn register_default_engine_backends(&mut self) {}
 
     /// Register the built-in Candle-backed backends: TrOCR, PaddleOCR-VL,
     /// GLM-OCR, and DeepSeek-OCR.
-    fn register_default_candle_backends(&mut self) {
-        #[cfg(feature = "candle-trocr")]
-        {
-            use crate::candle_ocr::TrocrBackend;
-            use xberg_candle_ocr::models::TrocrVariant;
-            tracing::info!("Initializing TrOCR backend");
-            let backend = TrocrBackend::new(TrocrVariant::default());
-            self.register(Arc::new(backend)).unwrap_or_else(|e| {
-                tracing::warn!("Failed to register TrOCR backend: {e}");
-            });
-            tracing::info!("TrOCR backend registered successfully");
-        }
-
-        #[cfg(feature = "candle-paddleocr-vl")]
-        {
-            use crate::candle_ocr::PaddleOcrVlBackend;
-            use xberg_candle_ocr::models::PaddleOcrVlTask;
-            tracing::info!("Initializing PaddleOCR-VL backend");
-            let backend = PaddleOcrVlBackend::new(PaddleOcrVlTask::default());
-            self.register(Arc::new(backend)).unwrap_or_else(|e| {
-                tracing::warn!("Failed to register PaddleOCR-VL backend: {e}");
-            });
-            tracing::info!("PaddleOCR-VL backend registered successfully");
-        }
-
-        #[cfg(feature = "candle-glm-ocr")]
-        {
-            use crate::candle_ocr::GlmOcrBackend;
-            use crate::candle_ocr::glm_ocr_backend::LayoutMode;
-            use xberg_candle_ocr::models::glm_ocr::GlmOcrTask;
-            tracing::info!("Initializing GLM-OCR backend");
-            let backend = GlmOcrBackend::new(GlmOcrTask::default(), LayoutMode::default());
-            self.register(Arc::new(backend)).unwrap_or_else(|e| {
-                tracing::warn!("Failed to register GLM-OCR backend: {e}");
-            });
-            tracing::info!("GLM-OCR backend registered successfully");
-        }
-
-        #[cfg(all(feature = "candle-deepseek-ocr", not(target_arch = "wasm32")))]
-        {
-            use crate::candle_ocr::DeepseekOcrBackend;
-            tracing::info!("Initializing DeepSeek-OCR backend");
-            let backend = DeepseekOcrBackend::new();
-            self.register(Arc::new(backend)).unwrap_or_else(|e| {
-                tracing::warn!("Failed to register DeepSeek-OCR backend: {e}");
-            });
-            tracing::info!("DeepSeek-OCR backend registered successfully");
-        }
-    }
-
-    #[cfg(paddle_ocr)]
-    fn register_default_paddle_backend(&mut self) {
-        use crate::paddle_ocr::PaddleOcrBackend;
-        tracing::info!("Initializing PaddleOCR backend");
-        match PaddleOcrBackend::new() {
-            Ok(backend) => {
-                let backend: Arc<dyn OcrBackend> = Arc::new(backend);
-                match self.register(Arc::clone(&backend)) {
-                    Ok(()) => {
-                        #[cfg(all(feature = "ocr", feature = "pdf", not(target_arch = "wasm32")))]
-                        {
-                            self.builtin_paddle = Some(Arc::downgrade(&backend));
-                        }
-                    }
-                    Err(error) => tracing::warn!("Failed to register PaddleOCR backend: {error}"),
-                }
-                tracing::info!("PaddleOCR backend registered successfully");
-            }
-            Err(e) => {
-                tracing::warn!(
-                    "PaddleOCR backend unavailable: {e}. \
-                     Check ONNX Runtime availability and model files."
-                );
-            }
-        }
-    }
+    fn register_default_candle_backends(&mut self) {}
 
     /// Create a new empty OCR backend registry without default backends.
     ///
@@ -271,36 +94,7 @@ impl OcrBackendRegistry {
     pub fn new_empty() -> Self {
         Self {
             backends: AHashMap::new(),
-            #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-            builtin_tesseract: None,
-            #[cfg(all(paddle_ocr, feature = "ocr", feature = "pdf", not(target_arch = "wasm32")))]
-            builtin_paddle: None,
         }
-    }
-
-    #[cfg(all(feature = "ocr", any(feature = "pdf", test), not(target_arch = "wasm32")))]
-    pub(crate) fn is_builtin_tesseract(&self, backend: &Arc<dyn OcrBackend>) -> bool {
-        self.builtin_tesseract_for(backend).is_some()
-    }
-
-    #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-    pub(crate) fn builtin_tesseract_for(
-        &self,
-        backend: &Arc<dyn OcrBackend>,
-    ) -> Option<Arc<crate::ocr::tesseract_backend::TesseractBackend>> {
-        self.builtin_tesseract
-            .as_ref()
-            .and_then(std::sync::Weak::upgrade)
-            .filter(|builtin| std::ptr::addr_eq(Arc::as_ptr(builtin), Arc::as_ptr(backend)))
-    }
-
-    #[cfg(all(paddle_ocr, feature = "ocr", feature = "pdf", not(target_arch = "wasm32")))]
-    pub(crate) fn has_builtin_paddle(&self) -> bool {
-        self.builtin_paddle
-            .as_ref()
-            .and_then(std::sync::Weak::upgrade)
-            .zip(self.get("paddleocr").ok())
-            .is_some_and(|(builtin, active)| Arc::ptr_eq(&builtin, &active))
     }
 
     /// Register an OCR backend.
@@ -347,7 +141,7 @@ impl OcrBackendRegistry {
     /// # Returns
     ///
     /// The backend if found, or an error if not registered.
-    #[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+    #[cfg(feature = "ocr-pipeline")]
     #[tracing::instrument(skip(self), fields(registered_backends = ?self.backends.keys().collect::<Vec<_>>()))]
     pub(crate) fn get(&self, name: &str) -> Result<Arc<dyn OcrBackend>> {
         if let Some(backend) = self.backends.get(name) {
@@ -370,29 +164,6 @@ impl OcrBackendRegistry {
                 plugin_name: name.to_string(),
             }
         })
-    }
-
-    /// Get an OCR backend that supports a specific language.
-    ///
-    /// Returns the first backend that supports the language.
-    ///
-    /// # Arguments
-    ///
-    /// * `language` - Language code (e.g., "eng", "deu")
-    ///
-    /// # Returns
-    ///
-    /// The first backend supporting the language, or an error if none found.
-    #[cfg(all(test, any(feature = "ocr", feature = "ocr-wasm")))]
-    pub(crate) fn get_for_language(&self, language: &str) -> Result<Arc<dyn OcrBackend>> {
-        self.backends
-            .values()
-            .find(|backend| backend.supports_language(language))
-            .cloned()
-            .ok_or_else(|| XbergError::Plugin {
-                message: format!("No OCR backend supports language '{}'", language),
-                plugin_name: language.to_string(),
-            })
     }
 
     /// List all registered backend names.
@@ -445,11 +216,8 @@ impl OcrBackendRegistry {
     /// happen after [`clear`](Self::clear) followed by registering a *different*
     /// backend: the registry is non-empty, yet default-config OCR has no usable
     /// backend.
-    #[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+    #[cfg(feature = "ocr-pipeline")]
     pub(crate) fn is_missing_default_backend(&self) -> bool {
-        #[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
-        const DEFAULT: Option<&str> = Some("tesseract");
-        #[cfg(not(any(feature = "ocr", feature = "ocr-wasm")))]
         const DEFAULT: Option<&str> = None;
 
         self.backends.is_empty() || DEFAULT.is_some_and(|name| !self.backends.contains_key(name))
@@ -461,7 +229,7 @@ impl OcrBackendRegistry {
     /// Keeps any user-registered backends; a no-op when the built-in default is
     /// already present. Used by the self-healing dispatch path so a registry
     /// left without a default (via clear + register-other) heals itself.
-    #[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+    #[cfg(feature = "ocr-pipeline")]
     pub(crate) fn ensure_defaults(&mut self) {
         if self.is_missing_default_backend() {
             self.register_defaults();
@@ -480,39 +248,8 @@ mod capability_manifest_tests {
     use super::*;
 
     #[test]
-    fn builtin_capability_manifest_is_sorted_and_matches_active_features() {
-        let names = builtin_ocr_backend_names();
-        let mut sorted = names.clone();
-        sorted.sort_unstable();
-        assert_eq!(names, sorted);
-
-        assert_eq!(
-            names.contains(&"tesseract"),
-            cfg!(any(feature = "ocr", feature = "ocr-wasm"))
-        );
-        assert_eq!(names.contains(&"paddle-ocr"), cfg!(paddle_ocr));
-        assert_eq!(
-            names.contains(&"sceptre"),
-            cfg!(all(sceptre_ocr, not(target_arch = "wasm32")))
-        );
-        assert_eq!(
-            names.contains(&"vlm"),
-            cfg!(all(feature = "liter-llm", not(target_arch = "wasm32")))
-        );
-        assert_eq!(names.contains(&"candle-trocr"), cfg!(feature = "candle-trocr"));
-        assert_eq!(
-            names.contains(&"candle-paddleocr-vl"),
-            cfg!(feature = "candle-paddleocr-vl")
-        );
-        assert_eq!(names.contains(&"candle-glm-ocr"), cfg!(feature = "candle-glm-ocr"));
-        assert_eq!(
-            names.contains(&"candle-deepseek-ocr"),
-            cfg!(all(feature = "candle-deepseek-ocr", not(target_arch = "wasm32")))
-        );
-        #[cfg(feature = "sceptre-ocr-candle")]
-        const {
-            assert!(cfg!(sceptre_ocr))
-        };
+    fn builtin_capability_manifest_is_empty_in_compact_build() {
+        assert!(builtin_ocr_backend_names().is_empty());
     }
 
     #[test]
@@ -526,366 +263,5 @@ mod capability_manifest_tests {
         let mut sorted = names.clone();
         sorted.sort_unstable();
         assert_eq!(names, sorted);
-    }
-}
-
-#[cfg(all(test, any(feature = "ocr", feature = "ocr-wasm")))]
-mod tests {
-    use super::*;
-    use crate::core::config::OcrConfig;
-    use crate::plugins::{OcrBackend, Plugin};
-    use crate::types::ExtractedDocument;
-    use async_trait::async_trait;
-    use std::borrow::Cow;
-
-    struct MockOcrBackend {
-        name: String,
-        languages: Vec<String>,
-    }
-
-    impl Plugin for MockOcrBackend {
-        fn name(&self) -> &str {
-            &self.name
-        }
-        fn version(&self) -> String {
-            "1.0.0".to_string()
-        }
-        fn initialize(&self) -> Result<()> {
-            Ok(())
-        }
-        fn shutdown(&self) -> Result<()> {
-            Ok(())
-        }
-    }
-
-    #[async_trait]
-    impl OcrBackend for MockOcrBackend {
-        async fn process_image(&self, _: &[u8], _: &OcrConfig) -> Result<ExtractedDocument> {
-            Ok(ExtractedDocument {
-                content: "test".to_string(),
-                mime_type: Cow::Borrowed("text/plain"),
-                ..Default::default()
-            })
-        }
-
-        fn supports_language(&self, lang: &str) -> bool {
-            self.languages.iter().any(|l| l == lang)
-        }
-
-        fn backend_type(&self) -> crate::plugins::ocr::OcrBackendType {
-            crate::plugins::ocr::OcrBackendType::Custom
-        }
-    }
-
-    #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-    #[test]
-    fn replacing_tesseract_does_not_grant_builtin_orientation_retry() {
-        let mut registry = OcrBackendRegistry::new();
-        let builtin = registry.get("tesseract").expect("built-in Tesseract");
-        assert!(registry.is_builtin_tesseract(&builtin));
-
-        registry
-            .register(Arc::new(crate::ocr::tesseract_backend::TesseractBackend::new()))
-            .expect("register a replacement with the same name and type");
-        let replacement = registry.get("tesseract").expect("registered replacement");
-        assert_eq!(replacement.name(), builtin.name());
-        assert_eq!(replacement.backend_type(), builtin.backend_type());
-        assert!(!registry.is_builtin_tesseract(&replacement));
-    }
-
-    #[test]
-    fn test_ocr_backend_registry() {
-        let mut registry = OcrBackendRegistry::new_empty();
-
-        let backend = Arc::new(MockOcrBackend {
-            name: "test-ocr".to_string(),
-            languages: vec!["eng".to_string(), "deu".to_string()],
-        });
-
-        registry.register(backend).unwrap();
-
-        let retrieved = registry.get("test-ocr").unwrap();
-        assert_eq!(retrieved.name(), "test-ocr");
-
-        let eng_backend = registry.get_for_language("eng").unwrap();
-        assert_eq!(eng_backend.name(), "test-ocr");
-
-        let names = registry.list();
-        assert_eq!(names.len(), 1);
-        assert!(names.contains(&"test-ocr".to_string()));
-    }
-
-    #[test]
-    fn test_ocr_backend_registry_new_empty() {
-        let registry = OcrBackendRegistry::new_empty();
-        assert_eq!(registry.list().len(), 0);
-    }
-
-    #[cfg(feature = "ocr")]
-    #[test]
-    fn ensure_defaults_reseeds_when_default_missing_but_registry_nonempty() {
-        let mut registry = OcrBackendRegistry::new_empty();
-        registry
-            .register(Arc::new(MockOcrBackend {
-                name: "custom-ocr".to_string(),
-                languages: vec!["eng".to_string()],
-            }))
-            .unwrap();
-        assert!(
-            !registry.list().iter().any(|n| n == "tesseract"),
-            "precondition: no built-in default present"
-        );
-        assert!(
-            registry.is_missing_default_backend(),
-            "a non-empty registry without the built-in default must report missing"
-        );
-
-        registry.ensure_defaults();
-
-        assert!(
-            registry.list().iter().any(|n| n == "tesseract"),
-            "ensure_defaults should re-seed the built-in default even when the registry is non-empty"
-        );
-        assert!(
-            registry.list().iter().any(|n| n == "custom-ocr"),
-            "ensure_defaults must be non-destructive: the user backend is kept"
-        );
-    }
-
-    #[test]
-    fn should_re_register_default_backends_after_clear() {
-        let mut registry = OcrBackendRegistry::new();
-        let seeded = registry.list();
-        assert!(
-            !seeded.is_empty(),
-            "expected built-in OCR backends to be seeded by `new` with the `ocr` feature enabled"
-        );
-
-        registry.clear().unwrap();
-        assert_eq!(registry.list().len(), 0, "clear should empty the registry");
-
-        registry.register_defaults();
-        let mut restored = registry.list();
-        let mut expected = seeded;
-        restored.sort();
-        expected.sort();
-        assert_eq!(
-            restored, expected,
-            "register_defaults should restore the same built-in backends"
-        );
-    }
-
-    #[cfg(feature = "ocr")]
-    #[test]
-    fn test_registry_construction_does_not_eagerly_allocate_tesseract() {
-        use crate::ocr::tesseract_backend::TesseractBackend;
-
-        let backend = TesseractBackend::new();
-        assert!(
-            !backend.processor_is_initialized(),
-            "TesseractBackend::new() should not eagerly allocate the processor"
-        );
-    }
-
-    #[test]
-    fn test_ocr_backend_get_missing() {
-        let registry = OcrBackendRegistry::new_empty();
-        let result = registry.get("nonexistent");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_ocr_backend_get_for_language_missing() {
-        let registry = OcrBackendRegistry::new_empty();
-        let result = registry.get_for_language("fra");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_ocr_backend_remove() {
-        let mut registry = OcrBackendRegistry::new_empty();
-        let backend = Arc::new(MockOcrBackend {
-            name: "test-backend".to_string(),
-            languages: vec!["eng".to_string()],
-        });
-        registry.register(backend).unwrap();
-
-        registry.remove("test-backend").unwrap();
-        assert_eq!(registry.list().len(), 0);
-    }
-
-    #[test]
-    fn test_ocr_backend_shutdown_all() {
-        let mut registry = OcrBackendRegistry::new_empty();
-        let backend1 = Arc::new(MockOcrBackend {
-            name: "backend1".to_string(),
-            languages: vec!["eng".to_string()],
-        });
-        let backend2 = Arc::new(MockOcrBackend {
-            name: "backend2".to_string(),
-            languages: vec!["deu".to_string()],
-        });
-
-        registry.register(backend1).unwrap();
-        registry.register(backend2).unwrap();
-
-        registry.shutdown_all().unwrap();
-        assert_eq!(registry.list().len(), 0);
-    }
-
-    struct FailingOcrBackend {
-        name: String,
-        fail_on_init: bool,
-    }
-
-    impl Plugin for FailingOcrBackend {
-        fn name(&self) -> &str {
-            &self.name
-        }
-        fn version(&self) -> String {
-            "1.0.0".to_string()
-        }
-        fn initialize(&self) -> Result<()> {
-            if self.fail_on_init {
-                Err(XbergError::Plugin {
-                    message: "Backend initialization failed".to_string(),
-                    plugin_name: self.name.clone(),
-                })
-            } else {
-                Ok(())
-            }
-        }
-        fn shutdown(&self) -> Result<()> {
-            Ok(())
-        }
-    }
-
-    #[async_trait]
-    impl OcrBackend for FailingOcrBackend {
-        async fn process_image(&self, _: &[u8], _: &OcrConfig) -> Result<ExtractedDocument> {
-            Ok(ExtractedDocument {
-                content: "test".to_string(),
-                mime_type: Cow::Borrowed("text/plain"),
-                ..Default::default()
-            })
-        }
-
-        fn supports_language(&self, _lang: &str) -> bool {
-            false
-        }
-
-        fn backend_type(&self) -> crate::plugins::ocr::OcrBackendType {
-            crate::plugins::ocr::OcrBackendType::Custom
-        }
-    }
-
-    #[test]
-    fn test_ocr_backend_initialization_failure_logs_error() {
-        let mut registry = OcrBackendRegistry::new_empty();
-
-        let backend = Arc::new(FailingOcrBackend {
-            name: "failing-ocr".to_string(),
-            fail_on_init: true,
-        });
-
-        let result = registry.register(backend);
-        assert!(result.is_err());
-        assert_eq!(registry.list().len(), 0);
-    }
-
-    #[test]
-    fn test_ocr_backend_invalid_name_empty_logs_warning() {
-        let mut registry = OcrBackendRegistry::new_empty();
-
-        let backend = Arc::new(MockOcrBackend {
-            name: "".to_string(),
-            languages: vec!["eng".to_string()],
-        });
-
-        let result = registry.register(backend);
-        assert!(matches!(result, Err(XbergError::Validation { .. })));
-    }
-
-    #[test]
-    fn test_ocr_backend_invalid_name_with_spaces_logs_warning() {
-        let mut registry = OcrBackendRegistry::new_empty();
-
-        let backend = Arc::new(MockOcrBackend {
-            name: "invalid ocr backend".to_string(),
-            languages: vec!["eng".to_string()],
-        });
-
-        let result = registry.register(backend);
-        assert!(matches!(result, Err(XbergError::Validation { .. })));
-    }
-
-    #[test]
-    fn test_ocr_backend_successful_registration_logs_debug() {
-        let mut registry = OcrBackendRegistry::new_empty();
-
-        let backend = Arc::new(MockOcrBackend {
-            name: "valid-ocr".to_string(),
-            languages: vec!["eng".to_string()],
-        });
-
-        let result = registry.register(backend);
-        assert!(result.is_ok());
-        assert_eq!(registry.list().len(), 1);
-    }
-
-    #[test]
-    fn test_ocr_backend_multiple_registrations() {
-        let mut registry = OcrBackendRegistry::new_empty();
-
-        let backend1 = Arc::new(MockOcrBackend {
-            name: "ocr-backend-1".to_string(),
-            languages: vec!["eng".to_string()],
-        });
-
-        let backend2 = Arc::new(MockOcrBackend {
-            name: "ocr-backend-2".to_string(),
-            languages: vec!["deu".to_string()],
-        });
-
-        registry.register(backend1).unwrap();
-        registry.register(backend2).unwrap();
-
-        assert_eq!(registry.list().len(), 2);
-    }
-
-    #[test]
-    fn test_ocr_backend_paddleocr_alias_resolves() {
-        let mut registry = OcrBackendRegistry::new_empty();
-
-        let backend = Arc::new(MockOcrBackend {
-            name: "paddle-ocr".to_string(),
-            languages: vec!["en".to_string()],
-        });
-
-        registry.register(backend).unwrap();
-
-        let retrieved = registry.get("paddleocr").unwrap();
-        assert_eq!(retrieved.name(), "paddle-ocr");
-
-        let retrieved = registry.get("paddle-ocr").unwrap();
-        assert_eq!(retrieved.name(), "paddle-ocr");
-    }
-
-    #[test]
-    fn test_ocr_backend_paddleocr_alias_resolves_to_paddle_ocr() {
-        let mut registry = OcrBackendRegistry::new_empty();
-
-        let backend = Arc::new(MockOcrBackend {
-            name: "paddle-ocr".to_string(),
-            languages: vec!["en".to_string()],
-        });
-
-        registry.register(backend).unwrap();
-
-        let retrieved = registry.get("paddle-ocr").unwrap();
-        assert_eq!(retrieved.name(), "paddle-ocr");
-
-        let aliased = registry.get("paddleocr").unwrap();
-        assert_eq!(aliased.name(), "paddle-ocr");
     }
 }

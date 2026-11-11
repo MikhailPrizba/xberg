@@ -128,7 +128,7 @@ fn is_ooxml_zip_mime(mime_type: &str) -> bool {
 /// Excel spreadsheet extractor using calamine.
 ///
 /// Supports: .xlsx, .xlsm, .xlam, .xltm, .xls, .xla, .xlsb, .ods
-#[cfg_attr(alef, alef(skip))]
+
 pub struct ExcelExtractor;
 
 impl Default for ExcelExtractor {
@@ -367,13 +367,6 @@ impl ExcelExtractor {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl InternalDocumentExtractor for ExcelExtractor {
-    #[cfg_attr(feature = "otel", tracing::instrument(
-        skip(self, content, config),
-        fields(
-            extractor.name = self.name(),
-            content.size_bytes = content.len(),
-        )
-    ))]
     async fn extract_content(
         &self,
         content: &[u8],
@@ -448,12 +441,6 @@ impl InternalDocumentExtractor for ExcelExtractor {
         Ok(doc)
     }
 
-    #[cfg_attr(feature = "otel", tracing::instrument(
-        skip(self, path, config),
-        fields(
-            extractor.name = self.name(),
-        )
-    ))]
     async fn extract_path(&self, path: &Path, mime_type: &str, config: &ExtractionConfig) -> Result<InternalDocument> {
         let path_str = path
             .to_str()

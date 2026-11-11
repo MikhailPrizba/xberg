@@ -1,7 +1,7 @@
 use std::fmt;
 
 /// PDF-specific errors produced by the pure-Rust PDF backend.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone)]
 pub enum PdfError {
     /// The file is not a valid PDF or the header is corrupted.

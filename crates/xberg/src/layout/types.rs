@@ -14,60 +14,6 @@ pub struct BBox {
     pub y2: f32,
 }
 
-#[allow(dead_code)]
-impl BBox {
-    pub(crate) fn new(x1: f32, y1: f32, x2: f32, y2: f32) -> Self {
-        Self { x1, y1, x2, y2 }
-    }
-
-    pub(crate) fn width(&self) -> f32 {
-        (self.x2 - self.x1).max(0.0)
-    }
-
-    pub(crate) fn height(&self) -> f32 {
-        (self.y2 - self.y1).max(0.0)
-    }
-
-    pub(crate) fn area(&self) -> f32 {
-        self.width() * self.height()
-    }
-
-    /// Area of intersection with another bounding box.
-    pub(crate) fn intersection_area(&self, other: &BBox) -> f32 {
-        let x1 = self.x1.max(other.x1);
-        let y1 = self.y1.max(other.y1);
-        let x2 = self.x2.min(other.x2);
-        let y2 = self.y2.min(other.y2);
-        (x2 - x1).max(0.0) * (y2 - y1).max(0.0)
-    }
-
-    /// Intersection over Union with another bounding box.
-    pub(crate) fn iou(&self, other: &BBox) -> f32 {
-        let inter = self.intersection_area(other);
-        let union = self.area() + other.area() - inter;
-        if union <= 0.0 { 0.0 } else { inter / union }
-    }
-
-    /// Fraction of `other` that is contained within `self`.
-    /// Returns 0.0..=1.0 where 1.0 means `other` is fully inside `self`.
-    pub(crate) fn containment_of(&self, other: &BBox) -> f32 {
-        let other_area = other.area();
-        if other_area <= 0.0 {
-            return 0.0;
-        }
-        self.intersection_area(other) / other_area
-    }
-
-    /// Fraction of page area this bbox covers.
-    pub(crate) fn page_coverage(&self, page_width: f32, page_height: f32) -> f32 {
-        let page_area = page_width * page_height;
-        if page_area <= 0.0 {
-            return 0.0;
-        }
-        self.area() / page_area
-    }
-}
-
 impl fmt::Display for BBox {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[{:.1}, {:.1}, {:.1}, {:.1}]", self.x1, self.y1, self.x2, self.y2)
@@ -123,73 +69,7 @@ pub enum LayoutClass {
     KeyValueRegion,
 }
 
-#[allow(dead_code)]
 impl LayoutClass {
-    /// Map from Docling RT-DETR model label ID (0-16) to LayoutClass.
-    pub(crate) fn from_docling_id(id: i64) -> Option<Self> {
-        match id {
-            0 => Some(Self::Caption),
-            1 => Some(Self::Footnote),
-            2 => Some(Self::Formula),
-            3 => Some(Self::ListItem),
-            4 => Some(Self::PageFooter),
-            5 => Some(Self::PageHeader),
-            6 => Some(Self::Picture),
-            7 => Some(Self::SectionHeader),
-            8 => Some(Self::Table),
-            9 => Some(Self::Text),
-            10 => Some(Self::Title),
-            11 => Some(Self::DocumentIndex),
-            12 => Some(Self::Code),
-            13 => Some(Self::CheckboxSelected),
-            14 => Some(Self::CheckboxUnselected),
-            15 => Some(Self::Form),
-            16 => Some(Self::KeyValueRegion),
-            _ => None,
-        }
-    }
-
-    /// Map from DocLayNet class ID (0-10) to LayoutClass.
-    ///
-    /// DocLayNet classes: Caption, Footnote, Formula, List-item, Page-footer,
-    /// Page-header, Picture, Section-header, Table, Text, Title.
-    pub(crate) fn from_doclaynet_id(id: i64) -> Option<Self> {
-        match id {
-            0 => Some(Self::Caption),
-            1 => Some(Self::Footnote),
-            2 => Some(Self::Formula),
-            3 => Some(Self::ListItem),
-            4 => Some(Self::PageFooter),
-            5 => Some(Self::PageHeader),
-            6 => Some(Self::Picture),
-            7 => Some(Self::SectionHeader),
-            8 => Some(Self::Table),
-            9 => Some(Self::Text),
-            10 => Some(Self::Title),
-            _ => None,
-        }
-    }
-
-    /// Map from DocStructBench class ID (0-9) to LayoutClass.
-    ///
-    /// DocStructBench classes: Title, Plain Text, Abandoned Text, Figure,
-    /// Figure Caption, Table, Table Caption, Table Footnote, Isolated Formula, Formula Caption.
-    pub(crate) fn from_docstructbench_id(id: i64) -> Option<Self> {
-        match id {
-            0 => Some(Self::Title),
-            1 => Some(Self::Text),
-            2 => Some(Self::Text),
-            3 => Some(Self::Picture),
-            4 => Some(Self::Caption),
-            5 => Some(Self::Table),
-            6 => Some(Self::Caption),
-            7 => Some(Self::Footnote),
-            8 => Some(Self::Formula),
-            9 => Some(Self::Caption),
-            _ => None,
-        }
-    }
-
     /// Snake_case wire-format name (matches serde output).
     ///
     /// Equivalent to `format!("{self}")` but returns a `&'static str` slice
@@ -224,32 +104,6 @@ impl fmt::Display for LayoutClass {
     }
 }
 
-impl BBox {
-    /// Clamp this box to an image of `width` x `height` pixels, returning the
-    /// integer crop rectangle `(x, y, w, h)`. `None` when the clamped region
-    /// is empty.
-    ///
-    /// The gate is the union of the callers' gates: `encode_layout_region`
-    /// (`layout-detection` + an OCR backend), the image/PDF formula crop
-    /// paths (`formula-recognition`; the PDF one needs `pdf`) and the VLM
-    /// region crop (`liter-llm` + `layout-detection` + `pdf`). This module
-    /// also compiles under `layout-tract`, which has no caller.
-    #[cfg(any(
-        all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")),
-        all(feature = "formula-recognition", feature = "pdf"),
-        all(feature = "liter-llm", feature = "layout-detection", feature = "pdf")
-    ))]
-    pub(crate) fn clamp_to_image(&self, width: u32, height: u32) -> Option<(u32, u32, u32, u32)> {
-        let x1 = (self.x1.max(0.0) as u32).min(width.saturating_sub(1));
-        let y1 = (self.y1.max(0.0) as u32).min(height.saturating_sub(1));
-        let x2 = (self.x2.max(0.0).ceil() as u32).min(width);
-        let y2 = (self.y2.max(0.0).ceil() as u32).min(height);
-        let w = x2.saturating_sub(x1);
-        let h = y2.saturating_sub(y1);
-        if w == 0 || h == 0 { None } else { Some((x1, y1, w, h)) }
-    }
-}
-
 /// A single layout detection result.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LayoutDetection {
@@ -262,22 +116,6 @@ pub struct LayoutDetection {
 }
 
 impl LayoutDetection {
-    /// Sort detections by confidence in descending order.
-    #[allow(dead_code)]
-    pub(crate) fn sort_by_confidence_desc(mut detections: Vec<LayoutDetection>) -> Vec<LayoutDetection> {
-        detections.sort_by(|a, b| b.confidence.total_cmp(&a.confidence));
-        detections
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn new(class_name: LayoutClass, confidence: f32, bbox: BBox) -> Self {
-        Self {
-            class_name,
-            confidence,
-            bbox,
-        }
-    }
-
     /// Deprecated: use the `class_name` field directly.
     #[deprecated(since = "1.1.0", note = "Use `class_name` field instead")]
     pub fn class(&self) -> LayoutClass {
@@ -322,53 +160,4 @@ pub struct DetectionResult {
     pub page_height: u32,
     /// All layout detections on this page after postprocessing.
     pub detections: Vec<LayoutDetection>,
-}
-
-impl DetectionResult {
-    #[allow(dead_code)]
-    pub(crate) fn new(page_width: u32, page_height: u32, detections: Vec<LayoutDetection>) -> Self {
-        Self {
-            page_width,
-            page_height,
-            detections,
-        }
-    }
-}
-
-#[cfg(all(
-    test,
-    any(
-        all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")),
-        all(feature = "formula-recognition", feature = "pdf"),
-        all(feature = "liter-llm", feature = "layout-detection", feature = "pdf")
-    )
-))]
-mod clamp_tests {
-    use super::BBox;
-
-    fn bbox(x1: f32, y1: f32, x2: f32, y2: f32) -> BBox {
-        BBox { x1, y1, x2, y2 }
-    }
-
-    #[test]
-    fn interior_box_rounds_to_pixels() {
-        assert_eq!(
-            bbox(10.2, 5.7, 20.1, 15.3).clamp_to_image(100, 50),
-            Some((10, 5, 11, 11))
-        );
-    }
-
-    #[test]
-    fn negative_and_oversized_coordinates_clamp() {
-        assert_eq!(
-            bbox(-8.0, -3.0, 400.0, 400.0).clamp_to_image(100, 50),
-            Some((0, 0, 100, 50))
-        );
-    }
-
-    #[test]
-    fn empty_regions_yield_none() {
-        assert_eq!(bbox(30.0, 20.0, 30.0, 40.0).clamp_to_image(100, 50), None);
-        assert_eq!(bbox(10.0, 40.0, 90.0, 40.0).clamp_to_image(100, 50), None);
-    }
 }

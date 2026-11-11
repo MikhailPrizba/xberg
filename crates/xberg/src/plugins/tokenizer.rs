@@ -107,7 +107,7 @@ pub trait TokenizerBackend: Plugin {
 /// - [`crate::XbergError::Plugin`] if a backend with that name is already registered.
 /// - A plugin error retaining the cause if the token-count probe fails.
 /// - Any error from the backend's `initialize()` method.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn register_tokenizer_backend(backend: Arc<dyn TokenizerBackend>) -> Result<()> {
     use crate::plugins::registry::get_tokenizer_backend_registry;
 
@@ -123,7 +123,7 @@ pub fn register_tokenizer_backend(backend: Arc<dyn TokenizerBackend>) -> Result<
 /// # Errors
 ///
 /// - Any error returned by the backend's `shutdown()` method.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn unregister_tokenizer_backend(name: &str) -> Result<()> {
     use crate::plugins::registry::get_tokenizer_backend_registry;
 

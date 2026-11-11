@@ -60,7 +60,7 @@ impl Registry {
     }
 
     /// Iterate over presets sorted by id.
-    #[cfg_attr(alef, alef(skip))]
+
     pub fn iter(&self) -> impl Iterator<Item = &Preset> {
         self.by_id.values()
     }

@@ -2,8 +2,6 @@
 //! to keep that file under the line-count limit.
 
 use super::*;
-#[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
-use image::{ImageBuffer, Rgba};
 
 #[test]
 fn test_classify_returns_mask_for_is_mask_true() {
@@ -123,78 +121,6 @@ fn test_classify_returns_mask_for_ccitt() {
     });
     assert_eq!(kind, ImageKind::Mask);
     assert_eq!(conf, 0.85);
-}
-
-#[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
-#[test]
-fn test_classify_returns_photograph_for_high_entropy_thumbnail() {
-    let mut state: u32 = 0x9E37_79B9;
-    let mut next = || {
-        state ^= state << 13;
-        state ^= state >> 17;
-        state ^= state << 5;
-        (state & 0xFF) as u8
-    };
-    let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
-        ImageBuffer::from_fn(100, 100, |_x, _y| Rgba([next(), next(), next(), 255]));
-
-    let mut bytes = Vec::new();
-    img.write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageFormat::Png)
-        .unwrap();
-
-    let (kind, conf) = classify(ImageClassifyInput {
-        bytes: &bytes,
-        format: "png",
-        width: Some(100),
-        height: Some(100),
-        colorspace: None,
-        bits_per_component: None,
-        is_mask: false,
-    });
-    assert_eq!(kind, ImageKind::Photograph);
-    assert!(conf >= 0.6, "confidence {} should be >= 0.6", conf);
-}
-
-#[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
-#[test]
-fn should_reject_oversized_declared_dimensions_before_entropy_decode() {
-    let oversized = crate::extraction::image_decode::bmp_with_declared_dimensions(6_000, 6_000);
-
-    let error = compute_entropy_on_thumbnail(&oversized, 6_000, 6_000)
-        .expect_err("oversized image must fail at the decoded-image budget");
-
-    assert!(
-        error.contains("security_limits.max_content_size"),
-        "unexpected error: {error}"
-    );
-}
-
-#[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
-#[test]
-fn test_classify_returns_chart_for_low_entropy_small_image() {
-    let img: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::from_fn(256, 256, |x, _y| {
-        if x < 128 {
-            Rgba([255, 0, 0, 255])
-        } else {
-            Rgba([0, 0, 255, 255])
-        }
-    });
-
-    let mut bytes = Vec::new();
-    img.write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageFormat::Png)
-        .unwrap();
-
-    let (kind, conf) = classify(ImageClassifyInput {
-        bytes: &bytes,
-        format: "png",
-        width: Some(256),
-        height: Some(256),
-        colorspace: None,
-        bits_per_component: None,
-        is_mask: false,
-    });
-    assert_eq!(kind, ImageKind::Chart);
-    assert!(conf >= 0.55, "confidence {} should be >= 0.55", conf);
 }
 
 #[test]

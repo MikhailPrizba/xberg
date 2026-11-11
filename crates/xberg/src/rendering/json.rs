@@ -17,7 +17,7 @@ use super::common::{
 };
 
 /// Top-level JSON document.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Serialize)]
 pub struct JsonDocument {
     /// Document title, if found.
@@ -31,7 +31,7 @@ pub struct JsonDocument {
 }
 
 /// A node in the JSON document tree.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Serialize)]
 #[serde(tag = "type")]
 pub enum JsonNode {
@@ -162,7 +162,7 @@ pub enum JsonNode {
 }
 
 /// A single `key: value` pair inside a [`JsonNode::MetadataBlock`].
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Serialize)]
 pub struct JsonMetadataEntry {
     pub key: String,
@@ -186,7 +186,7 @@ struct OpenList {
 ///
 /// Walks the flat element list and builds a heading-driven section tree.
 /// Returns a JSON string (always valid JSON).
-#[cfg_attr(alef, alef(skip))]
+
 pub fn render_json(doc: &InternalDocument) -> String {
     let json_doc = build_json_document(doc);
     serde_json::to_string(&json_doc).unwrap_or_else(|e| {

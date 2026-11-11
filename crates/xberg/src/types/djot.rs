@@ -40,27 +40,6 @@ impl<'de> Deserialize<'de> for DjotAttributeGroup {
     }
 }
 
-#[cfg(feature = "api")]
-impl utoipa::PartialSchema for DjotAttributeGroup {
-    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
-        use utoipa::openapi::schema::{Object, ObjectBuilder, Type};
-
-        ObjectBuilder::new()
-            .property("identifier", Object::with_type(Type::String))
-            .required("identifier")
-            .property("attributes", <Attributes as utoipa::PartialSchema>::schema())
-            .required("attributes")
-            .into()
-    }
-}
-
-#[cfg(feature = "api")]
-impl utoipa::ToSchema for DjotAttributeGroup {
-    fn schemas(schemas: &mut Vec<(String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>) {
-        <Attributes as utoipa::ToSchema>::schemas(schemas);
-    }
-}
-
 impl From<(String, Attributes)> for DjotAttributeGroup {
     fn from((identifier, attributes): (String, Attributes)) -> Self {
         Self { identifier, attributes }
@@ -85,8 +64,7 @@ impl From<DjotAttributeGroup> for (String, Attributes) {
 ///
 /// Available when the `djot` feature is enabled.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "api", schema(no_recursion))]
+
 pub struct DjotContent {
     /// Plain text representation for backwards compatibility
     pub plain_text: String,
@@ -118,8 +96,7 @@ pub struct DjotContent {
 ///
 /// Represents structural elements like headings, paragraphs, lists, code blocks, etc.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "api", schema(no_recursion))]
+
 pub struct FormattedBlock {
     /// Type of block element
     pub block_type: BlockType,
@@ -133,7 +110,6 @@ pub struct FormattedBlock {
 
     /// Element attributes (classes, IDs, key-value pairs)
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub attributes: Option<Attributes>,
 
     /// Language identifier for code blocks
@@ -152,7 +128,7 @@ pub struct FormattedBlock {
 /// Types of block-level elements in Djot.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub enum BlockType {
     /// Standard prose paragraph.
     Paragraph,
@@ -192,7 +168,7 @@ pub enum BlockType {
 ///
 /// Represents text with formatting, links, images, etc.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct InlineElement {
     /// Type of inline element
     pub element_type: InlineType,
@@ -202,7 +178,6 @@ pub struct InlineElement {
 
     /// Element attributes
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub attributes: Option<Attributes>,
 
     /// Additional metadata (e.g., href for links, src/alt for images)
@@ -213,7 +188,7 @@ pub struct InlineElement {
 /// Types of inline elements in Djot.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub enum InlineType {
     /// Plain text run.
     Text,
@@ -253,7 +228,7 @@ pub enum InlineType {
 ///
 /// Represents the attributes attached to elements using {.class #id key="value"} syntax.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct Attributes {
     /// Element ID (#identifier)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -270,7 +245,7 @@ pub struct Attributes {
 
 /// Image element in Djot.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct DjotImage {
     /// Image source URL or path
     pub src: String,
@@ -284,13 +259,12 @@ pub struct DjotImage {
 
     /// Element attributes
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub attributes: Option<Attributes>,
 }
 
 /// Link element in Djot.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct DjotLink {
     /// Link URL
     pub url: String,
@@ -304,13 +278,12 @@ pub struct DjotLink {
 
     /// Element attributes
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub attributes: Option<Attributes>,
 }
 
 /// Footnote in Djot.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct Footnote {
     /// Footnote label
     pub label: String,
@@ -323,20 +296,6 @@ pub struct Footnote {
 mod binding_value_serde_tests {
     use super::{Attributes, DjotAttributeGroup};
     use serde_json::json;
-
-    #[cfg(feature = "api")]
-    #[test]
-    fn should_describe_djot_attribute_group_as_named_object_schema() {
-        let schema = serde_json::to_value(<DjotAttributeGroup as utoipa::PartialSchema>::schema())
-            .expect("schema must serialize");
-        assert_eq!(schema["type"], "object");
-        assert_eq!(schema["properties"]["identifier"]["type"], "string");
-        assert_eq!(schema["properties"]["attributes"]["type"], "object");
-        let required = schema["required"].as_array().expect("schema must have required fields");
-        assert_eq!(required.len(), 2);
-        assert!(required.contains(&json!("identifier")));
-        assert!(required.contains(&json!("attributes")));
-    }
 
     #[test]
     fn should_still_accept_legacy_positional_array_for_djot_attribute_group() {

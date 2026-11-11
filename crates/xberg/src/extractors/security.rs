@@ -8,14 +8,7 @@
 //! - Entity length validation
 //! - Path traversal detection
 
-#[cfg(any(
-    feature = "archives",
-    feature = "hwpx",
-    feature = "iwork",
-    feature = "office",
-    feature = "excel",
-    feature = "excel-wasm"
-))]
+#[cfg(any(feature = "office", feature = "excel"))]
 use std::io::{Read, Seek};
 
 /// Configuration for security limits across extractors.
@@ -23,7 +16,6 @@ use std::io::{Read, Seek};
 /// All limits are intentionally conservative to prevent DoS attacks
 /// while still supporting legitimate documents.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct SecurityLimits {
     /// Maximum uncompressed size for archives (500 MB)
@@ -123,7 +115,7 @@ impl Default for SecurityLimits {
 }
 
 /// Security validation errors.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone)]
 pub enum SecurityError {
     /// Potential ZIP bomb detected
@@ -298,7 +290,7 @@ impl std::error::Error for SecurityError {}
 // image.rs (`ocr`, for multi-frame TIFF). A default build enables none of them, so this
 // is gated to exactly that union rather than carrying `#[allow(dead_code)]`. No `test` arm:
 // nothing tests it directly, and adding one would re-hide it.
-#[cfg(any(feature = "office", feature = "pdf", feature = "iwork", feature = "ocr"))]
+#[cfg(any(feature = "office", feature = "pdf"))]
 pub(crate) fn enforce_page_count(count: usize, max_pages: Option<usize>) -> Result<(), SecurityError> {
     match max_pages {
         Some(max) if count > max => Err(SecurityError::TooManyPages { count, max }),
@@ -307,27 +299,13 @@ pub(crate) fn enforce_page_count(count: usize, max_pages: Option<usize>) -> Resu
 }
 
 /// Helper struct for validating ZIP archives for security issues.
-#[cfg(any(
-    feature = "archives",
-    feature = "hwpx",
-    feature = "iwork",
-    feature = "office",
-    feature = "excel",
-    feature = "excel-wasm"
-))]
-#[cfg_attr(alef, alef(skip))]
+#[cfg(any(feature = "office", feature = "excel"))]
+
 pub struct ZipBombValidator {
     limits: SecurityLimits,
 }
 
-#[cfg(any(
-    feature = "archives",
-    feature = "hwpx",
-    feature = "iwork",
-    feature = "office",
-    feature = "excel",
-    feature = "excel-wasm"
-))]
+#[cfg(any(feature = "office", feature = "excel"))]
 impl ZipBombValidator {
     /// Smallest uncompressed member size the per-member ratio cap applies to.
     ///
@@ -468,7 +446,7 @@ impl StringGrowthValidator {
     }
 
     /// Check whether more bytes would fit without updating the counter.
-    #[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+    #[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
     pub(crate) fn check_additional(&self, len: usize) -> Result<(), SecurityError> {
         self.check_size(self.current_size.saturating_add(len))
     }
@@ -670,18 +648,6 @@ impl SecurityBudget {
             growth: StringGrowthValidator::new(limits.max_content_size),
             table: TableValidator::new(limits.max_table_cells),
         }
-    }
-
-    /// Build a protobuf/iWork budget using the format-agnostic nesting limit.
-    // All callers live in the `iwork`-gated extractor module, so gate the
-    // constructor to match — otherwise it is dead code under feature combos
-    // that omit `iwork` (e.g. the no-ORT tract clippy leg). ~keep
-    #[cfg(feature = "iwork")]
-    pub(crate) fn for_iwork(limits: &SecurityLimits) -> Self {
-        let mut budget = Self::from_limits(limits);
-        // iWork parses protobuf messages, so XML depth is not applicable here. ~keep
-        budget.depth = DepthValidator::new(limits.max_nesting_depth);
-        budget
     }
 
     /// Convenience: build from `ExtractionConfig.security_limits` falling back to defaults.

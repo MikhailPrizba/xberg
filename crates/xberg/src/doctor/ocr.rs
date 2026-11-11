@@ -6,8 +6,6 @@ use std::sync::Arc;
 use super::DoctorCheck;
 use crate::core::config::{ExtractionConfig, OcrConfig, OcrPipelineStage};
 use crate::plugins::OcrBackend;
-#[cfg(paddle_ocr)]
-use crate::plugins::OcrBackendType;
 
 #[derive(Clone)]
 struct EffectiveProbeConfig {
@@ -17,7 +15,7 @@ struct EffectiveProbeConfig {
 
 pub(super) fn probe_ocr(config: &ExtractionConfig) -> Vec<DoctorCheck> {
     #[cfg(not(target_arch = "wasm32"))]
-    #[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+    #[cfg(feature = "ocr-pipeline")]
     crate::plugins::ensure_ocr_backends_initialized();
 
     let registered = {
@@ -129,11 +127,6 @@ fn probe_registered_backend(
     configured: Option<&Vec<EffectiveProbeConfig>>,
     required: bool,
 ) -> DoctorCheck {
-    #[cfg(paddle_ocr)]
-    if backend.backend_type() == OcrBackendType::PaddleOCR && !required {
-        return optional_paddle_check();
-    }
-
     let default_config = [EffectiveProbeConfig {
         ordinal: 1,
         config: backend_config(OcrConfig::default(), name),
@@ -146,26 +139,6 @@ fn probe_registered_backend(
         check.message = format!("optional backend probe failed: {}", check.message);
     }
     check
-}
-
-#[cfg(paddle_ocr)]
-fn optional_paddle_check() -> DoctorCheck {
-    let config = crate::paddle_ocr::PaddleOcrConfig::default();
-    let manager = crate::paddle_ocr::ModelManager::new(config.resolve_cache_dir());
-    let (present, missing, invalid) = manager.probe_manifest_presence();
-    paddle_presence_check(present, missing, invalid)
-}
-
-#[cfg(paddle_ocr)]
-fn paddle_presence_check(present: usize, missing: usize, invalid: usize) -> DoctorCheck {
-    let message = format!(
-        "optional model manifest presence: {present} present, {missing} missing, {invalid} invalid; checksums and inference were not checked"
-    );
-    if invalid == 0 {
-        DoctorCheck::skip("ocr.paddle-ocr", message)
-    } else {
-        DoctorCheck::warn("ocr.paddle-ocr", message)
-    }
 }
 
 fn configured_backend_configs(
@@ -206,7 +179,7 @@ fn effective_backend_configs(ocr: &OcrConfig) -> Vec<EffectiveProbeConfig> {
     if let Some(pipeline) = ocr.pipeline.as_ref() {
         return ordered_stage_configs(ocr, &pipeline.stages);
     }
-    #[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+    #[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
     if let Some(pipeline) = ocr.effective_pipeline() {
         return ordered_stage_configs(ocr, &pipeline.stages);
     }

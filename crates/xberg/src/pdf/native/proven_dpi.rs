@@ -1,25 +1,25 @@
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 use crate::extraction::image_decode::probe_standard_image_with_security_limits;
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 use crate::extractors::security::SecurityLimits;
 
 /// Fraction of the page a painted image must cover for its scale to stand for the page's scan.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 const PAGE_COVERING_MIN: f32 = 0.80;
 /// Largest relative difference between the horizontal and vertical resolution of an image
 /// whose placement still counts as proven.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 const SOURCE_DPI_ANISOTROPY_MAX: f64 = 0.01;
 
 /// Points per inch: the unit of a placed extent, and the resolution below which the unknown-DPI
 /// estimator never goes (it caps its upscale at `target_dpi / 72`), so a smaller one is not a scan
 /// resolution but a thumbnail stretched over the page.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 const POINTS_PER_INCH: f64 = 72.0;
 
 /// A page-covering image whose placement fixes its resolution, with the pixel size the
 /// dictionary declared for it.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct ProvenPlacement {
     dpi: f64,
@@ -27,7 +27,7 @@ pub(crate) struct ProvenPlacement {
     declared_height: u32,
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 impl ProvenPlacement {
     /// The proven resolution, only when the bytes handed to the backend have the pixel size the
     /// dictionary declared. A dictionary that disagrees with its stream proves nothing about the
@@ -46,7 +46,7 @@ impl ProvenPlacement {
 /// The resolution an image of `width` x `height` pixels painted at `width_pt` x `height_pt`
 /// points has, when both axes agree within [`SOURCE_DPI_ANISOTROPY_MAX`] and it is at least
 /// [`POINTS_PER_INCH`].
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn placement_dpi(width: u32, height: u32, width_pt: f64, height_pt: f64) -> Option<f64> {
     let across = f64::from(width) * POINTS_PER_INCH / width_pt;
     let down = f64::from(height) * POINTS_PER_INCH / height_pt;
@@ -67,7 +67,7 @@ fn placement_dpi(width: u32, height: u32, width_pt: f64, height_pt: f64) -> Opti
 /// resolution along both axes (see [`placement_dpi`]), and its painted area covers at least
 /// [`PAGE_COVERING_MIN`] of the media box. Any other image is absent, and the caller then leaves
 /// the resolution unknown. `paint_order` is unique per image on a page.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn proven_source_dpis(
     doc: &xberg_native_pdf::PdfDocument,
     page_idx: usize,
@@ -118,7 +118,7 @@ pub(crate) fn proven_source_dpis(
     proven
 }
 
-#[cfg(all(test, any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(test, feature = "ocr-pipeline"))]
 mod proven_source_dpi_tests {
     use super::{placement_dpi, proven_source_dpis};
 

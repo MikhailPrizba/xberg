@@ -20,7 +20,7 @@ pub(super) fn probe_layout(config: &ExtractionConfig) -> Vec<DoctorCheck> {
         }
         #[cfg(target_arch = "wasm32")]
         let reason = "layout inference is not available on wasm32";
-        #[cfg(all(not(target_arch = "wasm32"), not(layout_detection)))]
+        #[cfg(not(target_arch = "wasm32"))]
         let reason = "layout detection is not compiled in (enable `layout-detection` or `layout-tract`)";
         vec![DoctorCheck::fail("layout", reason)]
     }

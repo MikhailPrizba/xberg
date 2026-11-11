@@ -23,7 +23,6 @@ use serde::{Deserialize, Serialize};
 /// an already-extracted document is sent to an LLM structured-extraction
 /// pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum StructuredCallMode {
     /// Document is unsupported or not worth invoking the pipeline.

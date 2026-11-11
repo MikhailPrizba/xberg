@@ -36,7 +36,7 @@ pub struct MergedOutput {
     pub outcome: Outcome,
     /// Top-level error message, when the whole operation failed.
     pub error_message: Option<String>,
-    #[allow(dead_code)]
+
     /// Per-batch validation/parse errors, surfaced by the orchestrator event payload.
     pub per_batch_errors: Vec<String>,
     /// Confidence score computed after merging (when available from the orchestrator).

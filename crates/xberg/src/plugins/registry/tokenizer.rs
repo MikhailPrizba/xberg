@@ -20,7 +20,7 @@ use std::sync::Arc;
 /// Unlike the embedding registry there is no cached shape metadata: a tokenizer
 /// backend is a token counter, validated once at registration
 /// with a probe (see [`Self::register`]).
-#[cfg_attr(alef, alef(skip))]
+
 pub struct TokenizerBackendRegistry {
     backends: AHashMap<String, Arc<dyn TokenizerBackend>>,
 }

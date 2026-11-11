@@ -5,9 +5,6 @@
 
 pub mod merge;
 
-#[cfg(feature = "embeddings")]
-pub mod topic;
-
 use crate::chunking::boundaries::PageIndex;
 use crate::chunking::boundary_detection::detect_plain_text_boundaries;
 use crate::chunking::builder::{heading_path_from_context, resolve_token_counter};
@@ -21,10 +18,6 @@ use merge::Segment;
 
 /// Default segment size (characters) for the initial fine-grained split.
 const SEGMENT_SIZE: usize = 200;
-
-/// Default cosine-similarity threshold for topic boundary detection.
-#[cfg(feature = "embeddings")]
-const DEFAULT_TOPIC_THRESHOLD: f32 = 0.75;
 
 /// Split text into semantically coherent chunks.
 ///
@@ -200,23 +193,8 @@ fn resolve_page_provenance(
     }
 }
 
-/// Compute final boundary vector, incorporating embeddings when available.
-#[cfg(feature = "embeddings")]
-fn compute_boundaries(segments: &[Segment<'_>], forced: &[bool], config: &ChunkingConfig) -> Result<Vec<bool>> {
-    if let Some(ref embedding_config) = config.embedding {
-        let segment_texts: Vec<&str> = segments.iter().map(|s| s.text).collect();
-        let threshold = config
-            .topic_threshold
-            .unwrap_or(DEFAULT_TOPIC_THRESHOLD)
-            .clamp(0.0, 1.0);
-        topic::detect_topic_boundaries(&segment_texts, forced, embedding_config, threshold)
-    } else {
-        Ok(forced.to_vec())
-    }
-}
-
 /// Compute final boundary vector (no embeddings available).
-#[cfg(not(feature = "embeddings"))]
+
 fn compute_boundaries(_segments: &[Segment<'_>], forced: &[bool], _config: &ChunkingConfig) -> Result<Vec<bool>> {
     Ok(forced.to_vec())
 }
@@ -231,16 +209,8 @@ fn compute_boundaries(_segments: &[Segment<'_>], forced: &[bool], _config: &Chun
 /// `crate::core::pipeline::features::execute_chunking`, which surfaces the same
 /// condition as a [`crate::types::ProcessingWarning`] so API and binding
 /// consumers — who never see `tracing` output — can detect the degradation too (#258).
-#[cfg_attr(not(feature = "embeddings"), allow(unused_variables))]
-pub(crate) fn semantic_uses_structural_fallback(config: &ChunkingConfig) -> bool {
-    #[cfg(feature = "embeddings")]
-    {
-        config.embedding.is_none()
-    }
-    #[cfg(not(feature = "embeddings"))]
-    {
-        true
-    }
+pub(crate) fn semantic_uses_structural_fallback(_config: &ChunkingConfig) -> bool {
+    true
 }
 
 /// Warn when the semantic chunker is invoked without an embedding model.
@@ -268,13 +238,6 @@ fn warn_if_fallback_path(config: &ChunkingConfig) {
 /// in the model's context window. Otherwise honor the caller's configured
 /// `max_characters`.
 fn resolve_ceiling(config: &ChunkingConfig) -> usize {
-    #[cfg(feature = "embeddings")]
-    if let Some(ref emb) = config.embedding
-        && let crate::EmbeddingModelType::Preset { ref name } = emb.model
-        && let Some(size) = crate::embeddings::preset_chunk_size(name)
-    {
-        return size;
-    }
     config.max_characters
 }
 
@@ -462,52 +425,6 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "embeddings")]
-    #[test]
-    fn semantic_without_embedding_warns() {
-        use std::io::Write;
-        use std::sync::{Arc, Mutex};
-
-        #[derive(Clone, Default)]
-        struct Buf(Arc<Mutex<Vec<u8>>>);
-        impl Write for Buf {
-            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-                self.0.lock().unwrap().extend_from_slice(buf);
-                Ok(buf.len())
-            }
-            fn flush(&mut self) -> std::io::Result<()> {
-                Ok(())
-            }
-        }
-        impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Buf {
-            type Writer = Buf;
-            fn make_writer(&'a self) -> Self::Writer {
-                self.clone()
-            }
-        }
-
-        let buffer = Buf::default();
-        let subscriber = tracing_subscriber::fmt()
-            .with_writer(buffer.clone())
-            .with_max_level(tracing::Level::WARN)
-            .with_ansi(false)
-            .finish();
-
-        tracing::subscriber::with_default(subscriber, || {
-            let config = ChunkingConfig {
-                chunker_type: ChunkerType::Semantic,
-                ..Default::default()
-            };
-            let _ = chunk_semantic("hello world", &config, None).unwrap();
-        });
-
-        let captured = String::from_utf8(buffer.0.lock().unwrap().clone()).unwrap();
-        assert!(
-            captured.contains("without an EmbeddingConfig"),
-            "expected fallback warning in captured logs, got: {captured:?}"
-        );
-    }
-
     #[test]
     fn sections_with_headers_produce_separate_chunks() {
         let body = "Content paragraph with sufficient text. ".repeat(8);
@@ -562,61 +479,6 @@ mod tests {
         assert!(
             !energy.content.contains("diagnostics"),
             "energy chunk contains healthcare content"
-        );
-    }
-
-    /// Regression test for #255: `chunk_semantic` never consulted `config.sizing`, so
-    /// `token_count` stayed `None` even with `ChunkSizing::Tokenizer` configured.
-    #[cfg(feature = "chunking-tokenizers")]
-    #[test]
-    fn chunk_semantic_populates_token_count_from_registered_tokenizer_backend() {
-        use crate::plugins::registry::test_support::TokenizerRegistryGuard;
-        use crate::plugins::{Plugin, TokenizerBackend, register_tokenizer_backend};
-        use std::sync::Arc;
-
-        struct WordCountTokenizer;
-        impl Plugin for WordCountTokenizer {
-            fn name(&self) -> &str {
-                "chunking-semantic-word-count-tokenizer"
-            }
-            fn version(&self) -> String {
-                "1.0.0".to_string()
-            }
-            fn initialize(&self) -> crate::Result<()> {
-                Ok(())
-            }
-            fn shutdown(&self) -> crate::Result<()> {
-                Ok(())
-            }
-        }
-        impl TokenizerBackend for WordCountTokenizer {
-            fn count_tokens(&self, text: &str) -> usize {
-                text.split_whitespace().count()
-            }
-        }
-
-        let _guard = TokenizerRegistryGuard::acquire();
-        register_tokenizer_backend(Arc::new(WordCountTokenizer)).unwrap();
-
-        let text = "one two three four five";
-        let config = ChunkingConfig {
-            max_characters: 500,
-            overlap: 0,
-            trim: true,
-            chunker_type: ChunkerType::Semantic,
-            sizing: crate::core::config::ChunkSizing::Tokenizer {
-                model: "chunking-semantic-word-count-tokenizer".to_string(),
-                cache_dir: None,
-            },
-            ..Default::default()
-        };
-        let result = chunk_semantic(text, &config, None).unwrap();
-
-        assert_eq!(result.chunks.len(), 1);
-        assert_eq!(
-            result.chunks[0].metadata.token_count,
-            Some(5),
-            "token_count must be populated from the registered tokenizer backend"
         );
     }
 

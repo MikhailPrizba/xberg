@@ -296,8 +296,6 @@ fn sub_document_for_range(
         structured_output: source.structured_output.clone(),
         document: source.document.clone(),
         djot_content: source.djot_content.clone(),
-        #[cfg(feature = "tree-sitter")]
-        code_intelligence: source.code_intelligence.clone(),
         children: source.children.clone(),
         // Deduplicated and tagged once for the whole document; identical on every segment.
         processing_warnings: warnings.to_vec(),
@@ -892,8 +890,6 @@ mod enrichment_preservation_tests {
                 delta: RevisionDelta::default(),
             }]),
             structured_output: Some(serde_json::json!({ "invoice_total": 42 })),
-            #[cfg(feature = "tree-sitter")]
-            code_intelligence: Some(serde_json::json!({ "functions": 3 })),
             llm_usage: Some(vec![LlmUsage {
                 model: "gpt-test".to_string(),
                 source: "vlm-ocr".to_string(),
@@ -1079,13 +1075,6 @@ mod enrichment_preservation_tests {
                 assert_eq!(confidence.combined, 0.9);
                 assert_eq!(confidence.ocr_aggregate, None);
             }
-
-            #[cfg(feature = "tree-sitter")]
-            assert_eq!(
-                out.code_intelligence,
-                Some(serde_json::json!({ "functions": 3 })),
-                "segment {index}"
-            );
         }
     }
 

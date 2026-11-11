@@ -5,27 +5,6 @@
 //! wasm-target, android-target) compile out cleanly. Modules added by parallel
 //! work streams plug in here without touching one another's files.
 
-#[cfg(feature = "classification")]
-pub mod classification;
-
-#[cfg(feature = "classification")]
-pub mod chunk_classification;
-
-#[cfg(feature = "summarization")]
-pub mod summarization;
-
-#[cfg(feature = "translation")]
-pub mod translation;
-
-#[cfg(feature = "captioning")]
-pub mod captioning;
-
-#[cfg(feature = "qr-codes")]
-pub mod qr;
-
-#[cfg(feature = "ner")]
-pub mod ner;
-
 #[cfg(feature = "redaction")]
 pub mod redaction;
 
@@ -71,53 +50,6 @@ fn register_all(entries: &[BuiltinRegistration]) -> crate::Result<()> {
     }
 }
 
-#[cfg(any(
-    feature = "classification",
-    feature = "summarization",
-    feature = "translation",
-    feature = "captioning",
-    feature = "qr-codes",
-    feature = "ner",
-))]
-fn register_builtin_processor(processor: std::sync::Arc<dyn crate::plugins::PostProcessor>) -> crate::Result<()> {
-    crate::plugins::processor::register_post_processor_if_absent(processor).map(|_| ())
-}
-
-#[cfg(feature = "classification")]
-fn register_classification() -> crate::Result<()> {
-    register_builtin_processor(std::sync::Arc::new(classification::PageClassificationProcessor))
-}
-
-#[cfg(feature = "classification")]
-fn register_chunk_classification() -> crate::Result<()> {
-    register_builtin_processor(std::sync::Arc::new(chunk_classification::ChunkClassificationProcessor))
-}
-
-#[cfg(feature = "summarization")]
-fn register_summarization() -> crate::Result<()> {
-    register_builtin_processor(std::sync::Arc::new(summarization::SummarizationProcessor))
-}
-
-#[cfg(feature = "translation")]
-fn register_translation() -> crate::Result<()> {
-    register_builtin_processor(std::sync::Arc::new(translation::TranslationProcessor))
-}
-
-#[cfg(feature = "captioning")]
-fn register_captioning() -> crate::Result<()> {
-    register_builtin_processor(std::sync::Arc::new(captioning::CaptioningProcessor))
-}
-
-#[cfg(feature = "qr-codes")]
-fn register_qr() -> crate::Result<()> {
-    register_builtin_processor(std::sync::Arc::new(qr::QrCodeProcessor))
-}
-
-#[cfg(feature = "ner")]
-fn register_ner() -> crate::Result<()> {
-    register_builtin_processor(std::sync::Arc::new(ner::NerProcessor))
-}
-
 #[cfg(feature = "redaction")]
 fn register_redaction() -> crate::Result<()> {
     crate::plugins::processor::register_builtin_redaction().map(|_| ())
@@ -142,20 +74,6 @@ pub fn register_builtin() -> crate::Result<()> {
     #[allow(unused_mut, reason = "mutated conditionally per enabled feature below")]
     let mut entries: Vec<BuiltinRegistration> = Vec::new();
 
-    #[cfg(feature = "classification")]
-    entries.push(("classification", register_classification));
-    #[cfg(feature = "classification")]
-    entries.push(("chunk-classification", register_chunk_classification));
-    #[cfg(feature = "summarization")]
-    entries.push(("summarization", register_summarization));
-    #[cfg(feature = "translation")]
-    entries.push(("translation", register_translation));
-    #[cfg(feature = "captioning")]
-    entries.push(("captioning", register_captioning));
-    #[cfg(feature = "qr-codes")]
-    entries.push(("qr-codes", register_qr));
-    #[cfg(feature = "ner")]
-    entries.push(("ner", register_ner));
     #[cfg(feature = "redaction")]
     entries.push(("redaction", register_redaction));
 

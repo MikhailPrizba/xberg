@@ -102,7 +102,7 @@ pub(crate) fn estimate_content_capacity(file_size: u64, format: &str) -> usize {
 ///
 /// An estimated capacity for the markdown table output
 #[inline]
-#[cfg(any(feature = "excel", feature = "excel-wasm", feature = "office", feature = "xml"))]
+#[cfg(any(feature = "excel", feature = "office", feature = "xml"))]
 pub(crate) fn estimate_table_markdown_capacity(row_count: usize, col_count: usize) -> usize {
     let base = 50 + (col_count * 5);
     let cell_estimate = row_count.saturating_mul(col_count).saturating_mul(12);

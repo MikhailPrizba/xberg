@@ -1,11 +1,6 @@
 use super::*;
 
 pub(super) fn push_doc_image(doc: &mut InternalDocument, picture: &DocPicture, visible: bool) {
-    #[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-    if !visible {
-        doc.push_element(InternalElement::image_ocr_text_anchor(picture.image.image_index, None));
-        return;
-    }
     let _ = visible;
     doc.push_element(InternalElement::text(
         ElementKind::Image {

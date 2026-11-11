@@ -738,7 +738,7 @@ fn build_json_array(
 }
 
 /// Structured data extractor supporting JSON, JSONL/NDJSON, YAML, and TOML.
-#[cfg_attr(alef, alef(skip))]
+
 pub struct StructuredExtractor;
 
 impl Default for StructuredExtractor {
@@ -774,13 +774,6 @@ impl Plugin for StructuredExtractor {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl InternalDocumentExtractor for StructuredExtractor {
-    #[cfg_attr(feature = "otel", tracing::instrument(
-        skip(self, content, config),
-        fields(
-            extractor.name = self.name(),
-            content.size_bytes = content.len(),
-        )
-    ))]
     async fn extract_content(
         &self,
         content: &[u8],
@@ -840,12 +833,7 @@ impl InternalDocumentExtractor for StructuredExtractor {
     }
 
     #[cfg(feature = "tokio-runtime")]
-    #[cfg_attr(feature = "otel", tracing::instrument(
-        skip(self, path, config),
-        fields(
-            extractor.name = self.name(),
-        )
-    ))]
+
     async fn extract_path(&self, path: &Path, mime_type: &str, config: &ExtractionConfig) -> Result<InternalDocument> {
         let bytes = crate::core::io::read_file_async(path).await?;
         self.extract_content(&bytes, mime_type, config).await

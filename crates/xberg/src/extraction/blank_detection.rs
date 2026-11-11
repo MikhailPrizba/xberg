@@ -8,7 +8,7 @@
 /// Pages with fewer than this many non-whitespace characters are considered blank.
 /// This threshold accounts for stray characters, page numbers, or artifacts that
 /// may appear on otherwise empty pages.
-#[cfg(any(feature = "pdf", feature = "office", feature = "ocr", feature = "ocr-wasm"))]
+#[cfg(any(feature = "pdf", feature = "office"))]
 const MIN_NON_WHITESPACE_CHARS: usize = 3;
 
 /// Determine if a page's text content indicates a blank page.
@@ -22,16 +22,13 @@ const MIN_NON_WHITESPACE_CHARS: usize = 3;
 /// # Returns
 ///
 /// `true` if the page is considered blank, `false` otherwise
-#[cfg(any(feature = "pdf", feature = "office", feature = "ocr", feature = "ocr-wasm"))]
+#[cfg(any(feature = "pdf", feature = "office"))]
 pub(crate) fn is_page_text_blank(text: &str) -> bool {
     let non_whitespace_count = text.chars().filter(|c| !c.is_whitespace()).count();
     non_whitespace_count < MIN_NON_WHITESPACE_CHARS
 }
 
-#[cfg(all(
-    test,
-    any(feature = "pdf", feature = "office", feature = "ocr", feature = "ocr-wasm")
-))]
+#[cfg(all(test, any(feature = "pdf", feature = "office")))]
 mod tests {
     use super::*;
 

@@ -6,17 +6,9 @@ use crate::Result;
 use crate::core::config::{ExtractionConfig, OutputFormat};
 use crate::types::{PageBoundary, PageContent, PdfAnnotation};
 
-#[cfg(all(feature = "pdf", feature = "layout-detection"))]
-#[path = "extraction/layout_region_text.rs"]
-mod layout_region_text;
-
 #[cfg(test)]
 #[path = "extraction/native_table_metadata_tests.rs"]
 mod native_table_metadata_tests;
-
-#[cfg(all(test, feature = "ocr", feature = "tokio-runtime"))]
-#[path = "extraction/image_anchor_tests.rs"]
-mod image_anchor_tests;
 
 #[cfg(feature = "pdf")]
 use crate::types::Table;
@@ -92,15 +84,6 @@ type TableExtractionResult = (
     Option<NativeHierarchySegments>,
     Vec<crate::types::ProcessingWarning>,
 );
-
-#[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-fn anchor_images_as_ocr_text(document: &mut crate::types::internal::InternalDocument) {
-    for element in &mut document.elements {
-        if let crate::types::internal::ElementKind::Image { image_index } = element.kind {
-            *element = crate::types::internal::InternalElement::image_ocr_text_anchor(image_index, element.page);
-        }
-    }
-}
 
 fn attach_native_table_grids(
     document: &mut crate::types::internal::InternalDocument,
@@ -206,14 +189,6 @@ fn retain_headerless_financial_tables(
     }
 }
 
-#[cfg(feature = "layout-detection")]
-fn effective_layout_acceleration<'a>(
-    config: &'a ExtractionConfig,
-    acceleration_override: Option<&'a crate::core::config::acceleration::AccelerationConfig>,
-) -> Option<&'a crate::core::config::acceleration::AccelerationConfig> {
-    acceleration_override.or_else(|| config.resolved_layout_acceleration())
-}
-
 /// Whether the PDF pipeline must retain the full native hierarchy/geometry pass
 /// rather than take the cheaper flat-text path.
 ///
@@ -265,34 +240,6 @@ fn hierarchy_cluster_count(config: &ExtractionConfig) -> usize {
         )
 }
 
-/// Whether OCR is the ONLY reason image bytes were requested for this document at all (GH#1732).
-///
-/// When true, a full-page image on a page that already has native text can skip its decode
-/// entirely: `should_skip_pdf_image_ocr` (`core/pipeline/mod.rs`) will exclude it from OCR, and
-/// `drop_ocr_only_images` (same file) will then drop it from the result, unread. Mirrors
-/// `should_retain_images_after_ocr` (same file) -- `wants_own_bytes_in_result`,
-/// `ocr_inline_images`, and `images.include_page_rasters` are exactly the ways that function's
-/// WRITE gate can keep an image alive after OCR -- plus two more consumers that read
-/// `ExtractedImage.data` unconditionally, before OCR or `drop_ocr_only_images` ever run:
-/// `pdf_options.extract_images` gates `images_extraction_enabled` independently of
-/// `wants_own_bytes_in_result`, and `StyledHtmlRenderer::render_image`
-/// (`rendering/html_styled.rs`) base64-encodes `image.data` unconditionally whenever HTML output
-/// uses `html_output`, as part of a pre-render pass that runs before OCR and before
-/// `drop_ocr_only_images`. Both must also block this fast path. ~keep
-#[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-fn only_reason_images_were_requested_is_ocr(config: &ExtractionConfig, ocr_inline_images: bool) -> bool {
-    let html_reads_image_data = config.output_format == OutputFormat::Html && config.html_output.is_some();
-    config.runs_ocr_on_embedded_images()
-        && !config.wants_own_bytes_in_result()
-        && !ocr_inline_images
-        && !config.images.as_ref().is_some_and(|images| images.include_page_rasters)
-        && !config
-            .pdf_options
-            .as_ref()
-            .is_some_and(|options| options.extract_images)
-        && !html_reads_image_data
-}
-
 /// What an image element of a PDF document stands for.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum ImageAnchor {
@@ -300,9 +247,6 @@ pub(super) enum ImageAnchor {
     None,
     /// The placeholder of the picture, with its OCR text where a renderer adds it.
     Placeholder,
-    /// The OCR text of the picture only: an anchor that renders as nothing by itself.
-    #[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-    OcrTextOnly,
 }
 
 /// The one answer to "does this PDF document get image elements, and for what".
@@ -318,10 +262,6 @@ pub(super) fn image_anchor(config: &ExtractionConfig) -> ImageAnchor {
             .is_some_and(|options| options.extract_images);
     if extract_images && config.images.as_ref().is_some_and(|images| images.inject_placeholders) {
         return ImageAnchor::Placeholder;
-    }
-    #[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-    if config.runs_ocr_on_embedded_images() {
-        return ImageAnchor::OcrTextOnly;
     }
     ImageAnchor::None
 }
@@ -590,15 +530,6 @@ fn map_native_text_error(error: crate::pdf::error::PdfError) -> crate::XbergErro
     }
 }
 
-#[cfg(feature = "layout-detection")]
-pub(super) struct NativeLayoutInput<'a> {
-    pub(super) hints: Option<&'a [Vec<crate::pdf::structure::types::LayoutHint>]>,
-    pub(super) images: Option<&'a [image::RgbImage]>,
-    pub(super) results: Option<&'a [crate::pdf::structure::types::PageLayoutResult]>,
-    pub(super) acceleration: Option<&'a crate::core::config::acceleration::AccelerationConfig>,
-    pub(super) region_text: Option<&'a crate::engine::layout_region_text::RegionTextLayout>,
-}
-
 /// Extract text, metadata, tables, and annotations from a PDF document using the xberg_native_pdf backend.
 ///
 /// Accepts an authenticated `NativeDocument`, then delegates to each native extraction module.
@@ -618,18 +549,7 @@ pub(crate) fn extract_all_from_native_document(
     mut doc: crate::pdf::native::NativeDocument,
     config: &ExtractionConfig,
     outline_entries: &[crate::pdf::bookmarks::PdfOutlineEntry],
-    #[cfg(all(
-        feature = "pdf",
-        feature = "ocr",
-        feature = "tokio-runtime",
-        not(target_arch = "wasm32")
-    ))]
-    gap: &mut Option<crate::extraction::image_ocr::pdf_gap::Placement>,
-    #[cfg(feature = "layout-detection")] layout: NativeLayoutInput<'_>,
 ) -> Result<PdfExtractionPhaseResult> {
-    #[cfg(feature = "layout-detection")]
-    let layout_hints = layout.hints;
-    #[cfg(not(feature = "layout-detection"))]
     let layout_hints = None::<&[Vec<crate::pdf::structure::types::LayoutHint>]>;
     let _span = tracing::debug_span!("extract_xberg_native_pdf").entered();
     let margins = crate::pdf::native::text::PageMarginFractions::from_extraction_config(Some(config));
@@ -668,46 +588,11 @@ pub(crate) fn extract_all_from_native_document(
     let page_structure_was_implicitly_tracked =
         force_annotation_page_tracking && !crate::pdf::native::text::page_boundaries_required(config);
 
-    #[cfg_attr(not(feature = "layout-detection"), allow(unused_mut))]
+    #[allow(unused_mut)]
     let (mut native_text, mut boundaries, mut page_contents, mut pdf_metadata, financial_rows) =
         crate::pdf::native::text::extract_text_and_metadata(&mut doc, Some(text_config))
             .map_err(map_native_text_error)?;
 
-    #[cfg(feature = "layout-detection")]
-    if config.pdf_options.as_ref().is_some_and(|opts| opts.reading_order)
-        && let Some(hints) = layout_hints
-    {
-        match apply_reading_order_reordering(
-            &mut doc,
-            &native_text,
-            hints,
-            config.pages.as_ref(),
-            margins,
-            layout.region_text,
-        ) {
-            Ok((reordered, reordered_boundaries, reordered_per_page)) => {
-                native_text = reordered;
-                // Reordering rebuilds the text, so boundaries computed against
-                // the original extraction order no longer index it. ~keep
-                if !reordered_boundaries.is_empty() {
-                    if let Some(ref mut page_structure) = pdf_metadata.page_structure {
-                        page_structure.boundaries = Some(reordered_boundaries.clone());
-                    }
-                    if boundaries.is_some() {
-                        boundaries = Some(reordered_boundaries);
-                    }
-                }
-                apply_reordered_text_to_page_contents(&mut page_contents, reordered_per_page);
-            }
-            Err(e) => {
-                tracing::warn!(
-                    error = %e,
-                    "reading-order reordering failed; using native text extraction order"
-                );
-            }
-        }
-    }
-    #[cfg(not(feature = "layout-detection"))]
     let _ = layout_hints;
 
     let ocr_inline_images = config
@@ -855,13 +740,7 @@ pub(crate) fn extract_all_from_native_document(
     // full-page image on an already-text-bearing page can skip its decode entirely instead of
     // being decoded, PNG re-encoded, and thrown away by `drop_ocr_only_images` (GH#1732). Any
     // other consumer of image bytes leaves this empty and every image decodes as before. ~keep
-    #[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-    let ocr_skip_candidate_pages = if only_reason_images_were_requested_is_ocr(config, ocr_inline_images) {
-        crate::pdf::native::images::ocr_skip_candidate_pages(pdf_metadata.page_structure.as_ref())
-    } else {
-        std::collections::HashMap::new()
-    };
-    #[cfg(not(all(feature = "ocr", feature = "tokio-runtime")))]
+
     let ocr_skip_candidate_pages: std::collections::HashMap<u32, (f64, f64)> = std::collections::HashMap::new();
 
     let (images, image_positions) = if images_extraction_enabled || ocr_inline_images {
@@ -877,27 +756,6 @@ pub(crate) fn extract_all_from_native_document(
             source: None,
         })?;
         extraction_warnings.extend(image_warnings);
-        #[cfg(all(
-            feature = "pdf",
-            feature = "ocr",
-            feature = "tokio-runtime",
-            not(target_arch = "wasm32")
-        ))]
-        if crate::extraction::image_ocr::pdf_gap::eligible(config)
-            && let [image] = extracted.as_slice()
-        {
-            let ocr_limits = config.ocr.as_ref().and_then(|ocr| ocr.security_limits.as_ref());
-            let mut limits = config
-                .security_limits
-                .as_ref()
-                .or(ocr_limits)
-                .cloned()
-                .unwrap_or_default();
-            limits.max_content_size = ocr_limits.map_or(limits.max_content_size, |ocr| {
-                limits.max_content_size.min(ocr.max_content_size)
-            });
-            *gap = super::ocr::embedded_gap_placement(&doc.doc, image, &limits);
-        }
 
         let positions: Vec<(u32, u32)> = extracted
             .iter()
@@ -1045,32 +903,10 @@ pub(crate) fn extract_all_from_native_document(
                 layout_hints,
                 allow_single_column,
                 cancel_token: config.cancel_token.as_ref(),
-                #[cfg(feature = "layout-detection")]
-                layout_images: layout.images,
-                #[cfg(feature = "layout-detection")]
-                layout_results: layout.results,
-                #[cfg(feature = "layout-detection")]
-                table_model: config.layout.as_ref().map(|l| l.table_model).unwrap_or_default(),
-                #[cfg(feature = "layout-detection")]
-                table_overlap_preference: config
-                    .layout
-                    .as_ref()
-                    .map(|l| l.table_overlap_preference)
-                    .unwrap_or_default(),
-                #[cfg(feature = "layout-detection")]
-                acceleration: effective_layout_acceleration(config, layout.acceleration),
-                #[cfg(feature = "layout-detection")]
-                session_thread_budget: crate::core::config::concurrency::resolve_thread_budget(
-                    config.concurrency.as_ref(),
-                ),
             },
         ) {
             Ok(mut structured_doc) if !structured_doc.elements.is_empty() => {
                 extraction_warnings.append(&mut structured_doc.processing_warnings);
-                #[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-                if image_anchor == ImageAnchor::OcrTextOnly {
-                    anchor_images_as_ocr_text(&mut structured_doc);
-                }
                 tracing::debug!(
                     elements = structured_doc.elements.len(),
                     has_headings = structured_doc
@@ -1117,10 +953,6 @@ pub(crate) fn extract_all_from_native_document(
         pre_rendered_doc.as_mut(),
     );
 
-    #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-    let outlined_ocr_pages =
-        super::outline_ocr::candidates(&doc.doc, config, &native_text, boundaries.as_deref().unwrap_or(&[]));
-    #[cfg(not(all(feature = "ocr", not(target_arch = "wasm32"))))]
     let outlined_ocr_pages = Vec::new();
 
     let has_font_encoding_issues = false;
@@ -1158,131 +990,6 @@ pub(crate) fn extract_all_from_native_document(
         pdf_page_coordinate_frames,
         outlined_ocr_pages,
     ))
-}
-
-/// Apply reading-order reordering using layout-detected regions.
-///
-/// Extracts text spans from each page, projects them onto layout regions,
-/// performs column detection, and rebuilds the text in natural reading order.
-///
-/// Returns the reordered text string together with page boundaries recomputed
-/// against it — the rebuilt string has a different byte layout, so boundaries
-/// from the original extraction must not be used to index it. An empty
-/// boundary vector means the text was returned unchanged. Page markers from
-/// `page_config` are preserved in the rebuilt text.
-///
-/// Also returns the reordered text for each page individually (no markers or
-/// separators), so callers can patch per-page assemblies — such as
-/// `PageContent::content` — that are built independently of the joined
-/// document text and would otherwise keep the original, unreordered text.
-#[cfg(feature = "layout-detection")]
-fn apply_reading_order_reordering(
-    doc: &mut crate::pdf::native::NativeDocument,
-    native_text: &str,
-    layout_hints_per_page: &[Vec<crate::pdf::structure::types::LayoutHint>],
-    page_config: Option<&crate::core::config::PageConfig>,
-    margins: crate::pdf::native::text::PageMarginFractions,
-    region_text_layout: Option<&crate::engine::layout_region_text::RegionTextLayout>,
-) -> Result<(String, Vec<crate::types::PageBoundary>, Vec<String>)> {
-    use crate::extractors::pdf::{reading_order, rotation::page_has_rotated_spans};
-    use crate::pdf::native::text::{assemble_upright_layout_text, extract_spans_from_page, rotation_span};
-
-    let page_count = doc.doc.page_count().map_err(|e| crate::error::XbergError::Parsing {
-        message: format!("reading-order reordering: failed to get page count: {e}"),
-        source: None,
-    })?;
-
-    if layout_hints_per_page.len() != page_count {
-        return Err(crate::error::XbergError::Parsing {
-            message: format!(
-                "reading-order reordering: layout hints count ({}) != page count ({})",
-                layout_hints_per_page.len(),
-                page_count
-            ),
-            source: None,
-        });
-    }
-
-    let mut reordered_pages = Vec::with_capacity(page_count);
-    let mut region_evidence = Vec::new();
-
-    for (page_idx, hints) in layout_hints_per_page.iter().enumerate().take(page_count) {
-        let (native_spans, reordered_sparse_columns) = extract_spans_from_page(&mut doc.doc, page_idx, margins)
-            .map_err(|e| crate::error::XbergError::Parsing {
-                message: format!(
-                    "reading-order reordering: failed to extract spans from page {}: {e}",
-                    page_idx + 1
-                ),
-                source: None,
-            })?;
-
-        let spans: Vec<_> = native_spans.iter().map(rotation_span).collect();
-        let span_order: Vec<usize> = if hints.is_empty() || (reordered_sparse_columns && hints.len() == 1) {
-            (0..spans.len()).collect()
-        } else {
-            reading_order::reorder_spans_by_layout(&spans, hints)
-        };
-
-        let text = if page_has_rotated_spans(&spans) {
-            reading_order::assemble_reading_order_text(&spans, &span_order)
-        } else if let Some(layout) = region_text_layout.filter(|layout| layout.selection.contains_index(page_idx))
-            && let Some(classes) = layout
-                .detector_classes
-                .get(page_idx)
-                .filter(|classes| classes.len() == hints.len())
-            && let Some(page_number) = u32::try_from(page_idx).ok().and_then(|index| index.checked_add(1))
-            && let Some(area) = layout_region_text::page_area(&doc.doc, page_idx, hints)
-        {
-            let (text, pending) =
-                layout_region_text::assemble(page_number, &native_spans, &spans, &span_order, hints, classes, area);
-            region_evidence.extend(pending);
-            text
-        } else {
-            assemble_upright_layout_text(&native_spans, &span_order)
-        };
-        reordered_pages.push(text);
-    }
-
-    if reordered_pages.is_empty() {
-        return Ok((native_text.to_string(), Vec::new(), Vec::new()));
-    }
-
-    if let Some(collector) = region_text_layout.and_then(|layout| layout.selection.region_text.as_ref()) {
-        collector.lock().extend(region_evidence);
-    }
-    let (content, boundaries) = join_pages_with_boundaries(&reordered_pages, page_config);
-    Ok((content, boundaries, reordered_pages))
-}
-
-/// Patch each page's `PageContent::content` (and `is_blank`) with its
-/// reordered text.
-///
-/// `PageContent` is built independently of the joined `native_text`/
-/// `boundaries` returned by `extract_text_and_metadata`'s own per-page split
-/// (see `extract_text_from_native_document` in `pdf/native/text.rs`), so
-/// reordering only the joined document text — as `apply_reading_order_reordering`
-/// used to do before this patch existed — left every page's own `content`
-/// field stuck with the original, unreordered per-page text. GH#1358: this is
-/// why AUTO and ALWAYS reading-order modes returned byte-identical
-/// `pages[].content` even though the top-level text was already being
-/// reordered — the two were never wired together.
-///
-/// Pairs by position: both vectors are built by iterating `0..page_count` in
-/// the same order, so a short read on either side (mismatched page counts)
-/// simply leaves the excess pages on either side untouched rather than
-/// panicking.
-#[cfg(feature = "layout-detection")]
-fn apply_reordered_text_to_page_contents(
-    page_contents: &mut Option<Vec<PageContent>>,
-    reordered_per_page: Vec<String>,
-) {
-    let Some(pages) = page_contents else {
-        return;
-    };
-    for (page, reordered_text) in pages.iter_mut().zip(reordered_per_page) {
-        page.is_blank = Some(crate::extraction::blank_detection::is_page_text_blank(&reordered_text));
-        page.content = reordered_text;
-    }
 }
 
 /// Join per-page texts, recording each page's byte range in the combined
@@ -1333,120 +1040,6 @@ mod tests {
     // GH#1732: `only_reason_images_were_requested_is_ocr` must return `true` only when no
     // other consumer -- extract_images, captioning, QR codes, inline-image OCR, page rasters,
     // `pdf_options.extract_images`, or styled-HTML rendering -- would ever read image bytes.
-    #[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-    mod only_reason_is_ocr {
-        use super::super::only_reason_images_were_requested_is_ocr;
-        use crate::core::config::{
-            ExtractionConfig, HtmlOutputConfig, ImageExtractionConfig, OcrConfig, OutputFormat, PdfConfig,
-        };
-
-        fn ocr_only_config() -> ExtractionConfig {
-            ExtractionConfig {
-                ocr: Some(OcrConfig::default()),
-                ..Default::default()
-            }
-        }
-
-        #[test]
-        fn true_when_ocr_is_the_sole_consumer() {
-            assert!(only_reason_images_were_requested_is_ocr(&ocr_only_config(), false));
-        }
-
-        #[test]
-        fn false_when_ocr_is_not_configured() {
-            assert!(!only_reason_images_were_requested_is_ocr(
-                &ExtractionConfig::default(),
-                false
-            ));
-        }
-
-        #[test]
-        fn false_when_extract_images_is_requested() {
-            let config = ExtractionConfig {
-                images: Some(ImageExtractionConfig {
-                    extract_images: true,
-                    ..Default::default()
-                }),
-                ..ocr_only_config()
-            };
-            assert!(!only_reason_images_were_requested_is_ocr(&config, false));
-        }
-
-        #[test]
-        fn false_when_captioning_is_configured() {
-            let config = ExtractionConfig {
-                captioning: Some(crate::core::config::CaptioningConfig {
-                    llm: crate::core::config::LlmConfig::default(),
-                    prompt: None,
-                    min_image_area: 1,
-                    alt_text: Default::default(),
-                }),
-                ..ocr_only_config()
-            };
-            assert!(!only_reason_images_were_requested_is_ocr(&config, false));
-        }
-
-        #[test]
-        fn false_when_qr_codes_is_enabled() {
-            let config = ExtractionConfig {
-                qr_codes: Some(true),
-                ..ocr_only_config()
-            };
-            assert!(!only_reason_images_were_requested_is_ocr(&config, false));
-        }
-
-        #[test]
-        fn false_when_ocr_inline_images_is_requested() {
-            assert!(!only_reason_images_were_requested_is_ocr(&ocr_only_config(), true));
-        }
-
-        #[test]
-        fn false_when_page_rasters_are_included() {
-            let config = ExtractionConfig {
-                images: Some(ImageExtractionConfig {
-                    extract_images: false,
-                    include_page_rasters: true,
-                    ..Default::default()
-                }),
-                ..ocr_only_config()
-            };
-            assert!(!only_reason_images_were_requested_is_ocr(&config, false));
-        }
-
-        #[test]
-        fn false_when_pdf_options_extract_images_is_set() {
-            let config = ExtractionConfig {
-                pdf_options: Some(PdfConfig {
-                    extract_images: true,
-                    ..Default::default()
-                }),
-                ..ocr_only_config()
-            };
-            assert!(!only_reason_images_were_requested_is_ocr(&config, false));
-        }
-
-        #[test]
-        fn false_when_styled_html_output_is_configured() {
-            let config = ExtractionConfig {
-                output_format: OutputFormat::Html,
-                html_output: Some(HtmlOutputConfig::default()),
-                ..ocr_only_config()
-            };
-            assert!(!only_reason_images_were_requested_is_ocr(&config, false));
-        }
-
-        #[test]
-        fn true_when_html_format_without_html_output_config() {
-            // `StyledHtmlRenderer` only runs when `html_output` is also configured
-            // (`core/pipeline/mod.rs`'s `styled_html_prerender`); plain HTML rendering goes
-            // through `comrak_bridge`, which already checks `!img.data.is_empty()`.
-            let config = ExtractionConfig {
-                output_format: OutputFormat::Html,
-                ..ocr_only_config()
-            };
-            assert!(only_reason_images_were_requested_is_ocr(&config, false));
-        }
-    }
 
     #[test]
     fn should_match_multiline_annotation_as_contiguous_lines_inside_page_text() {
@@ -1667,283 +1260,6 @@ mod tests {
             false,
             true
         ));
-    }
-
-    #[cfg(feature = "layout-detection")]
-    #[test]
-    fn cpu_layout_retry_override_controls_native_table_model() {
-        use crate::core::config::{
-            acceleration::{AccelerationConfig, ExecutionProviderType},
-            layout::LayoutDetectionConfig,
-        };
-
-        let config = crate::ExtractionConfig {
-            layout: Some(LayoutDetectionConfig {
-                acceleration: Some(AccelerationConfig {
-                    provider: ExecutionProviderType::CoreMl,
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let cpu = AccelerationConfig {
-            provider: ExecutionProviderType::Cpu,
-            ..Default::default()
-        };
-
-        assert_eq!(
-            super::effective_layout_acceleration(&config, Some(&cpu)).map(|acceleration| &acceleration.provider),
-            Some(&ExecutionProviderType::Cpu)
-        );
-        assert_eq!(
-            super::effective_layout_acceleration(&config, None).map(|acceleration| &acceleration.provider),
-            Some(&ExecutionProviderType::CoreMl)
-        );
-    }
-
-    /// Regression test for GH#1358: `pages[].content` is a per-page assembly
-    /// built independently of the joined document text (see
-    /// `extract_text_and_metadata`'s own page split in `pdf/native/text.rs`),
-    /// so a fix that only reorders the joined text — leaving this wiring
-    /// out — cannot repair rotated-text scrambling reported through the
-    /// per-page API. This asserts each `PageContent::content` takes the
-    /// reordered per-page text (here, a rotated run reassembled by
-    /// `assemble_reading_order_text` in a prior pass), not the original
-    /// scrambled text produced by `extract_text_and_metadata`.
-    #[cfg(feature = "layout-detection")]
-    #[test]
-    fn should_patch_page_content_with_reordered_text_not_leave_it_scrambled() {
-        use crate::types::PageContent;
-
-        let mut page_contents = Some(vec![
-            PageContent {
-                page_number: 1,
-                content: "the meet only need oil Engine".to_string(),
-                tables: Vec::new(),
-                image_indices: Vec::new(),
-                hierarchy: None,
-                is_blank: Some(false),
-                layout_regions: None,
-                speaker_notes: None,
-                section_name: None,
-                sheet_name: None,
-                ocr_confidence: None,
-                native_content: None,
-                image_preprocessing: None,
-            },
-            PageContent {
-                page_number: 2,
-                content: "stale second-page text".to_string(),
-                tables: Vec::new(),
-                image_indices: Vec::new(),
-                hierarchy: None,
-                is_blank: Some(false),
-                layout_regions: None,
-                speaker_notes: None,
-                section_name: None,
-                sheet_name: None,
-                ocr_confidence: None,
-                native_content: None,
-                image_preprocessing: None,
-            },
-        ]);
-        let reordered_per_page = vec![
-            "Engine oil need only meet the".to_string(),
-            "reordered second-page text".to_string(),
-        ];
-
-        super::apply_reordered_text_to_page_contents(&mut page_contents, reordered_per_page);
-
-        let pages = page_contents.expect("page_contents must stay Some");
-        assert_eq!(
-            pages[0].content, "Engine oil need only meet the",
-            "page 1 content must take the reordered text, not the scrambled original"
-        );
-        assert_eq!(
-            pages[1].content, "reordered second-page text",
-            "page 2 content must also be patched, independent of page 1"
-        );
-        assert_eq!(pages[0].page_number, 1, "page identity must be preserved");
-        assert_eq!(pages[1].page_number, 2, "page identity must be preserved");
-    }
-
-    /// `page_contents == None` (per-page tracking disabled) must be a no-op,
-    /// not a panic.
-    #[cfg(feature = "layout-detection")]
-    #[test]
-    fn should_leave_none_page_contents_untouched() {
-        let mut page_contents: Option<Vec<crate::types::PageContent>> = None;
-
-        super::apply_reordered_text_to_page_contents(&mut page_contents, vec!["ignored".to_string()]);
-
-        assert!(page_contents.is_none(), "None page_contents must stay None");
-    }
-
-    #[cfg(feature = "layout-detection")]
-    fn layout_spacing_pdf() -> Vec<u8> {
-        use lopdf::{Document, Object, Stream, dictionary};
-
-        let mut document = Document::with_version("1.5");
-        let pages_id = document.new_object_id();
-        let font = document.add_object(dictionary! {
-            "Type" => "Font", "Subtype" => "Type1", "BaseFont" => "Helvetica",
-        });
-        let mut kids = Vec::new();
-        for number in 1..=2 {
-            let stream = format!(
-                "BT /F1 11 Tf 72 700 Td (Page {number} starts here.) Tj ET\n\
-                 BT /F1 11 Tf 72 684 Td (A separate body line.) Tj ET\n\
-                 BT /F1 11 Tf 72 620 Td (Model) Tj ET\n\
-                 BT /F1 11 Tf 200 620 Td (Recall) Tj ET\n\
-                 BT /F1 11 Tf 330 620 Td (Precision) Tj ET\n\
-                 BT /F1 11 Tf 460 620 Td (Latency) Tj ET\n\
-                 BT /F1 11 Tf 72 602 Td (alpha) Tj ET\n\
-                 BT /F1 11 Tf 200 602 Td (0.91) Tj ET\n\
-                 BT /F1 11 Tf 330 602 Td (0.88) Tj ET\n\
-                 BT /F1 11 Tf 460 602 Td (12ms) Tj ET"
-            );
-            let content = document.add_object(Stream::new(dictionary! {}, stream.into_bytes()));
-            let page = document.add_object(dictionary! {
-                "Type" => "Page", "Parent" => pages_id, "Contents" => content,
-                "Resources" => dictionary! { "Font" => dictionary! { "F1" => font } },
-                "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
-            });
-            kids.push(Object::Reference(page));
-        }
-        document.objects.insert(
-            pages_id,
-            Object::Dictionary(dictionary! { "Type" => "Pages", "Count" => 2, "Kids" => kids }),
-        );
-        let catalog = document.add_object(dictionary! { "Type" => "Catalog", "Pages" => pages_id });
-        document.trailer.set("Root", catalog);
-        let mut bytes = Vec::new();
-        document.save_to(&mut bytes).expect("layout spacing PDF must serialize");
-        bytes
-    }
-
-    #[cfg(feature = "layout-detection")]
-    #[test]
-    fn should_preserve_body_and_table_separators_in_selected_layout_order() {
-        use crate::pdf::native::{NativeDocument, text::PageMarginFractions};
-        use crate::pdf::structure::types::{LayoutHint, LayoutHintClass};
-
-        let hint = |class_name, bottom, top| LayoutHint {
-            class_name,
-            confidence: 0.9,
-            left: 70.0,
-            bottom,
-            right: 550.0,
-            top,
-        };
-        let page_hints = vec![
-            hint(LayoutHintClass::Text, 680.0, 730.0),
-            hint(LayoutHintClass::Table, 590.0, 640.0),
-        ];
-        let mut doc = NativeDocument::open_bytes(&layout_spacing_pdf()).expect("layout spacing PDF must open");
-        let margins = PageMarginFractions { top: 0.0, bottom: 0.0 };
-        let hints = [page_hints.clone(), page_hints];
-        let legacy = super::apply_reading_order_reordering(&mut doc, "", &hints, None, margins, None).unwrap();
-        let mut selection = crate::core::layout_pages::LayoutPageSelection::new(vec![2]);
-        let collector = crate::engine::layout_region_text::RegionTextCollector::default();
-        selection.region_text = Some(collector.clone());
-        let layout = crate::engine::layout_region_text::RegionTextLayout {
-            selection,
-            detector_classes: vec![
-                Vec::new(),
-                vec![crate::layout::LayoutClass::Text, crate::layout::LayoutClass::Table],
-            ],
-        };
-        let (content, boundaries, pages) =
-            super::apply_reading_order_reordering(&mut doc, "", &hints, None, margins, Some(&layout))
-                .expect("layout order must assemble both pages");
-        assert_eq!(legacy.0, content);
-        assert_eq!(legacy.2, pages);
-        assert_eq!(
-            serde_json::to_value(legacy.1).unwrap(),
-            serde_json::to_value(&boundaries).unwrap()
-        );
-
-        let evidence = collector.lock();
-        assert_eq!(evidence.len(), 1);
-        assert_eq!(evidence[0].page_number, 2);
-        assert_eq!(evidence[0].fingerprint, blake3::hash(pages[1].as_bytes()));
-        assert_eq!(
-            evidence[0]
-                .regions
-                .iter()
-                .map(|(region, range)| { (region.class_name.as_str(), pages[1].get(range.clone()).unwrap()) })
-                .collect::<Vec<_>>(),
-            [
-                ("text", "Page 2 starts here.\nA separate body line."),
-                ("table", "Model Recall Precision Latency\n\nalpha 0.91 0.88 12ms"),
-            ]
-        );
-
-        assert_eq!(pages.len(), 2);
-        assert_eq!(boundaries.len(), 2);
-        for (index, (page, boundary)) in pages.iter().zip(&boundaries).enumerate() {
-            assert_eq!(boundary.page_number as usize, index + 1);
-            assert_eq!(&content[boundary.byte_start..boundary.byte_end], page);
-            assert_eq!(
-                page.lines().filter(|line| !line.is_empty()).collect::<Vec<_>>(),
-                [
-                    format!("Page {} starts here.", index + 1).as_str(),
-                    "A separate body line.",
-                    "Model Recall Precision Latency",
-                    "alpha 0.91 0.88 12ms",
-                ]
-            );
-        }
-    }
-
-    /// Boundaries produced alongside reordered text must index it exactly:
-    /// char-boundary-valid offsets whose slice is the page's text, with the
-    /// `"\n\n"` separators belonging to no page.
-    #[cfg(feature = "layout-detection")]
-    #[test]
-    fn test_join_pages_with_boundaries_multibyte() {
-        let pages = vec![
-            "CLASSIFICATION • Classification: SECRET".to_string(),
-            "second — page's text with curly \u{201c}quotes\u{201d}".to_string(),
-            String::new(),
-            "final page".to_string(),
-        ];
-        let (content, boundaries) = super::join_pages_with_boundaries(&pages, None);
-        assert_eq!(content, pages.join("\n\n"));
-        assert_eq!(boundaries.len(), pages.len());
-        for (i, b) in boundaries.iter().enumerate() {
-            assert_eq!(b.page_number, i as u32 + 1);
-            assert!(content.is_char_boundary(b.byte_start));
-            assert!(content.is_char_boundary(b.byte_end));
-            assert_eq!(&content[b.byte_start..b.byte_end], pages[i]);
-        }
-    }
-
-    /// With `insert_page_markers` on, the reordered rebuild must emit the same
-    /// rendered markers as initial extraction: one before each page, outside
-    /// the page's byte range.
-    #[cfg(feature = "layout-detection")]
-    #[test]
-    fn test_join_pages_with_boundaries_page_markers() {
-        let pages = vec!["first • page".to_string(), "second page".to_string()];
-        let page_config = crate::core::config::PageConfig {
-            insert_page_markers: true,
-            marker_format: "\n\n<!-- PAGE {page_num} -->\n\n".to_string(),
-            ..Default::default()
-        };
-        let (content, boundaries) = super::join_pages_with_boundaries(&pages, Some(&page_config));
-        assert_eq!(
-            content,
-            "\n\n<!-- PAGE 1 -->\n\nfirst • page\n\n<!-- PAGE 2 -->\n\nsecond page"
-        );
-        for (i, b) in boundaries.iter().enumerate() {
-            assert_eq!(
-                &content[b.byte_start..b.byte_end],
-                pages[i],
-                "markers stay outside page ranges"
-            );
-        }
     }
 
     #[test]

@@ -4,7 +4,7 @@ use super::{InternalDocument, accepted_mixed_ocr_tables};
 /// Keep independently extracted native tables elsewhere, including pages whose text OCR replaced:
 /// no OCR table is not evidence that native geometry is invalid. Such pages may expose OCR text
 /// alongside native table cells; mixed extraction does not guarantee agreement between the two.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn merge_mixed_ocr_tables(
     tables: &mut Vec<crate::types::Table>,
     structured_pages: &ahash::AHashMap<u32, InternalDocument>,

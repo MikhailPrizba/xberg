@@ -32,7 +32,6 @@ pub struct PageConfig {
     /// characters of a short born-digital page. The text layer is returned in `PageContent::native_content`.
     /// Needs `extract_pages`.
     #[serde(default)]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.3.8"))]
     pub keep_native_content: bool,
 }
 

@@ -91,13 +91,13 @@ pub(crate) fn external_redaction_is_scoped() -> bool {
 }
 
 /// Parse findings from a JSON array or JSON Lines using the default safety cap. ~keep
-#[cfg_attr(alef, alef(skip))]
+
 pub fn parse_external_findings(text: &str) -> Result<Vec<ExternalRedactionFinding>> {
     parse_external_findings_with_limit(text, DEFAULT_MAX_FINDINGS as usize)
 }
 
 /// Parse at most `max_findings` findings from a JSON array or JSON Lines. ~keep
-#[cfg_attr(alef, alef(skip))]
+
 pub fn parse_external_findings_bounded(text: &str, max_findings: u32) -> Result<Vec<ExternalRedactionFinding>> {
     parse_external_findings_with_limit(text, max_findings as usize)
 }

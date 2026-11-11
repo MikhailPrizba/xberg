@@ -3,10 +3,7 @@
 //! Extracts embedded images from PDF pages via xberg_native_pdf, including
 //! actual image data and metadata.
 
-#[cfg(test)]
-#[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-mod decode_skip_tests;
-#[cfg(all(test, any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(test, feature = "ocr-pipeline"))]
 mod fallback_budget_tests;
 #[cfg(test)]
 mod parallel_tests;
@@ -185,7 +182,7 @@ fn unencodable_image_warning(image_index: u32, page_number: u32, error: &PdfErro
 /// internally; carrying them out lets the caller record provenance on the
 /// [`crate::types::ExtractedImage`] it builds for the recovered page (issue #1444)
 /// instead of throwing the distinction away.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum XObjectRecovery {
     /// `decode()` handed back an embedded JPEG stream; passed through untouched.
@@ -197,7 +194,7 @@ pub(crate) enum XObjectRecovery {
     RawCompressedStream,
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 impl XObjectRecovery {
     /// Stable, human-readable tag recorded on the recovered image's `description`.
     pub(crate) fn as_str(self) -> &'static str {
@@ -211,7 +208,7 @@ impl XObjectRecovery {
 
 /// One OCR-ready image recovered from a page's image XObjects, with the provenance
 /// needed to tag it in the extraction output.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[derive(Debug, Clone)]
 pub(crate) struct PageFallbackImage {
     /// Standalone image file bytes an OCR backend can decode directly.
@@ -227,24 +224,11 @@ pub(crate) struct PageFallbackImage {
     pub source_dpi: Option<f64>,
 }
 
-#[cfg(all(test, feature = "ocr"))]
-impl PageFallbackImage {
-    pub(crate) fn placeholder_jpeg(paint_order: usize) -> Self {
-        Self {
-            bytes: Bytes::from_static(b"ignored image bytes"),
-            format: "jpeg",
-            recovery: XObjectRecovery::EmbeddedJpeg,
-            paint_order,
-            source_dpi: None,
-        }
-    }
-}
-
 /// Recover standalone JPEG/JP2 streams without decoding pixels or outer filters.
 ///
 /// The request cap bounds the sum of stored stream bytes copied for this page.
 /// Pixel decoding remains the OCR backend's responsibility.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn page_ocr_fallback_image_bytes_with_limits(
     doc: &xberg_native_pdf::PdfDocument,
     page_idx: usize,
@@ -281,14 +265,14 @@ pub(crate) fn page_ocr_fallback_image_bytes_with_limits(
 }
 
 /// Tracks the unique stored JPEG payloads retained by one whole-document OCR retry.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) struct StoredJpegRecoveryBudget {
     remaining: usize,
     admitted: std::collections::HashMap<xberg_native_pdf::object::ObjectRef, Bytes>,
     skipped_payload: bool,
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 impl StoredJpegRecoveryBudget {
     pub(crate) fn new(max_bytes: usize) -> Self {
         Self {
@@ -351,7 +335,7 @@ impl StoredJpegRecoveryBudget {
 // Available under `ocr-pipeline` too (not just `ocr`): its callers in
 // `crate::extractors::pdf::ocr` are gated `any(ocr, ocr-pipeline)`, and the `binstall`
 // CLI profile pulls `ocr-pipeline` (via `liter-llm`) without `ocr`. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn page_ocr_fallback_image_bytes(
     doc: &xberg_native_pdf::PdfDocument,
     page_idx: usize,
@@ -435,7 +419,7 @@ pub(crate) fn page_ocr_fallback_image_bytes(
     (out, single_enumerated_xobject_unrecoverable)
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn recover_raw_jpeg_or_jp2(
     handle: &xberg_native_pdf::PdfImageHandle<'_>,
     page_idx: usize,
@@ -458,54 +442,10 @@ fn recover_raw_jpeg_or_jp2(
     }))
 }
 
-/// Page numbers (1-based) whose PDF-space dimensions are known and whose native text layer is
-/// non-blank -- the two preconditions `should_skip_pdf_image_ocr` (`core/pipeline/mod.rs`)
-/// checks before excluding a full-page image from OCR, computed here so
-/// [`extract_page_images`] can skip that image's decode (and therefore its PNG re-encode)
-/// entirely instead of throwing the result away later (GH#1732). Keyed to `(width, height)` in
-/// PDF points.
-///
-/// Built from the `PageStructure` already computed alongside native text extraction
-/// (`pdf::native::metadata::build_page_structure`), so this costs nothing beyond a small map
-/// build -- no extra document access. Empty when `page_structure` is `None` (no page boundary
-/// tracking) or carries no per-page info, which simply means no page qualifies and every image
-/// goes through the ordinary decode path, exactly as before this fix.
-#[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-pub(crate) fn ocr_skip_candidate_pages(
-    page_structure: Option<&crate::types::PageStructure>,
-) -> std::collections::HashMap<u32, (f64, f64)> {
-    let mut pages = std::collections::HashMap::new();
-    let Some(page_infos) = page_structure.and_then(|structure| structure.pages.as_ref()) else {
-        return pages;
-    };
-    for page in page_infos {
-        if page.is_blank == Some(false)
-            && let Some(dimensions) = page.dimensions
-        {
-            pages.insert(page.number, (dimensions.width, dimensions.height));
-        }
-    }
-    pages
-}
-
-/// Whether a handle's pre-decode bounding box covers enough of its page to be the "full-page
-/// image" `should_skip_pdf_image_ocr` (`core/pipeline/mod.rs`) would exclude from OCR (GH#1732).
-/// Mirrors that function's own area-ratio test exactly, sharing its
-/// [`crate::core::pipeline::FULL_PAGE_IMAGE_AREA_RATIO`] constant so the two decisions cannot
-/// drift apart.
-#[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-fn covers_full_page(bbox: &xberg_native_pdf::geometry::Rect, page_width: f64, page_height: f64) -> bool {
-    if page_width <= 0.0 || page_height <= 0.0 {
-        return false;
-    }
-    let image_area = f64::from(bbox.width) * f64::from(bbox.height);
-    image_area / (page_width * page_height) >= crate::core::pipeline::FULL_PAGE_IMAGE_AREA_RATIO
-}
-
 /// Without OCR compiled in, nothing ever drops an OCR-skipped image, so it is never safe to
 /// treat one as unreadable -- always decode. Keeps [`outcomes_from_uncapped_page`] free of its
 /// own `#[cfg]` branch. ~keep
-#[cfg(not(all(feature = "ocr", feature = "tokio-runtime")))]
+
 fn covers_full_page(_bbox: &xberg_native_pdf::geometry::Rect, _page_width: f64, _page_height: f64) -> bool {
     false
 }

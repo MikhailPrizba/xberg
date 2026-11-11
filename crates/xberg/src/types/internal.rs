@@ -24,10 +24,7 @@ use super::ocr_elements::{OcrBoundingGeometry, OcrConfidence, OcrElementLevel, O
 use super::tables::Table;
 use crate::types::ExtractedImage;
 
-#[cfg(any(
-    feature = "pdf",
-    all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm"))
-))]
+#[cfg(feature = "pdf")]
 pub(crate) mod table_grid;
 
 mod element_id;
@@ -90,14 +87,13 @@ pub(crate) const NATIVE_PDF_HEADERLESS_TABLE_ATTRIBUTE: &str = "xberg:internal:n
 // Gated to match the only code that writes or reads it, in `extractors::pdf::ocr`.
 // Ungated, the `ocr`-without-`pdf` feature leg compiles the field with no writer and no
 // reader, which `-D warnings` rejects as dead_code — and CI builds that leg. ~keep
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 // `pub` + alef(skip), not `pub(crate)`: `InternalDocument` is a `pub` struct whose every
 // other field is `pub`, and struct-update syntax requires ALL fields to be visible at the
 // construction site. One `pub(crate)` field therefore breaks the 12 integration tests that
 // build one with `..Default::default()`, since those are separate crates. alef(skip)
 // keeps it out of the generated bindings, and `#[serde(skip)]` on the field keeps it off
 // the plugin-bridge wire. ~keep
-#[cfg_attr(alef, alef(skip))]
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct OcrPageCoordinateFrame {
     /// 1-based page this frame describes.
@@ -112,7 +108,7 @@ pub struct OcrPageCoordinateFrame {
     pub origin: &'static str,
 }
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 impl OcrPageCoordinateFrame {
     /// `width`/`height` must already be known non-zero -- callers gate on that before
     /// constructing one, so this never represents a degenerate/fabricated frame.
@@ -141,7 +137,6 @@ impl OcrPageCoordinateFrame {
 /// (`pdf::structure::types`), not the displayed/rotated frame. This is the opposite of
 /// `OcrPageCoordinateFrame` above, which reports the already-rotated processed raster. ~keep
 #[cfg(feature = "pdf")]
-#[cfg_attr(alef, alef(skip))]
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub(crate) struct PdfPageCoordinateFrame {
     /// 1-based page this frame describes.
@@ -190,7 +185,6 @@ impl PdfPageCoordinateFrame {
     }
 }
 
-#[cfg_attr(alef, alef(skip))]
 /// The internal flat document representation.
 ///
 /// All extractors output this structure. It is converted to the public
@@ -380,14 +374,14 @@ pub struct InternalDocument {
     /// rather than becoming a new public binding type. `None` for every non-OCR document,
     /// and for an OCR'd page whose render raster was degenerate (0x0).
     #[serde(skip)]
-    #[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+    #[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
     pub ocr_coordinate_frame: Option<OcrPageCoordinateFrame>,
 
     /// Set by an OCR backend when detected tables claimed every text element of this page
     /// (#1571), so the page text holds only lines the tables already carry. Never crosses the
     /// plugin-bridge JSON wire format.
     #[serde(skip)]
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+    #[cfg(feature = "ocr-pipeline")]
     pub ocr_text_claimed_by_tables: bool,
 }
 
@@ -487,9 +481,9 @@ impl InternalDocument {
             form_fields: Vec::new(),
             formulas: Vec::new(),
             recorded_formulas: Vec::new(),
-            #[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+            #[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
             ocr_coordinate_frame: None,
-            #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+            #[cfg(feature = "ocr-pipeline")]
             ocr_text_claimed_by_tables: false,
         }
     }
@@ -537,7 +531,7 @@ impl InternalDocument {
     }
 
     /// Concatenate all element text into a single string, separated by newlines.
-    #[cfg(all(test, any(feature = "html", feature = "hwpx")))]
+    #[cfg(all(test, feature = "html"))]
     pub(crate) fn content(&self) -> String {
         self.elements
             .iter()
@@ -551,7 +545,7 @@ impl InternalDocument {
 ///
 /// Elements are appended in reading order during extraction. The `depth` field
 /// and optional container markers enable tree reconstruction in the derivation step.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InternalElement {
     /// Deterministic identifier.
@@ -627,17 +621,14 @@ impl InternalElement {
 
     /// Set the page number.
     #[cfg(any(
-        feature = "ocr",
         feature = "office",
         feature = "pdf",
-        paddle_ocr,
         feature = "xml",
-        feature = "hwpx",
         feature = "quality",
         feature = "chunking",
         test
     ))]
-    #[allow(dead_code)]
+
     pub(crate) fn with_page(mut self, page: u32) -> Self {
         self.page = Some(page);
         self
@@ -651,10 +642,7 @@ impl InternalElement {
     }
 
     /// Set the content layer.
-    #[cfg(all(
-        test,
-        any(feature = "ocr", feature = "pdf", paddle_ocr, feature = "xml", feature = "office")
-    ))]
+    #[cfg(all(test, any(feature = "pdf", feature = "xml", feature = "office")))]
     pub(crate) fn with_layer(mut self, layer: ContentLayer) -> Self {
         self.layer = layer;
         self
@@ -675,14 +663,9 @@ impl InternalElement {
     }
 
     /// Regenerate the ID with the correct index (call after pushing to the document).
-    #[cfg(any(
-        feature = "ocr",
-        feature = "xml",
-        feature = "archives",
-        // The only bare-`ocr-pipeline` caller lives in `extractors::pdf::ocr`, so gate on
+    #[cfg(any(feature = "xml", // The only bare-`ocr-pipeline` caller lives in `extractors::pdf::ocr`, so gate on
         // pdf+ocr-pipeline. `ocr-wasm` enables ocr-pipeline without pdf and has no caller. ~keep
-        all(feature = "pdf", feature = "ocr-pipeline")
-    ))]
+        all(feature = "pdf", feature = "ocr-pipeline")))]
     pub(crate) fn with_index(mut self, index: u32) -> Self {
         self.id = InternalElementId::generate(self.kind.discriminant(), &self.text, self.page, index);
         self
@@ -693,7 +676,7 @@ impl InternalElement {
     ///
     /// Only called by the PDF OCR merge planner (`extractors::pdf::ocr`); dead in
     /// builds that enable `ocr`/`ocr-pipeline` without `pdf`. ~keep
-    #[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+    #[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
     pub(crate) fn suppress_image_ocr_rendering(&mut self) {
         self.attributes
             .get_or_insert_with(AHashMap::new)
@@ -706,32 +689,6 @@ impl InternalElement {
             .attributes
             .as_ref()
             .is_some_and(|attributes| attributes.contains_key(SUPPRESS_IMAGE_OCR_RENDER_ATTRIBUTE))
-    }
-
-    /// An anchor for the OCR text of the picture `image_index`, where no placeholder is wanted.
-    ///
-    /// It is an empty paragraph, so it renders as nothing until the pipeline gives it the
-    /// text of the picture, or removes it when the picture gave none. An image element in
-    /// its place would render as a placeholder wherever the pipeline did not run. ~keep
-    #[cfg(all(any(feature = "pdf", feature = "office"), feature = "ocr", feature = "tokio-runtime"))]
-    pub(crate) fn image_ocr_text_anchor(image_index: u32, page: Option<u32>) -> Self {
-        let mut anchor = Self::text(ElementKind::Paragraph, "", 0);
-        anchor.page = page;
-        anchor.attributes = Some(AHashMap::from_iter([(
-            IMAGE_OCR_TEXT_ANCHOR_ATTRIBUTE.to_string(),
-            image_index.to_string(),
-        )]));
-        anchor
-    }
-
-    /// The picture this element is the OCR text anchor of, if it is one.
-    #[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-    pub(crate) fn image_ocr_text_anchor_index(&self) -> Option<u32> {
-        self.attributes
-            .as_ref()?
-            .get(IMAGE_OCR_TEXT_ANCHOR_ATTRIBUTE)?
-            .parse()
-            .ok()
     }
 
     /// Attach a `ListItem` element's literal source marker text (e.g. `"B."`,
@@ -831,7 +788,7 @@ pub(crate) fn list_item_source_label_from_attributes(attributes: Option<&AHashMa
 ///
 /// Superset of [`NodeContent`](super::document_structure::NodeContent) variants
 /// plus OCR and container markers.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ElementKind {
     /// Document title.
@@ -975,7 +932,7 @@ impl ElementKind {
 ///
 /// During extraction, targets may be unresolved keys (`RelationshipTarget::Key`).
 /// The derivation step resolves these to indices using the element anchor index.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Relationship {
     /// Index of the source element in `InternalDocument::elements`.
@@ -989,7 +946,7 @@ pub struct Relationship {
 }
 
 /// Target of a relationship — either a resolved element index or an unresolved key.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum RelationshipTarget {
     /// Resolved: index into `InternalDocument::elements`.
@@ -1000,14 +957,14 @@ pub enum RelationshipTarget {
 
 pub use super::document_structure::RelationshipKind;
 
-const _: () = {
-    #[allow(dead_code)]
+const _: fn() = {
     fn assert_send_sync<T: Send + Sync>() {}
-    #[allow(dead_code)]
+
     fn _check() {
         assert_send_sync::<InternalDocument>();
         assert_send_sync::<InternalElement>();
     }
+    _check
 };
 
 #[cfg(test)]

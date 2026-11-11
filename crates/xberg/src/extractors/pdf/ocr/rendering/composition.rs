@@ -147,7 +147,7 @@ fn complete_upright_image(matrix: Matrix, (left, bottom, right, top): (f32, f32,
         && f64::from(matrix.f) + f64::from(matrix.d) == f64::from(top)
 }
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(in crate::extractors::pdf::ocr) async fn recover_page_text_from_bounded_image_xobjects(
     backend: &std::sync::Arc<dyn crate::plugins::OcrBackend>,
     render_doc: &xberg_native_pdf::PdfDocument,
@@ -186,6 +186,3 @@ pub(in crate::extractors::pdf::ocr) async fn recover_page_text_from_bounded_imag
     }
     Ok(Some(recovery))
 }
-#[cfg(all(test, feature = "ocr"))]
-#[path = "composition/tests.rs"]
-mod tests;

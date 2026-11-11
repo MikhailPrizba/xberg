@@ -70,7 +70,7 @@ struct ParsingState {
     in_list: bool,
     in_list_item: bool,
 }
-#[cfg_attr(alef, alef(skip))]
+
 /// DocBook document extractor.
 ///
 /// Supports both DocBook 4.x (no namespace) and 5.x (with namespace) formats.
@@ -1424,16 +1424,6 @@ impl Plugin for DocbookExtractor {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl InternalDocumentExtractor for DocbookExtractor {
-    #[cfg_attr(
-        feature = "otel",
-        tracing::instrument(
-            skip(self, content, config),
-            fields(
-                extractor.name = self.name(),
-                content.size_bytes = content.len(),
-            )
-        )
-    )]
     async fn extract_content(
         &self,
         content: &[u8],
@@ -1505,15 +1495,7 @@ impl InternalDocumentExtractor for DocbookExtractor {
     }
 
     #[cfg(feature = "tokio-runtime")]
-    #[cfg_attr(
-        feature = "otel",
-        tracing::instrument(
-            skip(self, path, config),
-            fields(
-                extractor.name = self.name(),
-            )
-        )
-    )]
+
     async fn extract_path(&self, path: &Path, mime_type: &str, config: &ExtractionConfig) -> Result<InternalDocument> {
         crate::core::path_resolver::extract_file_with_image_resolution(self, path, mime_type, config).await
     }

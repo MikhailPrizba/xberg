@@ -9,7 +9,6 @@ use super::extraction::BoundingBox;
 /// Mirrors `xberg_native_pdf`'s widget field taxonomy without leaking the upstream
 /// type across the binding surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum FormFieldType {
     /// Single- or multi-line text input.
@@ -38,7 +37,7 @@ pub enum FormFieldType {
 /// The collection is empty for non-form PDFs and for non-PDF formats.
 ///
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct PdfFormField {
     /// Partial field name (the leaf name within the field hierarchy).
     pub name: String,
@@ -69,7 +68,6 @@ pub struct PdfFormField {
 
     /// Widget bounding box on its page, if known.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub bbox: Option<BoundingBox>,
 
     /// Maximum input length for text fields, if specified.

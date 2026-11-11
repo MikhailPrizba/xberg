@@ -312,7 +312,7 @@ pub(crate) fn get_stopwords(lang: &str) -> Option<&'static AHashSet<String>> {
 /// 2. If None, try fallback language (O(1) average case)
 ///
 /// Total overhead is negligible (~10-100ns on modern CPUs).
-#[cfg(any(feature = "keywords-yake", feature = "summarization", test))]
+#[cfg(any(feature = "keywords-yake", test))]
 pub(crate) fn get_stopwords_with_fallback(language: &str, fallback: &str) -> Option<&'static AHashSet<String>> {
     get_stopwords(language).or_else(|| get_stopwords(fallback))
 }

@@ -6,8 +6,6 @@
 /// Largest raster, in pixels, that is scanned. A larger one has no estimate.
 const MAX_SCANNED_PIXELS: usize = 16_000_000;
 const GRAY_LEVELS: usize = u8::MAX as usize + 1;
-#[cfg(feature = "ocr")]
-const MIN_USIZE_VECTOR_CAPACITY: u64 = 4;
 /// Fewest glyph-sized components needed before the estimate is trusted.
 const MIN_COMPONENTS: usize = 5;
 /// Components shorter than this are specks, not glyphs.
@@ -71,34 +69,6 @@ pub(crate) fn median_glyph_height(rgb_data: &[u8], width: usize, height: usize) 
         .filter(|&component_height| component_height as f64 >= LETTER_BODY_MIN_FRACTION * tall_glyph)
         .collect();
     Some(percentile(&letter_bodies, 0.5))
-}
-
-/// Heap-buffer upper bound for the pinned Rust1.99 glyph estimator.
-#[cfg(feature = "ocr")]
-pub(crate) fn glyph_workspace_bound(width: usize, height: usize) -> Option<u64> {
-    let pixels = width.checked_mul(height)?;
-    if pixels == 0 || pixels > MAX_SCANNED_PIXELS {
-        return Some(0);
-    }
-    let pixels = pixels as u64;
-    let ink = (MAX_INK_FRACTION * pixels as f64).ceil() as u64;
-    // RawVec::grow_amortized doubles usize vectors with minimum capacity4.
-    // Each foreground pixel enters the DFS once; a retained component has at
-    // least2 pixels. Thus capacities are at most2*ink for DFS and ink for heights.
-    // The later filtered-height vectors cannot exceed their combined bound. ~keep
-    let stack = ink.checked_mul(2)?.max(MIN_USIZE_VECTOR_CAPACITY);
-    let heights = ink.max(MIN_USIZE_VECTOR_CAPACITY);
-    // A growing vector may retain its old allocation during realloc; only one
-    // grows at a time, and its prior capacity cannot exceed ink. ~keep
-    let vectors = stack
-        .checked_add(heights)?
-        .checked_add(ink)?
-        .checked_mul(size_of::<usize>() as u64)?;
-    let components = pixels.checked_add(vectors)?;
-    let luminance_and_mask = pixels.checked_mul(2)?;
-    components
-        .max(luminance_and_mask)
-        .checked_add((GRAY_LEVELS * size_of::<u64>() + 4 * size_of::<Vec<usize>>()) as u64)
 }
 
 /// Linear-interpolated percentile `fraction` (0..=1) of a sorted, non-empty slice.
@@ -227,17 +197,6 @@ mod tests {
             }
         }
         rgb
-    }
-
-    #[cfg(feature = "ocr")]
-    #[test]
-    fn glyph_workspace_includes_old_and_new_vector_allocations_and_skips_oversized_probes() {
-        let expected = 100
-            + (40 + 20 + 20) * size_of::<usize>() as u64
-            + (GRAY_LEVELS * size_of::<u64>() + 4 * size_of::<Vec<usize>>()) as u64;
-        assert_eq!(glyph_workspace_bound(10, 10), Some(expected));
-        assert_eq!(glyph_workspace_bound(MAX_SCANNED_PIXELS + 1, 1), Some(0));
-        assert_eq!(glyph_workspace_bound(usize::MAX, 2), None);
     }
 
     #[test]

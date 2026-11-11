@@ -1,15 +1,15 @@
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 use super::pipeline::filter_public_ocr_elements;
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 use super::rendering::page_dimensions_pt;
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 use super::scoring::{MIN_OCR_NATIVE_ALNUM_RETENTION_RATIO, NativeTextStats, evaluate_native_text_for_ocr};
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 use crate::core::config::ExtractionConfig;
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 use crate::core::config::OcrQualityThresholds;
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn normalize_mixed_ocr_document_page(doc: &mut crate::types::internal::InternalDocument, page_number: u32) {
     for element in &mut doc.elements {
         if !matches!(element.kind, crate::types::internal::ElementKind::PageBreak) {
@@ -31,7 +31,7 @@ pub(super) fn normalize_mixed_ocr_document_page(doc: &mut crate::types::internal
 /// ratio is not a finite positive number -- mirrors `ocr_points_per_pixel`'s same
 /// guard, for the same reason: leave the pixel value unconverted rather than
 /// fabricate a scale or divide by zero.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn mixed_route_geometry_points_per_pixel(page_height_pt: f32, image_height_px: u32) -> f32 {
     const NO_OP_POINTS_PER_PIXEL: f32 = 1.0;
     if image_height_px == 0 {
@@ -50,7 +50,7 @@ pub(super) fn mixed_route_geometry_points_per_pixel(page_height_pt: f32, image_h
 /// once (see that function's own comments, and `extract_with_ocr_for_page`'s doc comment
 /// on `skip_document_global_heuristic` for why a single page can't run this heuristic
 /// itself).
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn assemble_mixed_ocr_page_document(
     mut doc: crate::types::internal::InternalDocument,
     preserve_structure: bool,
@@ -108,7 +108,7 @@ pub(super) fn assemble_mixed_ocr_page_document(
 /// Tesseract emits LF, but the VLM backend (`crate::llm::vlm_ocr`) returns the model's
 /// markdown verbatim out of an HTTP JSON body, which routinely carries `\r\n`. Splitting
 /// raw would fold the entire page into a single block element (#316).
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn flat_ocr_page_document(text: &str) -> crate::types::internal::InternalDocument {
     use crate::types::internal::{ElementKind, InternalDocument, InternalElement};
     use crate::types::ocr_elements::OcrElementLevel;
@@ -135,7 +135,7 @@ pub(super) fn flat_ocr_page_document(text: &str) -> crate::types::internal::Inte
 /// A page appears only when it has one valid, non-overlapping boundary and its layer passes the
 /// garble clauses of the native-text gate (`native_layer_is_clean`). A caller keeps such a layer
 /// beside OCR text that the noise verdict rejects or that confirms the layer. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn clean_native_page_layers(
     native_text: &str,
     boundaries: &[crate::types::PageBoundary],
@@ -163,62 +163,9 @@ pub(crate) fn clean_native_page_layers(
     layers
 }
 
-/// Marker-bearing source is only an ink-proof candidate, never an ordinary clean layer. ~keep
-#[cfg(all(feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-pub(super) fn marker_native_ink_layers(
-    native_text: &str,
-    boundaries: &[crate::types::PageBoundary],
-    selected: &std::collections::HashSet<u32>,
-    page_count: usize,
-    thresholds: &OcrQualityThresholds,
-) -> ahash::AHashMap<u32, String> {
-    let mut ordered = boundaries.iter().collect::<Vec<_>>();
-    ordered.sort_unstable_by_key(|boundary| boundary.byte_start);
-    let mut seen = std::collections::HashSet::new();
-    let mut excluded = std::collections::HashSet::new();
-    let mut previous: Option<&crate::types::PageBoundary> = None;
-    for boundary in ordered {
-        if !seen.insert(boundary.page_number) {
-            excluded.insert(boundary.page_number);
-        }
-        if let Some(previous) = previous
-            && boundary.byte_start < previous.byte_end
-        {
-            excluded.extend([previous.page_number, boundary.page_number]);
-        }
-        if previous.is_none_or(|previous| boundary.byte_end > previous.byte_end) {
-            previous = Some(boundary);
-        }
-    }
-    let mut layers = ahash::AHashMap::new();
-    for boundary in boundaries {
-        if boundary.page_number == 0
-            || boundary.page_number as usize > page_count
-            || !selected.contains(&boundary.page_number)
-            || excluded.contains(&boundary.page_number)
-        {
-            continue;
-        }
-        let Some(layer) = native_text.get(boundary.byte_start..boundary.byte_end) else {
-            continue;
-        };
-        let mut cleaned = layer.to_owned();
-        if super::super::unmapped_glyphs::strip_native_fragment(&mut cleaned) > 0
-            && native_layer_decodes_cleanly(&cleaned, thresholds)
-        {
-            layers.insert(boundary.page_number, layer.to_owned());
-        }
-    }
-    layers
-}
-
-#[cfg(all(test, feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-#[path = "marker_native_ink_layers_tests.rs"]
-mod marker_native_ink_layers_tests;
-
 /// Native rows without an equal whole OCR row, consuming each OCR occurrence once. Case and
 /// whitespace may differ; signs, units, punctuation and order remain source evidence. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn layer_lines_absent_from_ocr(layer: &str, ocr_text: &str) -> Option<String> {
     let mut available: ahash::AHashMap<String, usize> = ahash::AHashMap::new();
     for line in ocr_text.lines().map(line_key).filter(|line| !line.is_empty()) {
@@ -234,7 +181,7 @@ pub(crate) fn layer_lines_absent_from_ocr(layer: &str, ocr_text: &str) -> Option
     (!kept.is_empty()).then(|| kept.join("\n"))
 }
 /// The whole words of a text: runs of letters and digits, lowercase. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn whole_words(text: &str) -> impl Iterator<Item = String> + '_ {
     text.split(|c: char| !c.is_alphanumeric())
         .filter(|word| !word.is_empty())
@@ -244,12 +191,12 @@ fn whole_words(text: &str) -> impl Iterator<Item = String> + '_ {
 /// confirms the layer. A layer whose glyphs map to the wrong letters shares almost no whole word
 /// with an OCR read of the page; a correct layer shares most of them, less what the OCR
 /// misreads. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 const MIN_LAYER_WORD_SHARE_READ_BY_OCR: f64 = 0.5;
 /// How many distinct numbers a layer without a word with a letter needs before the OCR text can
 /// confirm it. A figure or two on the page can occur in any OCR text by chance; a table of
 /// numbers cannot. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 const MIN_NUMBER_ONLY_LAYER_WORDS: usize = 3;
 /// Whether the OCR text of a page confirms its text layer: the OCR text holds at least half of all
 /// the layer's words, and at least half of its words with a letter, and the layer passes the
@@ -257,7 +204,7 @@ const MIN_NUMBER_ONLY_LAYER_WORDS: usize = 3;
 /// layer of other numbers; the share of lettered words keeps the right numbers of a wrong-letter
 /// layer from confirming it. A layer with no word with a letter needs three distinct numbers. The
 /// quality check runs last, and only for a layer that the words confirm. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn ocr_confirms_layer(layer: &str, ocr_text: &str, thresholds: &OcrQualityThresholds) -> bool {
     let all_words: std::collections::HashSet<String> = whole_words(layer).collect();
     let lettered: std::collections::HashSet<String> = all_words
@@ -277,7 +224,7 @@ pub(crate) fn ocr_confirms_layer(layer: &str, ocr_text: &str, thresholds: &OcrQu
         && holds_half(&lettered)
         && !evaluate_native_text_for_ocr(layer, Some(1), thresholds).fallback
 }
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(super) fn unique_literal_embedding(native: &str, read: &str) -> bool {
     let native: Vec<_> = native.split_whitespace().collect();
     let read: Vec<_> = read.split_whitespace().collect();
@@ -307,7 +254,7 @@ pub(super) fn unique_literal_embedding(native: &str, read: &str) -> bool {
     true
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 fn literal_rows(text: &str) -> Vec<String> {
     text.lines()
         .map(|line| line.split_whitespace().collect::<Vec<_>>().join(" "))
@@ -315,12 +262,12 @@ fn literal_rows(text: &str) -> Vec<String> {
         .collect()
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 fn rows_follow_box_inventory(rows: &[String], boxes: &[LineAt]) -> bool {
     rows.len() == boxes.len() && rows.iter().zip(boxes).all(|(text, row)| line_key(text) == row.key)
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 fn every_ocr_row_has_one_native_owner(native: &[String], read: &[String], boxes: &PageLineBoxes) -> bool {
     let index = OcrRowIndex::new(&boxes.layer);
     let mut used = vec![false; boxes.layer.len()];
@@ -341,7 +288,7 @@ fn every_ocr_row_has_one_native_owner(native: &[String], read: &[String], boxes:
 
 /// A layer with no garbage or undecodable character that passes the garble clauses of the
 /// native-text gate: the glyph-to-Unicode mapping shows no sign of being broken. ~keep
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(super) fn native_layer_decodes_cleanly(layer: &str, thresholds: &OcrQualityThresholds) -> bool {
     let stats = NativeTextStats::compute(layer, thresholds);
     stats.garbage_char_count == 0
@@ -351,7 +298,7 @@ pub(super) fn native_layer_decodes_cleanly(layer: &str, thresholds: &OcrQualityT
 
 /// A native page can replace OCR only when every literal occurrence has a unique ordered
 /// source match and every OCR row belongs to that same native row geometrically. ~keep
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(super) fn native_page_covers_ocr(
     layer: &str,
     read: &str,
@@ -374,12 +321,12 @@ pub(super) fn native_page_covers_ocr(
         && every_ocr_row_has_one_native_owner(&native, &read, boxes)
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 fn no_ocr_rich_assets(doc: &crate::types::internal::InternalDocument) -> bool {
     doc.tables.is_empty() && !doc.ocr_text_claimed_by_tables && no_ocr_rich_assets_besides_tables(doc)
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 fn no_ocr_rich_assets_besides_tables(doc: &crate::types::internal::InternalDocument) -> bool {
     doc.images.is_empty()
         && doc.diagrams.is_empty()
@@ -399,7 +346,7 @@ fn no_ocr_rich_assets_besides_tables(doc: &crate::types::internal::InternalDocum
         && doc.uris_dropped == 0
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 fn unannotated_ocr_text(element: &crate::types::internal::InternalElement) -> bool {
     use crate::types::internal::ElementKind;
     matches!(element.kind, ElementKind::Paragraph | ElementKind::OcrText { .. })
@@ -412,151 +359,14 @@ fn unannotated_ocr_text(element: &crate::types::internal::InternalElement) -> bo
         })
 }
 
-/// An element that only segments the read text into blocks: a paragraph, a heading or a list
-/// item with no inline markup. Which block a line becomes is derived from the read's geometry, so
-/// a page whose every word a native layer already owns takes its blocks from that layer. ~keep
-#[cfg(all(feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-fn segmenting_ocr_text(element: &crate::types::internal::InternalElement) -> bool {
-    use crate::types::internal::ElementKind;
-    matches!(
-        element.kind,
-        ElementKind::Paragraph
-            | ElementKind::OcrText { .. }
-            | ElementKind::Heading { .. }
-            | ElementKind::ListItem { .. }
-    ) && element.layer == crate::types::document_structure::ContentLayer::Body
-        && element.annotations.is_empty()
-}
-
-/// Whether a page's structure holds nothing but its read text cut into blocks: the same words,
-/// each once, in blocks that carry no table, image, link, formula or markup. ~keep
-#[cfg(all(feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-pub(super) fn ocr_page_only_segments_text_with(
-    doc: &crate::types::internal::InternalDocument,
-    read: &str,
-    is_private_metadata: impl Fn(&str, &serde_json::Value) -> bool,
-) -> bool {
-    let mut metadata = doc.metadata.clone();
-    metadata.additional.retain(|key, value| {
-        key != crate::ocr_metadata_keys::OCR_PAGE_SEGMENTATION_MODES_METADATA_KEY && !is_private_metadata(key, value)
-    });
-    // Block building normalizes quotes, escapes Markdown and splits markers, so punctuation is not
-    // compared: the letters and digits of each word are. ~keep
-    let solid_words = |text: &str| {
-        let mut words: Vec<String> = text
-            .split_whitespace()
-            .map(|word| word.chars().filter(|c| c.is_alphanumeric()).collect::<String>())
-            .filter(|word| !word.is_empty())
-            .collect();
-        words.sort_unstable();
-        words
-    };
-    let block_words = solid_words(
-        &doc.elements
-            .iter()
-            .map(|element| element.text.as_str())
-            .collect::<Vec<_>>()
-            .join(" "),
-    );
-    no_ocr_rich_assets(doc)
-        && metadata.is_empty()
-        && !doc.elements.is_empty()
-        && doc.elements.iter().all(segmenting_ocr_text)
-        && block_words == solid_words(read)
-}
-
-/// Whether a page's structure holds nothing but its read text cut into blocks and tables: the
-/// same words, each once, with no image, link, formula or markup. Tables reorder the words into
-/// cells and add rulings, so the words are compared by their letters and digits alone. ~keep
-#[cfg(all(feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-pub(super) fn ocr_page_only_segments_text_and_tables_with(
-    doc: &crate::types::internal::InternalDocument,
-    read: &str,
-    is_private_metadata: impl Fn(&str, &serde_json::Value) -> bool,
-) -> bool {
-    ocr_page_matches_read_text_and_tables(doc, read, is_private_metadata, true)
-}
-
-/// A nonempty structure may omit any certified read words, including body text or table rows.
-/// The complete clean native page carries those words; retained occurrences and rich payload
-/// must still be accounted for. The caller must establish that native-page ink ownership. ~keep
-#[cfg(all(feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-pub(super) fn ocr_page_uses_only_read_text_and_tables_with(
-    doc: &crate::types::internal::InternalDocument,
-    read: &str,
-    is_private_metadata: impl Fn(&str, &serde_json::Value) -> bool,
-) -> bool {
-    ocr_page_matches_read_text_and_tables(doc, read, is_private_metadata, false)
-}
-
-#[cfg(all(feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-fn sorted_ocr_table_words(text: &str) -> Vec<String> {
-    let mut words: Vec<String> = text
-        .split_whitespace()
-        .map(|word| word.chars().filter(|c| c.is_alphanumeric()).collect::<String>())
-        .filter(|word| !word.is_empty())
-        .collect();
-    words.sort_unstable();
-    words
-}
-
-#[cfg(all(feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-fn ocr_page_matches_read_text_and_tables(
-    doc: &crate::types::internal::InternalDocument,
-    read: &str,
-    is_private_metadata: impl Fn(&str, &serde_json::Value) -> bool,
-    require_complete_read: bool,
-) -> bool {
-    use crate::types::internal::ElementKind;
-
-    let mut metadata = doc.metadata.clone();
-    metadata.additional.retain(|key, value| {
-        key != crate::ocr_metadata_keys::OCR_PAGE_SEGMENTATION_MODES_METADATA_KEY && !is_private_metadata(key, value)
-    });
-    let table_element = |element: &crate::types::internal::InternalElement| {
-        matches!(element.kind, ElementKind::Table { .. })
-            && element.layer == crate::types::document_structure::ContentLayer::Body
-            && element.annotations.is_empty()
-    };
-    let block_text = doc
-        .elements
-        .iter()
-        .filter(|element| !table_element(element))
-        .map(|element| element.text.as_str())
-        .chain(doc.tables.iter().map(|table| table.markdown.as_str()))
-        .collect::<Vec<_>>()
-        .join(" ");
-    let cells_match_markdown = doc.tables.iter().all(|table| {
-        sorted_ocr_table_words(&table.cells.iter().flatten().cloned().collect::<Vec<_>>().join(" "))
-            == sorted_ocr_table_words(&table.markdown)
-    });
-    let block_words = sorted_ocr_table_words(&block_text);
-    let read_words = sorted_ocr_table_words(read);
-    let mut remaining = read_words.iter();
-    let words_match = if require_complete_read {
-        block_words == read_words
-    } else {
-        !block_words.is_empty() && block_words.iter().all(|word| remaining.any(|source| source == word))
-    };
-    !doc.tables.is_empty()
-        && no_ocr_rich_assets_besides_tables(doc)
-        && metadata.is_empty()
-        && doc
-            .elements
-            .iter()
-            .all(|element| segmenting_ocr_text(element) || table_element(element))
-        && cells_match_markdown
-        && words_match
-}
-
 /// The final structure must independently retain exactly the raw OCR text. Word geometry is
 /// internal here: the caller excludes explicit OCR-element/raster requests before using this. ~keep
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(super) fn plain_ocr_page_can_yield_to_native(doc: &crate::types::internal::InternalDocument, read: &str) -> bool {
     ocr_page_has_only_plain_payload(doc) && ocr_elements_follow_text(doc, read)
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(super) fn ocr_elements_follow_text(doc: &crate::types::internal::InternalDocument, read: &str) -> bool {
     doc.elements
         .iter()
@@ -564,12 +374,12 @@ pub(super) fn ocr_elements_follow_text(doc: &crate::types::internal::InternalDoc
         .eq(read.split_whitespace())
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(super) fn ocr_page_has_only_plain_payload(doc: &crate::types::internal::InternalDocument) -> bool {
     ocr_page_has_only_plain_payload_with(doc, |_, _| false)
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(super) fn ocr_page_has_only_plain_payload_with(
     doc: &crate::types::internal::InternalDocument,
     is_private_metadata: impl Fn(&str, &serde_json::Value) -> bool,
@@ -584,7 +394,7 @@ pub(super) fn ocr_page_has_only_plain_payload_with(
         && doc.elements.iter().all(unannotated_ocr_text)
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(in crate::extractors::pdf) fn native_preservation_is_automatic(config: &ExtractionConfig, page: u32) -> bool {
     #[cfg(feature = "layout-types")]
     if config.layout.is_some() {
@@ -606,163 +416,15 @@ pub(in crate::extractors::pdf) fn native_preservation_is_automatic(config: &Extr
         })
 }
 
-/// The share of a read's distinct meaningful words the native text must also spell before the
-/// native layer counts as the page's visible content. It sits below the share the legitimate
-/// Type0 pages of `pdf_cid_glyph_raster_2309` reach and above none, which a covered layer beside
-/// a short visible line shares. ~keep
-#[cfg(all(feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-pub(super) const MIN_READ_WORD_SHARE_SPELLED_BY_NATIVE: f64 = 0.25;
-
-/// Scripts written without spaces: a line of them is one "word" to `whole_words`, so they are
-/// compared by character bigrams instead. ~keep
-#[cfg(all(feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-fn is_unspaced_script(c: char) -> bool {
-    matches!(u32::from(c),
-        0x3400..=0x4DBF | 0x4E00..=0x9FFF | 0xF900..=0xFAFF | 0x20000..=0x2FA1F
-        | 0x3040..=0x30FF
-        | 0x1100..=0x11FF | 0x3130..=0x318F | 0xAC00..=0xD7AF
-        | 0x0E00..=0x0E7F
-        | 0x1780..=0x17FF)
-}
-
-/// How many distinct bigrams of unspaced-script characters a read must share with the native text.
-/// A bigram is a weaker witness than a word, so this floor sits above the word floor. ~keep
-#[cfg(all(feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-pub(super) const MIN_SHARED_UNSPACED_BIGRAMS: usize = 6;
-
-/// The distinct meaningful words of a read, how many the native text also spells, and whether any
-/// of those is alphabetic. Lost-glyph markers are removed from the native text first so a word
-/// the render dropped a letter from still matches its read. Words in unspaced scripts are left to
-/// `read_bigrams_in_native`. ~keep
-#[cfg(all(feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-pub(super) fn read_words_in_native(
-    native: &str,
-    read: &str,
-    thresholds: &OcrQualityThresholds,
-) -> (usize, usize, bool) {
-    use super::super::unmapped_glyphs::LOST_GLYPH_MARKER;
-
-    let spaced = |word: &String| !word.chars().any(is_unspaced_script);
-    let spelled: std::collections::HashSet<String> = whole_words(&native.replace(LOST_GLYPH_MARKER, ""))
-        .filter(spaced)
-        .collect();
-    let distinct: std::collections::HashSet<String> = whole_words(read)
-        .filter(spaced)
-        .filter(|word| word.chars().count() >= thresholds.min_meaningful_word_len)
-        .collect();
-    let shared: Vec<&String> = distinct.iter().filter(|word| spelled.contains(*word)).collect();
-    let alphabetic = shared.iter().any(|word| word.chars().any(char::is_alphabetic));
-    (shared.len(), distinct.len(), alphabetic)
-}
-
-/// The distinct character bigrams of the unspaced-script runs of a text. ~keep
-#[cfg(all(feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-fn unspaced_bigrams(text: &str) -> std::collections::HashSet<(char, char)> {
-    let mut bigrams = std::collections::HashSet::new();
-    for word in whole_words(text) {
-        let mut previous: Option<char> = None;
-        for c in word.chars() {
-            if is_unspaced_script(c) {
-                if let Some(before) = previous {
-                    bigrams.insert((before, c));
-                }
-                previous = Some(c);
-            } else {
-                previous = None;
-            }
-        }
-    }
-    bigrams
-}
-
-/// The distinct unspaced-script bigrams of a read and how many the native text also holds, with
-/// lost-glyph markers removed from the native text as for words. ~keep
-#[cfg(all(feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-pub(super) fn read_bigrams_in_native(native: &str, read: &str) -> (usize, usize) {
-    use super::super::unmapped_glyphs::LOST_GLYPH_MARKER;
-
-    let spelled = unspaced_bigrams(&native.replace(LOST_GLYPH_MARKER, ""));
-    let distinct = unspaced_bigrams(read);
-    (
-        distinct.iter().filter(|bigram| spelled.contains(*bigram)).count(),
-        distinct.len(),
-    )
-}
-
-/// Whether the native text spells enough of the read to be the page's visible content. Spaced
-/// scripts need at least the quality floor of distinct shared words (never fewer than two), one of
-/// them alphabetic, and the minimum share of the read's distinct words; a short read cannot pass
-/// on one shared word. Unspaced scripts (Han, kana, Hangul, Thai, Khmer) need the minimum share of
-/// the read's distinct bigrams and at least `MIN_SHARED_UNSPACED_BIGRAMS` of them. ~keep
-#[cfg(all(feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-pub(super) fn native_spells_read(native: &str, read: &str, thresholds: &OcrQualityThresholds) -> bool {
-    let (shared, distinct, alphabetic) = read_words_in_native(native, read, thresholds);
-    let words = distinct > 0
-        && alphabetic
-        && shared >= thresholds.min_meaningful_words.max(2)
-        && shared as f64 >= distinct as f64 * MIN_READ_WORD_SHARE_SPELLED_BY_NATIVE;
-    let (shared, distinct) = read_bigrams_in_native(native, read);
-    let bigrams = shared >= MIN_SHARED_UNSPACED_BIGRAMS
-        && shared as f64 >= distinct as f64 * MIN_READ_WORD_SHARE_SPELLED_BY_NATIVE;
-    words || bigrams
-}
-
-/// A native layer that lost Type0 ink survives only when the page also shows it is visible
-/// content: it owns the read ink, its words are covered by the read, or it spells the read. The
-/// one rule serves both the mixed-page and the single-page retention. ~keep
-#[cfg(all(feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-pub(super) fn type0_native_is_corroborated(
-    native: &str,
-    read: &str,
-    thresholds: &OcrQualityThresholds,
-    ink_owned: bool,
-    words_covered: bool,
-) -> bool {
-    (ink_owned || words_covered || native_spells_read(native, read, thresholds))
-        && native_survives_type0_ink_loss(native, read, thresholds)
-}
-
-/// Compare recoverable native word occurrences only after the same page render lost Type0 ink. ~keep
-#[cfg(all(feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-pub(super) fn native_survives_type0_ink_loss(native: &str, read: &str, thresholds: &OcrQualityThresholds) -> bool {
-    use super::super::unmapped_glyphs::{LOST_GLYPH_MARKER, strip_native_fragment};
-
-    if !native.contains(LOST_GLYPH_MARKER) {
-        return false;
-    }
-    let mut cleaned = native.to_owned();
-    strip_native_fragment(&mut cleaned);
-    if !super::scoring::native_layer_is_clean(&cleaned, thresholds) {
-        return false;
-    }
-
-    let meaningful = |word: &String| word.chars().count() >= thresholds.min_meaningful_word_len;
-    let mut available = ahash::AHashMap::<String, usize>::new();
-    for word in whole_words(read).filter(meaningful) {
-        *available.entry(word).or_default() += 1;
-    }
-    let mut retained = 0usize;
-    let mut total = 0usize;
-    for word in whole_words(&cleaned).filter(meaningful) {
-        total += 1;
-        if let Some(count) = available.get_mut(&word).filter(|count| **count > 0) {
-            *count -= 1;
-            retained += 1;
-        }
-    }
-    total >= thresholds.min_meaningful_words.max(1)
-        && (retained as f64) < total as f64 * MIN_LAYER_WORD_SHARE_READ_BY_OCR
-}
-
 /// Native source rows restored before OCR when complete native-page preservation is unproved. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) struct LayerFirst {
     /// Native source rows whose complete literal coverage is unproved, one per line. ~keep
     pub(crate) lines: String,
 }
 /// Literal source identity normalizes case and whitespace but preserves semantic delimiters.
 /// Fuzzy page confirmation uses `whole_words` separately. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn line_key(line: &str) -> String {
     line.split_whitespace()
         .map(str::to_lowercase)
@@ -771,7 +433,7 @@ fn line_key(line: &str) -> String {
 }
 /// The box of one line on its page. Both sides of a merge give their boxes in one coordinate
 /// space, with `top` below `bottom` on the axis of reading order; the unit does not matter. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct LineBox {
     pub(crate) left: f32,
@@ -781,9 +443,9 @@ pub(crate) struct LineBox {
 }
 /// The share of the shorter height and of the shorter width that two line boxes must share before
 /// one owns the place of the other. Half: a line box is at most half off its own line. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 const MIN_OWNED_OVERLAP_SHARE: f32 = 0.5;
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 impl LineBox {
     /// Whether this box owns the place of `other`: the two share a line band (at least half of the
     /// shorter height) and a horizontal run (at least half of the shorter width). ~keep
@@ -814,14 +476,14 @@ impl LineBox {
     }
 }
 /// One line of a page with its box and literal source identity. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct LineAt {
     /// Whitespace- and case-normalized literal row (see `line_key`). ~keep
     pub(crate) key: String,
     pub(crate) bbox: LineBox,
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 impl LineAt {
     pub(crate) fn new(line: &str, bbox: LineBox) -> Self {
         Self {
@@ -831,7 +493,7 @@ impl LineAt {
     }
 }
 /// The native and OCR row inventories in the same PDF-point coordinate space. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PageLineBoxes {
     pub(crate) layer: Vec<LineAt>,
@@ -840,7 +502,7 @@ pub(crate) struct PageLineBoxes {
 /// The box of a run of segments on one line: the segments' extent in PDF points. `top` is the
 /// lower coordinate on the vertical axis: both sides of a merge give their boxes in the same
 /// bottom-left frame, so the overlap test does not depend on which way the axis runs. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn segments_line_at(segments: &[crate::pdf::hierarchy::SegmentData]) -> Option<LineAt> {
     let mut bbox: Option<LineBox> = None;
     for segment in segments {
@@ -870,14 +532,14 @@ fn segments_line_at(segments: &[crate::pdf::hierarchy::SegmentData]) -> Option<L
 }
 /// The share of a segment's height within which the next segment's baseline is on the same
 /// line. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 const SAME_LINE_BASELINE_SHARE: f32 = 0.5;
 /// The line boxes of a page's merge: one per native line, from the segments of the text layer
 /// grouped by baseline in their order, and one per OCR paragraph line. The native side comes in
 /// PDF points. The OCR side comes in the frame its route left it in: `ocr_scale` is the factor
 /// per axis that takes it to points, `(1.0, 1.0)` when the route rescaled the paragraphs
 /// already. Missing either inventory leaves native row coverage uncertified. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn page_line_boxes(
     native: &[crate::pdf::hierarchy::SegmentData],
     ocr: &[crate::pdf::structure::types::PdfParagraph],
@@ -915,7 +577,7 @@ pub(crate) fn page_line_boxes(
 }
 /// The readable text layers of a run by one-indexed page, and the line boxes of the pages that
 /// have them. A page in `lines` and not in `boxes` gets its layer first and loses no OCR line. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PageLayers<'a> {
     pub(crate) lines: &'a ahash::AHashMap<u32, String>,
@@ -923,12 +585,12 @@ pub(crate) struct PageLayers<'a> {
 }
 /// The OCR lines of a page ordered by the vertical centre of their box: the row index that bounds
 /// the matching work to one band per layer line. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) struct OcrRowIndex {
     /// `(centre, index into the page's OCR lines)`, ascending by centre. ~keep
     rows: Vec<(f32, usize)>,
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 impl OcrRowIndex {
     pub(crate) fn new(ocr: &[LineAt]) -> Self {
         let mut rows: Vec<(f32, usize)> = ocr
@@ -949,7 +611,7 @@ impl OcrRowIndex {
     }
 }
 /// Geometry establishes the row; ordered literal tokens establish complete native coverage. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn owned_row_covers_source(source: &str, read: &str) -> bool {
     let source: Vec<_> = source.split_whitespace().collect();
     let read: Vec<_> = read.split_whitespace().collect();
@@ -966,7 +628,7 @@ fn owned_row_covers_source(source: &str, read: &str) -> bool {
 /// retained without deleting OCR. A line-wise test
 /// keeps an OCR-only line that holds the words of the layer line elsewhere on the page from
 /// masking the layer line. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn layer_lines_missing_and_owned(layer: &str, boxes: &PageLineBoxes) -> String {
     let layer_keys: std::collections::HashSet<String> = layer.lines().map(line_key).collect();
     let index = OcrRowIndex::new(&boxes.ocr);
@@ -1007,7 +669,7 @@ fn layer_lines_missing_and_owned(layer: &str, boxes: &PageLineBoxes) -> String {
 /// complete equal OCR row occurrences certify coverage and nothing is deleted. With geometry,
 /// complete ordered native-token coverage is sufficient. Ambiguous and differing OCR payloads
 /// remain beside restored native rows. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn layer_lines_to_put_first(
     layer: &str,
     ocr_text: &str,
@@ -1025,7 +687,7 @@ pub(crate) fn layer_lines_to_put_first(
     (!lines.is_empty()).then_some(LayerFirst { lines })
 }
 /// The restored native rows and unchanged OCR text of a page. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn text_with_layer_first(ocr_text: &str, first: &LayerFirst) -> String {
     if first.lines.trim().is_empty() {
         return ocr_text.to_string();
@@ -1036,7 +698,7 @@ pub(crate) fn text_with_layer_first(ocr_text: &str, first: &LayerFirst) -> Strin
 /// Put layer lines first on a structured OCR document, before its first element of `page`
 /// (before the first element when `page` is `None`, or when no element belongs to the page).
 /// Relationships shift by the number of layer elements; the layer holds no table or image. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn insert_layer_into_document(
     doc: &mut crate::types::internal::InternalDocument,
     page: Option<u32>,
@@ -1067,7 +729,7 @@ pub(super) fn insert_layer_into_document(
 }
 
 /// Restore native rows without changing any OCR text, annotations, anchors or rich payload. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn put_layer_first_in_document(
     doc: &mut crate::types::internal::InternalDocument,
     page: Option<u32>,
@@ -1078,7 +740,7 @@ pub(super) fn put_layer_first_in_document(
 /// The page's noise verdict in a whole-document run: `None` when the noise gate discarded the OCR
 /// text of the page, else whether the page has the noise verdict. A page with no verdict has
 /// not. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn run_page_noise_verdict(verdicts: &[super::scoring::OcrPageNoiseVerdict], page: u32) -> Option<bool> {
     let mut of_page = verdicts
         .iter()
@@ -1090,7 +752,7 @@ fn run_page_noise_verdict(verdicts: &[super::scoring::OcrPageNoiseVerdict], page
 }
 /// The page texts of a whole-document run as its flat text holds them: joined with a page marker
 /// or a blank line. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn join_run_pages(page_texts: &[String], marker_format: Option<&str>, page_index_offset: usize) -> String {
     let mut joined = String::new();
     for (i, page_text) in page_texts.iter().enumerate() {
@@ -1108,7 +770,7 @@ fn join_run_pages(page_texts: &[String], marker_format: Option<&str>, page_index
 /// flat text, the page texts and the structured document. A page whose noise verdict discarded
 /// its OCR text keeps none. The run has already scored and chosen its stage on the OCR text
 /// alone. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn put_layers_first_in_run(
     text: &mut String,
     page_texts: &mut [String],
@@ -1169,7 +831,7 @@ pub(super) fn put_layers_first_in_run(
 ///
 /// The mixed route used to discard both (#60): only `ocr_internal_document` was kept,
 /// so tables recognised on an OCR'd page and every word-level bounding box were lost.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn attach_page_ocr_payload(
     doc: &mut crate::types::internal::InternalDocument,
     tables: Vec<crate::types::Table>,
@@ -1187,7 +849,7 @@ pub(super) fn attach_page_ocr_payload(
         doc.prebuilt_ocr_elements.get_or_insert_with(Vec::new).extend(elements);
     }
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn source_strip_frames(metadata: &crate::types::Metadata) -> Vec<serde_json::Value> {
     use crate::ocr_metadata_keys::{
         OCR_SOURCE_STRIP_ORIGINAL_FRAME_METADATA_KEY, OCR_SOURCE_STRIP_ORIGINAL_FRAMES_METADATA_KEY,
@@ -1208,7 +870,7 @@ fn source_strip_frames(metadata: &crate::types::Metadata) -> Vec<serde_json::Val
         .collect()
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn store_source_strip_frames(metadata: &mut crate::types::Metadata, frames: Vec<serde_json::Value>) {
     use crate::ocr_metadata_keys::{
         OCR_SOURCE_STRIP_ORIGINAL_FRAME_METADATA_KEY, OCR_SOURCE_STRIP_ORIGINAL_FRAMES_METADATA_KEY,
@@ -1223,12 +885,12 @@ fn store_source_strip_frames(metadata: &mut crate::types::Metadata, frames: Vec<
     }
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn copy_source_strip_frames(source: &crate::types::Metadata, target: &mut crate::types::Metadata) {
     store_source_strip_frames(target, source_strip_frames(source));
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn merge_source_strip_frames(
     doc: &mut crate::types::internal::InternalDocument,
     replacements: &ahash::AHashMap<u32, String>,
@@ -1264,7 +926,7 @@ pub(crate) fn merge_source_strip_frames(
 /// built. Missing the frame here silently drops it from every non-`Plain` mixed-route output
 /// while every other unit test stays green, because the heuristic only runs when structured
 /// output is requested (GH#1645).
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn carry_page_ocr_payload_forward(
     existing: &crate::types::internal::InternalDocument,
     new_page_doc: &mut crate::types::internal::InternalDocument,
@@ -1304,7 +966,7 @@ pub(super) fn carry_page_ocr_payload_forward(
 /// is applied to them anywhere else in the pipeline), so this function performs the
 /// full pixel-to-point conversion *and* the y-flip for those directly, matching the
 /// bottom-left/points contract documented on [`crate::types::Table::bounding_box`].
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn rescale_ocr_bboxes_to_page_points(
     doc: Option<&mut crate::types::internal::InternalDocument>,
     tables: &mut [crate::types::Table],
@@ -1343,14 +1005,14 @@ pub(super) fn rescale_ocr_bboxes_to_page_points(
 /// ~keep Coordinate contract of the consumer of a public OCR contribution.
 /// Detached PDF stages use the same bottom-left raster frame as assembled hOCR;
 /// their page owner subsequently scales that canonical frame to PDF points.
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(super) enum PublicOcrOutputFrame {
     ImagePixels,
     PdfRaster { processed: (u32, u32), raster: (u32, u32) },
     PdfPage { raster: (u32, u32), points: (f32, f32) },
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(super) fn place_public_ocr_bboxes(doc: &mut crate::types::internal::InternalDocument, frame: PublicOcrOutputFrame) {
     let height = match frame {
         PublicOcrOutputFrame::ImagePixels => return,
@@ -1382,7 +1044,7 @@ pub(super) fn place_public_ocr_bboxes(doc: &mut crate::types::internal::Internal
     flip_document_bboxes_to_bottom_left(doc, height);
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 fn flip_document_bboxes_to_bottom_left(doc: &mut crate::types::internal::InternalDocument, height: f64) {
     for element in &mut doc.elements {
         if let Some(bbox) = element.bbox.as_mut() {
@@ -1394,7 +1056,7 @@ fn flip_document_bboxes_to_bottom_left(doc: &mut crate::types::internal::Interna
     });
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 fn rescale_document_bboxes(
     doc: &mut crate::types::internal::InternalDocument,
     scale_x: f64,
@@ -1413,7 +1075,7 @@ fn rescale_document_bboxes(
     crate::types::internal::table_grid::transform_retained_grid_bboxes(doc, tables, scale);
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 fn flip_bbox_to_bottom_left(bbox: &mut crate::types::BoundingBox, height: f64) {
     let top = bbox.y0;
     bbox.y0 = height - bbox.y1;
@@ -1425,7 +1087,7 @@ fn flip_bbox_to_bottom_left(bbox: &mut crate::types::BoundingBox, height: f64) {
 ///
 /// `processed_width`/`processed_height` are the dimensions of the space `(x, y)`
 /// is currently in (i.e. the auto-rotated image the backend ran detection on).
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn undo_auto_rotate_point(
     x: f64,
     y: f64,
@@ -1464,7 +1126,7 @@ pub(super) fn undo_auto_rotate_point(
 /// A no-op when the backend didn't auto-rotate (the metadata key is absent),
 /// which covers every backend and the overwhelmingly common `auto_rotate: false`
 /// default.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn undo_auto_rotate_document_bboxes(
     doc: &mut crate::types::internal::InternalDocument,
     metadata: &crate::types::Metadata,
@@ -1522,7 +1184,7 @@ pub(super) fn undo_auto_rotate_document_bboxes(
 /// Returns the assembled document alongside the bare, unclassified paragraphs
 /// [`assemble_mixed_ocr_page_document`] built it from -- see that function's doc
 /// comment.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 #[expect(
     clippy::too_many_arguments,
     reason = "six of the eight are one page's geometry (pixel size, point size, margins); grouping \
@@ -1630,7 +1292,7 @@ pub(super) fn build_mixed_ocr_page_document(
 /// Backends can rescale the page image before OCR; when the result metadata
 /// carries the processed dimensions, those describe the bbox's pixel space
 /// and take precedence over the rendered dimensions.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn formula_bbox_to_page_points(
     formula: &mut crate::types::Formula,
     doc: &xberg_native_pdf::PdfDocument,
@@ -1658,7 +1320,7 @@ pub(super) fn formula_bbox_to_page_points(
 /// flipped (in pixel space) by `ocr_doc_to_paragraphs`. Once
 /// [`rescale_ocr_bboxes_to_page_points`] has put both in points, only the table elements
 /// still need the flip the single-backend route gives them before assembly.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn flip_table_element_bboxes_to_bottom_left(
     doc: &mut crate::types::internal::InternalDocument,
     tables: &[crate::types::Table],
@@ -1692,7 +1354,7 @@ pub(super) fn flip_table_element_bboxes_to_bottom_left(
 ///
 /// `raster_size_px` is the rendered page image this route OCR'd; `page_size_pt` is the
 /// page's own MediaBox size in points.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn build_pipeline_ocr_page_document(
     doc: Option<crate::types::internal::InternalDocument>,
     mut tables: Vec<crate::types::Table>,
@@ -1749,91 +1411,7 @@ pub(super) fn build_pipeline_ocr_page_document(
     Some(doc)
 }
 
-/// Wraps a single OCR backend in a one-stage [`crate::core::config::OcrPipelineConfig`] so
-/// [`extract_mixed_ocr_native`] can route it through [`run_ocr_pipeline_for_page`] --
-/// the only per-page entry point that threads `layout_detections` down into
-/// [`extract_with_ocr_for_page`]'s pixel-space layout classification -- instead of this
-/// route's own raw `backend.process_image_owned` fast path, which never accepted layout
-/// detections at all (#665: `--layout` alone produced byte-identical mixed-route output).
-/// Mirrors the `classical_stage` construction in [`crate::core::config::ocr::OcrConfig::effective_pipeline`],
-/// except that it keeps the configured `vlm_config`, which the runner copies over the OCR config.
-///
-/// Only used when this call actually has layout detections to offer (see
-/// `layout_detections_for_mixed` in [`extract_mixed_ocr_native`]); the plain single-backend
-/// fast path is untouched when layout is off, so non-layout mixed-route output stays
-/// byte-identical.
-#[cfg(all(
-    any(feature = "ocr", feature = "ocr-pipeline"),
-    feature = "pdf",
-    feature = "layout-detection"
-))]
-pub(super) fn single_stage_pipeline_for_layout(
-    ocr_config: &crate::core::config::OcrConfig,
-) -> crate::core::config::OcrPipelineConfig {
-    crate::core::config::OcrPipelineConfig {
-        stages: vec![crate::core::config::OcrPipelineStage {
-            backend: ocr_config.backend.clone(),
-            priority: 100,
-            language: if ocr_config.language.len() == 1 && ocr_config.language[0] == "eng" {
-                None
-            } else {
-                Some(ocr_config.language.clone())
-            },
-            tesseract_config: ocr_config.tesseract_config.clone(),
-            paddle_ocr_config: None,
-            paddle_ocr_settings: None,
-            vlm_config: ocr_config.vlm_config.clone(),
-            backend_options: ocr_config.backend_options.clone(),
-        }],
-        quality_thresholds: ocr_config.effective_thresholds(),
-    }
-}
-
-/// Looks up one document-wide 0-based page's own layout detection out of the whole-document
-/// pass [`extract_mixed_ocr_native`] runs (#665).
-///
-/// Performs no coordinate transform: `detections` is exactly what
-/// `layout_runner::run_layout_for_ocr` produced (pixel space, at the resolution its own
-/// per-page render used), and this function returns that same value unchanged for whichever
-/// page it belongs to. The rescale to this page's *own* OCR raster
-/// (`scale_detection_to_dimensions` / `scale_detection_to_ocr_coordinates`) and, later, to PDF
-/// points (`rescale_ocr_bboxes_to_page_points` inside `build_pipeline_ocr_page_document`) both
-/// happen downstream, inside `extract_with_ocr_for_page` -- not here. Keeping this lookup a
-/// pure index (rather than folding a rescale into it) means a page-alignment bug here shows up
-/// as a wrong page's detection landing on the wrong page, not as a subtly-wrong coordinate on
-/// the right one.
-#[cfg(all(
-    any(feature = "ocr", feature = "ocr-pipeline"),
-    feature = "pdf",
-    feature = "layout-detection"
-))]
-pub(super) fn detection_for_mixed_route_page(
-    detections: Option<&[crate::layout::DetectionResult]>,
-    page_idx: usize,
-) -> Option<&crate::layout::DetectionResult> {
-    detections.and_then(|detections| detections.get(page_idx))
-}
-/// Merge per-page OCR text into the native text, replacing each OCR'd page's
-/// byte range in place.
-///
-/// Boundaries are processed in reverse byte order so earlier offsets stay valid
-/// after each replacement. An OCR entry that is empty (or whitespace-only) is
-/// skipped rather than applied: an empty OCR result must never overwrite a page's
-/// native text, or a page whose backend produced nothing would silently lose its
-/// already-extracted content.
-// Gated to `ocr` rather than `any(ocr, ocr-pipeline)` to match its only
-// callers in the `#[cfg(all(test, feature = "ocr"))]` test module. ~keep
-#[cfg(all(test, feature = "ocr"))]
-pub(crate) fn merge_ocr_pages_into_native(
-    native_text: &str,
-    boundaries: &[crate::types::PageBoundary],
-    ocr_results: &ahash::AHashMap<u32, String>,
-) -> String {
-    let accepted =
-        accepted_ocr_page_replacements(native_text, boundaries, ocr_results, &OcrQualityThresholds::default());
-    apply_ocr_page_replacements(native_text, boundaries, &accepted)
-}
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn destructive_ocr_information_loss(
     native_page: &str,
     ocr_text: &str,
@@ -1848,13 +1426,13 @@ pub(super) fn destructive_ocr_information_loss(
     let retained_ratio = ocr_stats.alnum as f64 / native_decision.stats.alnum.max(1) as f64;
     (retained_ratio < MIN_OCR_NATIVE_ALNUM_RETENTION_RATIO).then_some((native_decision.stats.alnum, ocr_stats.alnum))
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn valid_page_boundary(native_text: &str, boundary: &crate::types::PageBoundary) -> bool {
     boundary.page_number > 0 && native_text.get(boundary.byte_start..boundary.byte_end).is_some()
 }
 /// Keep only OCR results that can be applied consistently to every mixed-output
 /// representation: non-empty text with a matching, valid UTF-8 page boundary.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn accepted_ocr_page_replacements(
     native_text: &str,
     boundaries: &[crate::types::PageBoundary],
@@ -1938,7 +1516,7 @@ pub(super) fn accepted_ocr_page_replacements(
         .map(|(&page, text)| (page, text.clone()))
         .collect()
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn apply_ocr_page_replacements(
     native_text: &str,
     boundaries: &[crate::types::PageBoundary],
@@ -1969,7 +1547,7 @@ pub(super) fn apply_ocr_page_replacements(
 /// mis-attributes content or has to give up and emit no pages at all. Walks forward
 /// accumulating the per-page delta; unreplaced pages simply shift by the running
 /// total, so gaps between boundaries are preserved. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn boundaries_after_replacements(
     boundaries: &[crate::types::PageBoundary],
     accepted: &ahash::AHashMap<u32, String>,
@@ -1998,14 +1576,14 @@ pub(crate) fn boundaries_after_replacements(
 /// from balanced container spans before filtering. Page breaks are rebuilt
 /// from the resulting page sequence, and relationships are remapped to the
 /// final element indices (or dropped when either indexed endpoint was removed).
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn merge_ocr_pages_into_internal_document(
     doc: &mut crate::types::internal::InternalDocument,
     ocr_results: &ahash::AHashMap<u32, String>,
 ) {
     merge_structured_ocr_pages_into_internal_document(doc, ocr_results, &ahash::AHashMap::new());
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn merge_structured_ocr_pages_into_internal_document(
     doc: &mut crate::types::internal::InternalDocument,
     ocr_results: &ahash::AHashMap<u32, String>,
@@ -2050,7 +1628,7 @@ pub(crate) fn merge_structured_ocr_pages_into_internal_document(
     merge_page_segmentation_modes(doc, ocr_results, structured_pages);
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn merge_page_segmentation_modes(
     doc: &mut crate::types::internal::InternalDocument,
     ocr_results: &ahash::AHashMap<u32, String>,
@@ -2082,7 +1660,7 @@ pub(crate) fn merge_page_segmentation_modes(
 ///
 /// `table_base` / `image_base` are the parent's collection lengths before the
 /// merge, so a page-local index `i` becomes `base + already_merged + i`.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) struct MergedOcrAssets {
     pub(super) table_base: u32,
     pub(super) image_base: u32,
@@ -2091,7 +1669,7 @@ pub(super) struct MergedOcrAssets {
     pub(super) ocr_elements: Vec<crate::types::OcrElement>,
     relationships: Vec<crate::types::internal::Relationship>,
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 impl MergedOcrAssets {
     fn new(table_base: u32, image_base: u32) -> Self {
         Self {
@@ -2112,13 +1690,13 @@ impl MergedOcrAssets {
         self.image_base + self.images.len() as u32
     }
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) struct PlannedOcrElement {
     pub(super) element: crate::types::internal::InternalElement,
     pub(super) old_index: Option<usize>,
     pub(super) page: Option<u32>,
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn replacement_anchors<'a>(
     elements: &[crate::types::internal::InternalElement],
     inferred_pages: &[Option<u32>],
@@ -2139,7 +1717,7 @@ pub(super) fn replacement_anchors<'a>(
     }
     anchors
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn plan_merged_elements(
     elements: &[crate::types::internal::InternalElement],
     containers: &ContainerMarkerAnalysis,
@@ -2179,7 +1757,7 @@ pub(super) fn plan_merged_elements(
     append_ocr_replacements(&mut planned, anchors.get(&elements.len()), structured_pages, assets);
     planned
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn append_ocr_replacements(
     planned: &mut Vec<PlannedOcrElement>,
     replacements: Option<&Vec<(u32, &str)>>,
@@ -2250,7 +1828,7 @@ pub(super) fn append_ocr_replacements(
 /// before the elements are spliced into the parent (#59). Assets the page document
 /// carries but never references from its element list still get a reference emitted,
 /// so a table produced by OCR cannot silently vanish (#57).
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn reindex_structured_ocr_page(
     page_doc: &crate::types::internal::InternalDocument,
     page: u32,
@@ -2348,7 +1926,7 @@ pub(super) fn reindex_structured_ocr_page(
 
     (elements, local_to_new)
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn rebuild_planned_elements(
     planned: Vec<PlannedOcrElement>,
     old_len: usize,
@@ -2383,7 +1961,7 @@ pub(super) fn rebuild_planned_elements(
     }
     (rebuilt, old_to_new, planned_to_new)
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn remap_relationships(
     relationships: &mut Vec<crate::types::internal::Relationship>,
     old_to_new: &[Option<u32>],
@@ -2411,12 +1989,12 @@ pub(super) fn remap_relationships(
         true
     });
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) struct ContainerMarkerAnalysis {
     pub(super) inferred_pages: Vec<Option<u32>>,
     pub(super) drop_marker: Vec<bool>,
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn analyze_container_markers(
     elements: &[crate::types::internal::InternalElement],
 ) -> ContainerMarkerAnalysis {
@@ -2476,21 +2054,11 @@ pub(super) fn analyze_container_markers(
 // than from `crate::ocr`: this PDF OCR path also compiles under `ocr-pipeline` (VLM OCR,
 // e.g. the `binstall` CLI) or under `layout-detection` alone (layout without any OCR
 // backend enabled), where the `ocr` module — gated on `ocr`/`ocr-wasm` — is absent. ~keep
-#[cfg(any(
-    feature = "ocr",
-    feature = "ocr-wasm",
-    all(feature = "ocr-pipeline", feature = "pdf")
-))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 use crate::ocr_metadata_keys::{OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY, OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY};
 // The render-space adapter needs this import only with layout detection; the shared resolver imports it locally.
-#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
-use crate::ocr_metadata_keys::OCR_AUTO_ROTATED_METADATA_KEY;
 
-#[cfg(any(
-    feature = "ocr",
-    feature = "ocr-wasm",
-    all(feature = "ocr-pipeline", feature = "pdf")
-))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn valid_ocr_layout_dimension(value: &serde_json::Value) -> Option<u32> {
     let value = value.as_f64()?;
     if !value.is_finite() || value <= 0.0 || value > u32::MAX as f64 || value.fract() != 0.0 {
@@ -2499,11 +2067,7 @@ pub(super) fn valid_ocr_layout_dimension(value: &serde_json::Value) -> Option<u3
     Some(value as u32)
 }
 
-#[cfg(any(
-    feature = "ocr",
-    feature = "ocr-wasm",
-    all(feature = "ocr-pipeline", feature = "pdf")
-))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn processed_ocr_layout_dimensions(metadata: &crate::types::Metadata) -> Option<(u32, u32)> {
     let width = metadata
         .additional
@@ -2535,15 +2099,7 @@ pub(super) fn processed_ocr_layout_dimensions(metadata: &crate::types::Metadata)
 // executing. Omitting the `pdf` arm broke `formula-recognition,pdf` (layout-detection +
 // ocr-pipeline, no OCR backend) exactly the same way: the two element-geometry call sites
 // stayed in while the definition compiled out. ~keep
-#[cfg(all(
-    any(feature = "ocr", feature = "ocr-pipeline"),
-    any(
-        feature = "ocr",
-        feature = "ocr-wasm",
-        feature = "pdf",
-        not(feature = "layout-detection")
-    )
-))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn resolved_ocr_layout_dimensions(
     metadata: &crate::types::Metadata,
     render_width: u32,
@@ -2551,33 +2107,7 @@ pub(super) fn resolved_ocr_layout_dimensions(
 ) -> (u32, u32) {
     processed_ocr_layout_dimensions(metadata).unwrap_or((render_width, render_height))
 }
-#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
-pub(super) fn scale_detection_to_dimensions(
-    detection: &crate::layout::DetectionResult,
-    target_width: u32,
-    target_height: u32,
-) -> crate::layout::DetectionResult {
-    if detection.page_width == 0 || detection.page_height == 0 || target_width == 0 || target_height == 0 {
-        return detection.clone();
-    }
-
-    let scale_x = target_width as f32 / detection.page_width as f32;
-    let scale_y = target_height as f32 / detection.page_height as f32;
-    let mut scaled = detection.clone();
-    scaled.page_width = target_width;
-    scaled.page_height = target_height;
-    for region in &mut scaled.detections {
-        region.bbox.x1 *= scale_x;
-        region.bbox.y1 *= scale_y;
-        region.bbox.x2 *= scale_x;
-        region.bbox.y2 *= scale_y;
-    }
-    scaled
-}
-#[cfg(any(
-    all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")),
-    all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline"))
-))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(super) fn resolved_ocr_correction_degrees(metadata: &crate::types::Metadata) -> Option<u16> {
     use crate::ocr_metadata_keys::{
         OCR_AUTO_ROTATED_METADATA_KEY, OCR_BACKEND_ROTATION_UNDONE_METADATA_KEY, OCR_ORIENTATION_DEGREES_METADATA_KEY,
@@ -2607,227 +2137,6 @@ pub(super) fn resolved_ocr_correction_degrees(metadata: &crate::types::Metadata)
     }
     Some(((360 - orientation) % 360) as u16)
 }
-#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
-pub(super) fn rotate_detection(
-    mut detection: crate::layout::DetectionResult,
-    correction_degrees: u16,
-) -> crate::layout::DetectionResult {
-    let source_width = detection.page_width as f32;
-    let source_height = detection.page_height as f32;
-    for region in &mut detection.detections {
-        let (x1, y1, x2, y2) = (region.bbox.x1, region.bbox.y1, region.bbox.x2, region.bbox.y2);
-        match correction_degrees {
-            90 => {
-                region.bbox.x1 = source_height - y2;
-                region.bbox.y1 = x1;
-                region.bbox.x2 = source_height - y1;
-                region.bbox.y2 = x2;
-            }
-            180 => {
-                region.bbox.x1 = source_width - x2;
-                region.bbox.y1 = source_height - y2;
-                region.bbox.x2 = source_width - x1;
-                region.bbox.y2 = source_height - y1;
-            }
-            270 => {
-                region.bbox.x1 = y1;
-                region.bbox.y1 = source_width - x2;
-                region.bbox.x2 = y2;
-                region.bbox.y2 = source_width - x1;
-            }
-            _ => {}
-        }
-    }
-    if matches!(correction_degrees, 90 | 270) {
-        std::mem::swap(&mut detection.page_width, &mut detection.page_height);
-    }
-    detection
-}
-#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
-pub(super) fn scale_detection_to_ocr_coordinates(
-    detection: &crate::layout::DetectionResult,
-    metadata: &crate::types::Metadata,
-    render_width: u32,
-    render_height: u32,
-) -> crate::layout::DetectionResult {
-    let Some((final_width, final_height)) = processed_ocr_layout_dimensions(metadata) else {
-        return scale_detection_to_dimensions(detection, render_width, render_height);
-    };
-    let Some(correction_degrees) = resolved_ocr_correction_degrees(metadata) else {
-        return scale_detection_to_dimensions(detection, final_width, final_height);
-    };
-    let (pre_rotation_width, pre_rotation_height) = if matches!(correction_degrees, 90 | 270) {
-        (final_height, final_width)
-    } else {
-        (final_width, final_height)
-    };
-    let scaled = scale_detection_to_dimensions(detection, pre_rotation_width, pre_rotation_height);
-    rotate_detection(scaled, correction_degrees)
-}
-#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
-pub(super) fn inverse_rotate_ocr_point(
-    x: f64,
-    y: f64,
-    correction_degrees: u16,
-    pre_rotation_width: f64,
-    pre_rotation_height: f64,
-) -> (f64, f64) {
-    match correction_degrees {
-        90 => (y, pre_rotation_height - x),
-        180 => (pre_rotation_width - x, pre_rotation_height - y),
-        270 => (pre_rotation_width - y, x),
-        _ => (x, y),
-    }
-}
-#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
-pub(super) fn transform_ocr_point_to_render(
-    point: (u32, u32),
-    correction_degrees: u16,
-    pre_rotation_dimensions: (u32, u32),
-    render_dimensions: (u32, u32),
-) -> (u32, u32) {
-    let (pre_width, pre_height) = pre_rotation_dimensions;
-    let (render_width, render_height) = render_dimensions;
-    let (x, y) = inverse_rotate_ocr_point(
-        point.0 as f64,
-        point.1 as f64,
-        correction_degrees,
-        pre_width as f64,
-        pre_height as f64,
-    );
-    let render_x = (x * render_width as f64 / pre_width as f64)
-        .round()
-        .clamp(0.0, render_width as f64) as u32;
-    let render_y = (y * render_height as f64 / pre_height as f64)
-        .round()
-        .clamp(0.0, render_height as f64) as u32;
-    (render_x, render_y)
-}
-#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
-pub(super) fn transform_ocr_geometry_to_render(
-    geometry: &crate::types::OcrBoundingGeometry,
-    correction_degrees: u16,
-    pre_rotation_dimensions: (u32, u32),
-    render_dimensions: (u32, u32),
-) -> crate::types::OcrBoundingGeometry {
-    match geometry {
-        crate::types::OcrBoundingGeometry::Rectangle {
-            left,
-            top,
-            width,
-            height,
-        } => {
-            let first = transform_ocr_point_to_render(
-                (*left, *top),
-                correction_degrees,
-                pre_rotation_dimensions,
-                render_dimensions,
-            );
-            let second = transform_ocr_point_to_render(
-                (left.saturating_add(*width), top.saturating_add(*height)),
-                correction_degrees,
-                pre_rotation_dimensions,
-                render_dimensions,
-            );
-            let left = first.0.min(second.0);
-            let top = first.1.min(second.1);
-            crate::types::OcrBoundingGeometry::Rectangle {
-                left,
-                top,
-                width: first.0.max(second.0).saturating_sub(left),
-                height: first.1.max(second.1).saturating_sub(top),
-            }
-        }
-        crate::types::OcrBoundingGeometry::Quadrilateral { points } => {
-            let points = points
-                .iter()
-                .copied()
-                .map(|point| {
-                    transform_ocr_point_to_render(
-                        point.into(),
-                        correction_degrees,
-                        pre_rotation_dimensions,
-                        render_dimensions,
-                    )
-                    .into()
-                })
-                .collect();
-            crate::types::OcrBoundingGeometry::Quadrilateral { points }
-        }
-    }
-}
-/// Whether a processed-image pixel space and a render raster can be related by a scale at all.
-///
-/// ~keep A >1% divergence between the two axes' scale factors means the two rasters are not the
-/// same page, so no per-axis scale maps one onto the other; the same bar the standalone-image
-/// route applies in `extractors::image::whole_image_ocr_coordinate_transform`, and the tolerance
-/// is that route's constant so the two cannot drift apart.
-#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
-fn ocr_render_scale_is_trustworthy(processed_dimensions: (u32, u32), render_dimensions: (u32, u32)) -> bool {
-    let (processed_width, processed_height) = processed_dimensions;
-    let (render_width, render_height) = render_dimensions;
-    if processed_width == 0 || processed_height == 0 || render_width == 0 || render_height == 0 {
-        return false;
-    }
-    let scale_x = f64::from(render_width) / f64::from(processed_width);
-    let scale_y = f64::from(render_height) / f64::from(processed_height);
-    (scale_x - scale_y).abs() / scale_x.max(scale_y)
-        <= crate::extractors::image::MAX_OCR_COORDINATE_SCALE_RELATIVE_DIFFERENCE
-}
-/// Map OCR elements from the backend's processed-image pixel space into the render raster's, or
-/// report that the two spaces cannot be related.
-///
-/// ~keep Returns `None` -- never untransformed elements -- when the backend reported no processed
-/// dimensions, auto-rotated without a usable orientation, or reported a raster that is not a
-/// scaled copy of the render raster. Handing back untransformed elements was silent and
-/// destructive: Tesseract normalizes to `target_dpi` (300) against a ~150 dpi page render, so
-/// every word box sat ~2x outside the render-space table bbox, `select_table_elements`'
-/// `MIN_CELL_ELEMENT_IOW` test dropped all of them, and the region published a table holding none
-/// of the page's values. PaddleOCR records its processed dims as the unresized raster, which is
-/// why the same route was sound there (xberg-io/xberg#1813). The caller must skip TATR on `None`
-/// rather than run it on elements in the wrong space.
-#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
-pub(super) fn transform_ocr_elements_to_render_space(
-    elements: &[crate::types::OcrElement],
-    metadata: &crate::types::Metadata,
-    render_width: u32,
-    render_height: u32,
-) -> Option<Vec<crate::types::OcrElement>> {
-    let (final_width, final_height) = processed_ocr_layout_dimensions(metadata)?;
-    let auto_rotated = metadata
-        .additional
-        .get(OCR_AUTO_ROTATED_METADATA_KEY)
-        .and_then(serde_json::Value::as_bool)
-        .unwrap_or(false);
-    let correction_degrees = resolved_ocr_correction_degrees(metadata);
-    if auto_rotated && correction_degrees.is_none() {
-        return None;
-    }
-    let correction_degrees = correction_degrees.unwrap_or(0);
-    let pre_rotation_dimensions = if matches!(correction_degrees, 90 | 270) {
-        (final_height, final_width)
-    } else {
-        (final_width, final_height)
-    };
-    if !ocr_render_scale_is_trustworthy(pre_rotation_dimensions, (render_width, render_height)) {
-        return None;
-    }
-    Some(
-        elements
-            .iter()
-            .cloned()
-            .map(|mut element| {
-                element.geometry = transform_ocr_geometry_to_render(
-                    &element.geometry,
-                    correction_degrees,
-                    pre_rotation_dimensions,
-                    (render_width, render_height),
-                );
-                element
-            })
-            .collect(),
-    )
-}
 
 /// Scale factor from OCR raster pixels to PDF points for one page, used to convert
 /// pixel-derived font-size proxies into the same unit as the heading heuristic's
@@ -2839,15 +2148,12 @@ pub(super) fn transform_ocr_elements_to_render_space(
 /// to `1.0` (pixels treated as points). That degrades the absolute-gap term of the
 /// heading heuristic back toward today's behavior for that call path only; the
 /// ratio-based term, which dominates in practice, is scale-invariant and unaffected.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 // Both readers are the OCR-document assembly blocks in `extract_with_ocr_for_page` -- one
 // gated on `layout-detection` *with* `ocr`/`ocr-wasm`, the other on `not(layout-detection)`.
 // `layout-detection` without either OCR frontend (the `formula-recognition,pdf` CI leg)
 // compiles both out while `ocr-pipeline` still brings this function in. ~keep
-#[cfg_attr(
-    all(feature = "layout-detection", not(feature = "ocr"), not(feature = "ocr-wasm")),
-    allow(dead_code)
-)]
+
 pub(super) fn ocr_points_per_pixel(
     #[cfg(feature = "pdf")] lazy_pdf_render_state: Option<&super::rendering::FullPdfRenderState>,
     page_idx: usize,
@@ -2869,67 +2175,13 @@ pub(super) fn ocr_points_per_pixel(
         1.0
     }
 }
-#[cfg(all(any(feature = "ocr", feature = "ocr-wasm"), feature = "layout-detection"))]
-pub(super) fn assemble_ocr_page_paragraphs(
-    doc: &crate::types::internal::InternalDocument,
-    page_height: u32,
-    detection: Option<&crate::layout::DetectionResult>,
-    points_per_pixel: f32,
-    // The page's PDF `/Rotate` value (0/90/180/270), or `0` when unknown (e.g. no
-    // `pdf` feature). Threaded to the detached-list-marker reattachment passes
-    // below so their baseline/indent comparisons run in the rotation-corrected
-    // frame instead of the raw raster one (#760) -- see
-    // `pdf::structure::pipeline::DetachedMarkerFrame`.
-    page_rotation_degrees: u32,
-) -> Vec<crate::pdf::structure::types::PdfParagraph> {
-    // `doc`'s bbox AND ocr_geometry are still both raw OCR raster pixels at this point in
-    // the pure-OCR route (the pixel -> point rescale runs later, in
-    // `build_pipeline_ocr_page_document`), so one real points-per-pixel ratio scales both
-    // font-size fallback branches identically. See
-    // `pdf::structure::adapters::OcrFontSizeScale` for the mixed route, where that is not
-    // true.
-    let font_size_scale = crate::pdf::structure::adapters::OcrFontSizeScale::uniform(points_per_pixel);
-    #[cfg(feature = "ocr")]
-    if let Some(detection) = detection {
-        let hints = super::super::layout_hints::detection_to_layout_hints_pixel_space(detection, page_height as f32);
-        let mut paragraphs = crate::pdf::structure::adapters::ocr_doc_to_layout_paragraphs(
-            doc,
-            page_height,
-            &hints,
-            0.5,
-            0.2,
-            font_size_scale,
-        );
-        apply_ocr_text_list_fallback(&mut paragraphs);
-        // #729: a bare marker no ML hint ever classified (`is_list_item` still
-        // `false`) is invisible to `reattach_ocr_layout_list_markers` below, whose
-        // marker-side test requires the opposite -- see
-        // `adapters::reattach_detached_ocr_list_markers`'s doc comment. Runs first so
-        // both passes only ever see markers still in their own precondition's state.
-        crate::pdf::structure::adapters::reattach_detached_ocr_list_markers(&mut paragraphs, page_rotation_degrees);
-        // #729: `regroup_layout_lines_by_element` (above, inside
-        // `ocr_doc_to_layout_paragraphs`) isolates an ML-hinted list marker into its
-        // own paragraph and never rejoins it to its body. Gated independently of
-        // `pipeline::REATTACH_DETACHED_LIST_MARKERS` -- see
-        // `adapters::REATTACH_OCR_LAYOUT_LIST_MARKERS`'s doc comment.
-        crate::pdf::structure::adapters::reattach_ocr_layout_list_markers(&mut paragraphs, page_rotation_degrees);
-        return paragraphs;
-    }
-    // Both parameters are read only by the `#[cfg(feature = "ocr")]` block above, but this
-    // function is gated on `any(ocr, ocr-wasm)`, so `ocr-wasm` + `layout-detection` leaves
-    // them unread. No CI leg builds that pair, so nothing catches it. ~keep
-    #[cfg(not(feature = "ocr"))]
-    let _ = (detection, page_rotation_degrees);
-
-    crate::pdf::structure::adapters::ocr_doc_to_paragraphs(doc, page_height, font_size_scale)
-}
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(super) struct OcrMarginFilterOutcome {
     pub(super) removed: bool,
     pub(super) missing_geometry: bool,
 }
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn filter_structured_ocr_page_by_page_margins(
     doc: &mut crate::types::internal::InternalDocument,
     page_height: f32,
@@ -2963,7 +2215,7 @@ pub(super) fn filter_structured_ocr_page_by_page_margins(
     remap_relationships(&mut doc.relationships, &map, &doc.elements);
     outcome
 }
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn filter_ocr_paragraphs_by_page_margins(
     paragraphs: &mut Vec<crate::pdf::structure::types::PdfParagraph>,
     page_height: f32,
@@ -2988,7 +2240,7 @@ pub(super) fn filter_ocr_paragraphs_by_page_margins(
         missing_geometry,
     }
 }
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn filter_ocr_elements_by_page_margins(
     elements: &mut Vec<crate::types::OcrElement>,
     page_height: u32,
@@ -3036,7 +2288,7 @@ pub(super) fn filter_ocr_elements_by_page_margins(
         missing_geometry,
     }
 }
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn public_ocr_elements_for_pdf_page(
     elements: &mut [crate::types::OcrElement],
     config: &crate::core::config::ocr::OcrConfig,
@@ -3054,7 +2306,7 @@ pub(super) fn public_ocr_elements_for_pdf_page(
     }
     (public_elements, outcome)
 }
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn should_use_document_processing(
     supports_document_processing: bool,
     path_available: bool,
@@ -3062,7 +2314,7 @@ pub(super) fn should_use_document_processing(
 ) -> bool {
     supports_document_processing && path_available && margins.top == 0.0 && margins.bottom == 0.0
 }
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn ocr_paragraphs_plain_text(paragraphs: &[crate::pdf::structure::types::PdfParagraph]) -> String {
     paragraphs
         .iter()
@@ -3087,7 +2339,7 @@ pub(super) fn ocr_paragraphs_plain_text(paragraphs: &[crate::pdf::structure::typ
         .collect::<Vec<_>>()
         .join("\n\n")
 }
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn ocr_margin_filter_capability_warning() -> crate::types::ProcessingWarning {
     crate::types::ProcessingWarning {
         source: std::borrow::Cow::Borrowed("ocr"),
@@ -3103,10 +2355,7 @@ pub(super) fn ocr_margin_filter_capability_warning() -> crate::types::Processing
 // `formula-recognition,pdf` CI leg) compiles both out, so a bare
 // `any(ocr, ocr-pipeline)` gate here left the function -- and pipeline.rs's import of
 // it -- with no caller. ~keep
-#[cfg(all(
-    any(feature = "ocr", feature = "ocr-pipeline"),
-    any(feature = "ocr", feature = "ocr-wasm", not(feature = "layout-detection"))
-))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn apply_ocr_layout_content_filter(
     paragraphs: &mut [crate::pdf::structure::types::PdfParagraph],
     config: &ExtractionConfig,
@@ -3175,7 +2424,7 @@ pub(super) fn apply_ocr_layout_content_filter(
 /// pre-setting `is_list_item` earlier would itself flip `heuristically_restructured_ocr_pages`'s
 /// "already structured" gate and skip heading detection for the whole document, trading a
 /// list-item win for a heading-detection regression -- see that function's own doc comment.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn apply_ocr_text_list_fallback(paragraphs: &mut [crate::pdf::structure::types::PdfParagraph]) {
     for paragraph in paragraphs.iter_mut() {
         if paragraph.is_list_item || paragraph.is_code_block || paragraph.is_formula || paragraph.is_page_furniture {
@@ -3195,7 +2444,7 @@ pub(super) fn apply_ocr_text_list_fallback(paragraphs: &mut [crate::pdf::structu
 /// table a second time ahead of it. Keyed to that backend report rather than to the presence of a
 /// table, because an embedded-image retry can add tables and text to a page whose own pass was
 /// blank. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn fill_unstructured_ocr_pages(
     page_paragraphs: &mut [Option<Vec<crate::pdf::structure::types::PdfParagraph>>],
     page_texts: &[String],
@@ -3233,7 +2482,7 @@ pub(super) fn fill_unstructured_ocr_pages(
 ///   structure from bare segments would discard that classification, not add to it.
 /// - The heuristic itself returns no elements, or errors (logged, not propagated: the
 ///   caller's existing unstructured assembly is always a safe fallback here).
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn heuristically_restructured_ocr_pages(
     pages: &[Vec<crate::pdf::structure::types::PdfParagraph>],
     page_heights: &[f32],
@@ -3306,18 +2555,6 @@ pub(super) fn heuristically_restructured_ocr_pages(
             layout_hints: None,
             allow_single_column: true,
             cancel_token: config.cancel_token.as_ref(),
-            #[cfg(feature = "layout-detection")]
-            layout_images: None,
-            #[cfg(feature = "layout-detection")]
-            layout_results: None,
-            #[cfg(feature = "layout-detection")]
-            table_model: crate::core::config::layout::TableModel::default(),
-            #[cfg(feature = "layout-detection")]
-            table_overlap_preference: crate::core::config::layout::TableOverlapPreference::default(),
-            #[cfg(feature = "layout-detection")]
-            acceleration: None,
-            #[cfg(feature = "layout-detection")]
-            session_thread_budget: 0,
         },
     );
 
@@ -3365,10 +2602,10 @@ pub(super) fn heuristically_restructured_ocr_pages(
 /// placement) is insensitive to exactly this class of re-wrap while remaining exactly as
 /// sensitive to genuine deletion: a dropped word still drops that many characters from the
 /// multiset, measurably. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 const MIN_OCR_STRUCTURE_HEURISTIC_CHAR_RETENTION: f64 = 1.0;
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 /// Ligature codepoints count as their letters: the restructured text expands them, and the
 /// retention gate would otherwise reject every page that carries one.
 fn ocr_structure_heuristic_canonical_chars(text: &str) -> Vec<char> {
@@ -3387,7 +2624,7 @@ fn ocr_structure_heuristic_canonical_chars(text: &str) -> Vec<char> {
 /// reimplemented locally rather than exported: that function is private to `image.rs` and
 /// this is only the second call site (`avoid-duplication`: extract after the third). Unlike
 /// that word-token version, this compares characters (see the constant's doc comment for why).
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn ocr_structure_heuristic_char_retention(restructured_text: &str, baseline_text: &str) -> f64 {
     let baseline_chars = ocr_structure_heuristic_canonical_chars(baseline_text);
     if baseline_chars.is_empty() {
@@ -3439,7 +2676,7 @@ pub(super) fn ocr_structure_heuristic_char_retention(restructured_text: &str, ba
 /// classification -- see `ocr_doc_to_layout_paragraphs` and `layout_classify`'s Picture
 /// arm) and requires every baseline token to survive; anything less rejects the
 /// heuristic's output entirely so the caller falls back to that same lossless baseline. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn restructured_document_retains_prose(
     pages: &[Vec<crate::pdf::structure::types::PdfParagraph>],
     collected_tables: &[crate::types::Table],
@@ -3499,7 +2736,7 @@ fn restructured_document_retains_prose(
 /// the split (e.g. the heuristic dropped an empty page) has no entry in the returned map,
 /// mirroring the `None`-means-"nothing structured" contract the caller's pre-existing
 /// per-page builders already use.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn split_document_global_ocr_structure_by_page(
     doc: crate::types::internal::InternalDocument,
     ocr_page_numbers: &[u32],
@@ -3560,37 +2797,8 @@ pub(super) fn split_document_global_ocr_structure_by_page(
     }
     result
 }
-/// Convert a TATR-recognized table into the public [`crate::types::Table`],
-/// carrying over its `detection_bbox` and assigning a deterministic `table_id`.
-///
-/// `table_index` is the table's 0-based position in the document's push order
-/// (see the caller), so the id is `"table-{table_index + 1}"` — never derived
-/// from randomness or wall-clock time, so the same input document always
-/// produces the same id. See [`crate::types::Table::table_id`] for the shared
-/// scheme doc.
-#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
-pub(super) fn recognized_table_to_public_table(
-    recognized: &crate::RecognizedTable,
-    page_number: u32,
-    table_index: usize,
-) -> crate::types::Table {
-    crate::types::Table {
-        cells: recognized.cells.clone(),
-        markdown: recognized.markdown.clone(),
-        page_number,
-        bounding_box: Some(crate::types::BoundingBox {
-            x0: recognized.detection_bbox.x1 as f64,
-            y0: recognized.detection_bbox.y1 as f64,
-            x1: recognized.detection_bbox.x2 as f64,
-            y1: recognized.detection_bbox.y2 as f64,
-        }),
-        table_id: Some(format!("table-{}", table_index + 1)),
-        columns: recognized.cells.first().cloned(),
-        cell_styles: Vec::new(),
-    }
-}
 
-#[cfg(all(test, feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(test, feature = "pdf", feature = "ocr-pipeline"))]
 mod public_ocr_handoff_tests {
     use super::*;
     use crate::extraction::derive::{adopt_public_ocr_document, derive_extraction_result};
@@ -3925,7 +3133,7 @@ mod public_ocr_handoff_tests {
     }
 }
 
-#[cfg(all(test, any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(test, feature = "ocr-pipeline"))]
 mod tests {
     use super::*;
     use crate::pdf::structure::types::PdfParagraph;
@@ -3956,8 +3164,6 @@ mod tests {
             native_scripts: Vec::new(),
             segments: vec![segment],
             baseline_y: 0.0,
-            dominant_font_size: 12.0,
-            is_bold: false,
             is_monospace: false,
         };
         PdfParagraph {
@@ -4043,10 +3249,6 @@ mod tests {
     }
 }
 
-#[cfg(all(test, feature = "pdf", feature = "ocr"))]
-#[path = "document/table_grid_geometry_tests.rs"]
-mod table_grid_geometry_tests;
-
-#[cfg(all(test, any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(test, feature = "ocr-pipeline"))]
 #[path = "document/source_strip_frame_tests.rs"]
 mod source_strip_frame_tests;

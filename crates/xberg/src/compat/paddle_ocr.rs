@@ -250,7 +250,7 @@ impl PaddleOcrConfig {
     /// let cache_dir = config.resolve_cache_dir();
     /// println!("Cache directory: {:?}", cache_dir);
     /// ```
-    #[cfg_attr(alef, alef(skip))]
+
     pub fn resolve_cache_dir(&self) -> PathBuf {
         if let Some(path) = &self.cache_dir {
             return path.clone();
@@ -794,7 +794,6 @@ mod tests {
     }
 }
 
-#[cfg_attr(alef, alef(skip))]
 /// Resolved recognition model with engine pool key for sharing.
 #[derive(Debug, Clone)]
 pub struct ResolvedRecModel {
@@ -809,7 +808,7 @@ pub struct ResolvedRecModel {
 }
 
 /// Paths to shared models (detection + classification).
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone)]
 pub struct SharedModelPaths {
     /// Exact path to the detection ONNX model in the Hugging Face snapshot.
@@ -819,7 +818,7 @@ pub struct SharedModelPaths {
 }
 
 /// Paths to a recognition model and its character dictionary.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone)]
 pub struct RecModelPaths {
     /// Exact path to the recognition ONNX model in the Hugging Face snapshot.

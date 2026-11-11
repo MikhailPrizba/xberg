@@ -126,7 +126,7 @@ pub(crate) fn inherit_test_ocr_backend<F: std::future::Future>(
 }
 
 /// Get the global OCR backend registry.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn get_ocr_backend_registry() -> Arc<RwLock<OcrBackendRegistry>> {
     #[cfg(all(test, feature = "pdf", feature = "ocr-pipeline"))]
     if let Ok(registry) = TEST_OCR_BACKEND_REGISTRY.try_with(Arc::clone) {
@@ -155,10 +155,7 @@ pub fn get_ocr_backend_registry() -> Arc<RwLock<OcrBackendRegistry>> {
 /// Lives here rather than in `extractors/pdf` because the PDF page routes and the
 /// container embedded-image route (`extraction::image_ocr`) must answer this one
 /// question the same way. ~keep
-#[cfg(all(
-    feature = "ocr-pipeline",
-    any(feature = "pdf", all(feature = "ocr", feature = "tokio-runtime"))
-))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(crate) fn automatic_ocr_backend_is_registered() -> bool {
     let ocr_config = crate::core::config::OcrConfig::default();
     if ocr_config.pipeline.is_some() {
@@ -170,44 +167,44 @@ pub(crate) fn automatic_ocr_backend_is_registered() -> bool {
 }
 
 /// Get the global embedding backend registry.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn get_embedding_backend_registry() -> Arc<RwLock<EmbeddingBackendRegistry>> {
     EMBEDDING_BACKEND_REGISTRY.clone()
 }
 
 /// Get the global reranker backend registry.
 ///
-#[cfg_attr(alef, alef(skip))]
+
 pub fn get_reranker_backend_registry() -> Arc<RwLock<RerankerBackendRegistry>> {
     RERANKER_BACKEND_REGISTRY.clone()
 }
 
 /// Get the global tokenizer backend registry.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn get_tokenizer_backend_registry() -> Arc<RwLock<TokenizerBackendRegistry>> {
     TOKENIZER_BACKEND_REGISTRY.clone()
 }
 
 /// Get the global document extractor registry.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn get_document_extractor_registry() -> Arc<RwLock<DocumentExtractorRegistry>> {
     DOCUMENT_EXTRACTOR_REGISTRY.clone()
 }
 
 /// Get the global post-processor registry.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn get_post_processor_registry() -> Arc<RwLock<PostProcessorRegistry>> {
     POST_PROCESSOR_REGISTRY.clone()
 }
 
 /// Get the global validator registry.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn get_validator_registry() -> Arc<RwLock<ValidatorRegistry>> {
     VALIDATOR_REGISTRY.clone()
 }
 
 /// Get the global renderer registry.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn get_renderer_registry() -> Arc<RwLock<RendererRegistry>> {
     RENDERER_REGISTRY.clone()
 }
@@ -278,10 +275,9 @@ pub(crate) mod test_support {
             // ~keep Liveness is configuration-dependent: the only consumers are compiled out on
             // narrow feature legs, so `-D dead-code` fires there and nowhere else. A hand-kept
             // union-of-consumers `cfg` is what drifted here and failed the 1.3.0 publish (GH#1951).
-            #[allow(dead_code)]
+
             pub(crate) struct $guard(#[allow(dead_code)] std::sync::MutexGuard<'static, ()>);
 
-            #[allow(dead_code)]
             impl $guard {
                 pub(crate) fn acquire() -> Self {
                     static $lock: std::sync::Mutex<()> = std::sync::Mutex::new(());

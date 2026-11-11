@@ -12,7 +12,6 @@
     "simd-utf8",
     "auto-rotate-types",
     "layout-types",
-    "paddle-ocr-types",
     "embedding-presets",
     "reranker-presets",
     "sparse-embedding-presets",
@@ -39,7 +38,8 @@
   "kept_workspace_members": [
     "crates/xberg",
     "crates/xberg-native-pdf",
-    "crates/xberg-py"
+    "crates/xberg-py",
+    "crates/xberg-pdfium-render"
   ],
   "removed_languages": [
     "node",
@@ -67,7 +67,6 @@
     "docker",
     "cli-proxy",
     "templates",
-    "fixtures",
     "mise-tasks",
     ".github",
     ".claude-plugin",
@@ -124,9 +123,7 @@
   "support_features": [
     "image-metadata (EXIF parsing without a bundled OCR engine)"
   ],
-  "dormant_path_crates": [
-    "crates/xberg-pdfium-render"
-  ],
+  "dormant_path_crates": [],
   "build_cache": "../.cache/xberg-compact/target (overridable by CARGO_TARGET_DIR)",
   "removed_crates": [
     "xberg-candle-ocr",
@@ -236,12 +233,37 @@
     "wordperfect"
   ],
   "retained_optional_features": {
-    "pdf-pdfium": "Optional PDFium backend, disabled by default"
+    "pdf-pdfium": "Opt-in backend; crate is a workspace member for maintenance, disabled in the default Python build"
   },
   "retained_test_support": [
     "Native parser fixtures and tests",
-    "schemas/document-content.schema.json"
+    "schemas/document-content.schema.json",
+    "Only compile-time PDF/TSV resources referenced by retained core tests under fixtures/repros"
   ],
   "python_build_configuration": "pyproject.toml at repository root; packages/python contains the Python module and tests",
-  "paddle_compatibility_types": "crates/xberg/src/compat/paddle_ocr.rs"
+  "paddle_compatibility_types": "crates/xberg/src/compat/paddle_ocr.rs",
+  "removed_dev_dependencies": [
+    "dotenvy",
+    "futures",
+    "jpeg-encoder",
+    "qrcode",
+    "safetensors",
+    "tokio-test",
+    "wiremock"
+  ],
+  "dead_code_cleanup": {
+    "deleted_rust_source_files": 181,
+    "deleted_inactive_test_targets": 172,
+    "removed_dev_dependencies": [
+      "dotenvy",
+      "futures",
+      "jpeg-encoder",
+      "qrcode",
+      "safetensors",
+      "tokio-test",
+      "wiremock"
+    ],
+    "pdfium_bindings": "checked-in Rust FFI retained; bindgen generator and C headers removed",
+    "scope": "Remove code unavailable under retained Cargo features and unused private implementation; preserve public Python DTO/API compatibility and parser behavior."
+  }
 }

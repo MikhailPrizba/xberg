@@ -70,7 +70,7 @@ const BASE64_DECODED_BLOCK_SIZE: usize = 3;
 /// - Cell content (code and markdown)
 /// - Cell outputs (text, HTML, etc.)
 /// - Cell-level metadata (tags, execution counts)
-#[cfg_attr(alef, alef(skip))]
+
 #[cfg(feature = "notebook")]
 pub struct JupyterExtractor;
 
@@ -1499,16 +1499,6 @@ impl Plugin for JupyterExtractor {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl InternalDocumentExtractor for JupyterExtractor {
-    #[cfg_attr(
-        feature = "otel",
-        tracing::instrument(
-            skip(self, content, config),
-            fields(
-                extractor.name = self.name(),
-                content.size_bytes = content.len(),
-            )
-        )
-    )]
     async fn extract_content(
         &self,
         content: &[u8],

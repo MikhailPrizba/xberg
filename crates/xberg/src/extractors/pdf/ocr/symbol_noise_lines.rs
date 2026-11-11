@@ -315,7 +315,7 @@ pub(super) fn prune_paragraphs(paragraphs: &mut Vec<PdfParagraph>) {
 /// inside one surviving line to that line's new offset. An annotation that crosses a line
 /// boundary is dropped, even between two surviving lines: its byte range has no single new
 /// offset once the lines between or around it are gone.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 fn prune_element_text(element: &mut crate::types::internal::InternalElement) -> bool {
     let mut kept = String::with_capacity(element.text.len());
     let mut spans: Vec<(usize, usize, usize)> = Vec::new();
@@ -355,40 +355,15 @@ fn prune_element_text(element: &mut crate::types::internal::InternalElement) -> 
     !element.text.trim().is_empty()
 }
 
-/// Prunes a standalone image's OCR text and its hOCR element tree together when the page text
-/// is both recognition noise and dominated by symbol-noise lines. Returns the number of lines
-/// removed. Pages holding a table are left alone.
-#[cfg(all(feature = "ocr", feature = "pdf"))]
-pub(crate) fn prune_standalone_image_noise(
-    content: &mut String,
-    document: Option<&mut crate::types::internal::InternalDocument>,
-    has_tables: bool,
-    thresholds: &crate::core::config::OcrQualityThresholds,
-) -> usize {
-    if !thresholds.prune_symbol_noise_lines
-        || has_tables
-        || !super::scoring::is_ocr_recognition_noise(content, thresholds)
-        || !page_is_dominated_by_noise_lines(content.lines())
-    {
-        return 0;
-    }
-    let (pruned, removed) = prune_text(content);
-    *content = pruned;
-    if let Some(document) = document {
-        prune_document_elements(document);
-    }
-    removed
-}
-
 /// Whether a document's text elements can be pruned: relationships refer to elements by
 /// position, so removing one would leave them pointing at the wrong element.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn elements_are_prunable(document: &crate::types::internal::InternalDocument) -> bool {
     document.relationships.is_empty()
 }
 
 /// Prunes the text elements of a document, unless [`elements_are_prunable`] is false.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn prune_document_elements(document: &mut crate::types::internal::InternalDocument) {
     use crate::types::internal::ElementKind;
 

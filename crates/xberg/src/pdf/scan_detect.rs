@@ -76,7 +76,7 @@ const SCORE_BILEVEL_CODEC: f32 = 0.10;
 const SCORE_SCANNER_PRODUCER: f32 = 0.05;
 
 /// Per-page evidence, gathered without decoding image pixels.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct PageScanSignals {
     /// Fraction of the page covered by raster images, clamped to `[0, 1]`.
@@ -99,7 +99,7 @@ pub(crate) struct PageScanSignals {
 }
 
 /// Document-level detection outcome.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ScanDetection {
     /// Highest per-page confidence in the document, in `[0, 1]`.
@@ -181,13 +181,13 @@ fn image_coverage(doc: &PdfDocument, page_index: usize) -> Option<f32> {
 // (`any(ocr, ocr-pipeline)`) and by `image::dpi::planned_pdf_ocr_render_dpi`, whose module is gated
 // `any(ocr-pipeline, layout-detection)`. Gating these on `pdf` alone, as the whole file is,
 // left them with no caller on a `pdf`-only build and broke `-D warnings` there. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 const OCR_SCAN_COVERAGE_MIN: f32 = 0.25;
 
 /// A scan's own text layer is furniture: a page number, a running header, a stamp. A page
 /// with more glyphs than this beside a raster is a text page with a figure. A nine-word
 /// stamp is about sixty glyphs; a page of prose is thousands.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 const OCR_SCAN_MAX_GLYPHS: usize = 400;
 
 /// The density, in dots per inch, of a page that is a scan: one raster with at most a stamp
@@ -202,7 +202,7 @@ const OCR_SCAN_MAX_GLYPHS: usize = 400;
 /// The density is that of the largest image on the page, its pixel count over the area it is
 /// painted into, so a 1650 x 2160 px image painted over a Letter page reports about 196 dpi
 /// whatever the page's render resolution is (#1786). No pixel data is decoded.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn full_page_raster_density(doc: &PdfDocument, page_index: usize) -> Option<f64> {
     let (coverage, density) = page_raster_geometry(doc, page_index)?;
     // GH#1786 review: this is the whole-page threshold (0.80), NOT `IMAGE_COVERAGE_MIN` (0.15),
@@ -233,12 +233,12 @@ pub(crate) fn full_page_raster_density(doc: &PdfDocument, page_index: usize) -> 
 /// Whether the page's rasters cover at least [`OCR_SCAN_COVERAGE_MIN`] of it, the least a scan
 /// covers, inset or whole-page. The text layer is not consulted: a page that carries a scan is
 /// a scan to the OCR engine whatever text is drawn over it. No pixel data is decoded.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn carries_scan_raster(doc: &PdfDocument, page_index: usize) -> bool {
     image_coverage(doc, page_index).is_some_and(|coverage| coverage >= OCR_SCAN_COVERAGE_MIN)
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 fn readable_glyph_count(spans: &[TextSpan]) -> usize {
     spans
         .iter()

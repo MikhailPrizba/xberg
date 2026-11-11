@@ -1,6 +1,6 @@
 use super::test_support::make_doc;
 use super::*;
-#[cfg(any(feature = "pdf", feature = "ocr"))]
+#[cfg(feature = "pdf")]
 use crate::types::internal::InternalDocument;
 use crate::types::internal::{ElementKind, InternalElement};
 
@@ -420,89 +420,7 @@ fn renderer_reseed_runs_in_child() -> bool {
     false
 }
 
-/// #259: `code_intelligence` must surface the tree-sitter-derived
-/// `FormatMetadata::Code` payload instead of being hardcoded to `None`, even
-/// for an `InternalDocument` that never went through `CodeExtractor` (so has
-/// no `CODE_INTELLIGENCE_SCRATCH_KEY` entry in `metadata.additional`) — the
-/// fallback path serializes `CodeMetadata` directly. See
-/// `test_derive_extraction_result_prefers_full_process_result_over_code_metadata`
-/// for the primary, `CodeExtractor`-shaped path.
-#[cfg(feature = "tree-sitter")]
-#[test]
-fn test_derive_extraction_result_populates_code_intelligence_from_code_metadata() {
-    use crate::types::metadata::{CodeChunkInfo, CodeMetadata, FormatMetadata};
-
-    let mut doc = make_doc("code");
-    doc.push_element(InternalElement::text(ElementKind::Paragraph, "fn main() {}", 0));
-    doc.metadata.format = Some(FormatMetadata::Code(CodeMetadata {
-        chunks: vec![CodeChunkInfo {
-            text: "fn main() {}".to_string(),
-            context_path: vec!["main".to_string()],
-            node_types: vec!["function_definition".to_string()],
-            byte_start: 0,
-            byte_end: 12,
-        }],
-        data: None,
-    }));
-
-    let result = derive_extraction_result(doc, false, crate::core::config::OutputFormat::Plain);
-
-    let code_intelligence = result
-        .code_intelligence
-        .expect("code_intelligence must be populated when FormatMetadata::Code is present");
-    assert_eq!(
-        code_intelligence["chunks"][0]["context_path"][0],
-        serde_json::json!("main")
-    );
-}
-
-/// #259: when `metadata.additional` carries the full serialized
-/// `tree_sitter_language_pack::ProcessResult` under
-/// `extractors::code::CODE_INTELLIGENCE_SCRATCH_KEY` (as `CodeExtractor`
-/// populates it), derivation must prefer that full payload over the
-/// `CodeMetadata`-only fallback, and must remove the scratch key so it does
-/// not leak into the final `ExtractedDocument.metadata.additional` map.
-#[cfg(feature = "tree-sitter")]
-#[test]
-fn test_derive_extraction_result_prefers_full_process_result_over_code_metadata() {
-    use crate::types::metadata::{CodeMetadata, FormatMetadata};
-
-    let mut doc = make_doc("code");
-    doc.push_element(InternalElement::text(ElementKind::Paragraph, "def f(): pass", 0));
-    doc.metadata.format = Some(FormatMetadata::Code(CodeMetadata::default()));
-    doc.metadata.additional.insert(
-        std::borrow::Cow::Borrowed(crate::extractors::code::CODE_INTELLIGENCE_SCRATCH_KEY),
-        serde_json::json!({"language": "python", "metrics": {"total_lines": 1}}),
-    );
-
-    let result = derive_extraction_result(doc, false, crate::core::config::OutputFormat::Plain);
-
-    let code_intelligence = result
-        .code_intelligence
-        .expect("code_intelligence must be populated from the scratch key");
-    assert_eq!(code_intelligence["language"], serde_json::json!("python"));
-    assert_eq!(code_intelligence["metrics"]["total_lines"], serde_json::json!(1));
-    // The stashed key must not leak into the final metadata.
-    assert!(
-        !result
-            .metadata
-            .additional
-            .contains_key(crate::extractors::code::CODE_INTELLIGENCE_SCRATCH_KEY),
-        "scratch key must be removed before assembling the final ExtractedDocument"
-    );
-}
-
-#[cfg(feature = "tree-sitter")]
-#[test]
-fn test_derive_extraction_result_code_intelligence_none_without_code_metadata() {
-    let mut doc = make_doc("markdown");
-    doc.push_element(InternalElement::text(ElementKind::Paragraph, "Hello world.", 0));
-
-    let result = derive_extraction_result(doc, false, crate::core::config::OutputFormat::Plain);
-    assert!(result.code_intelligence.is_none());
-}
-
-#[cfg(any(feature = "pdf", feature = "ocr"))]
+#[cfg(feature = "pdf")]
 #[test]
 fn test_derive_extraction_result_with_structure() {
     let mut doc = make_doc("pdf");
@@ -516,7 +434,7 @@ fn test_derive_extraction_result_with_structure() {
     assert_eq!(ds.source_format.as_deref(), Some("pdf"));
 }
 
-#[cfg(any(feature = "pdf", feature = "ocr"))]
+#[cfg(feature = "pdf")]
 #[test]
 fn test_source_format_cow_owned_propagates() {
     let owned: std::borrow::Cow<'static, str> = std::borrow::Cow::Owned("epub".to_string());
@@ -561,12 +479,9 @@ fn test_derive_extraction_result_ignores_unknown_extraction_method() {
 /// not the formatted representation ("# Introduction"). This tests the full pipeline
 /// state as seen by callers (derive + apply_output_format).
 #[cfg(any(
-    feature = "ocr",
     feature = "office",
     feature = "pdf",
-    paddle_ocr,
     feature = "xml",
-    feature = "hwpx",
     feature = "quality",
     feature = "chunking"
 ))]
@@ -603,12 +518,9 @@ fn page_content_markdown_heading_is_formatted() {
 
 /// Plain output must leave page content as raw element text — no regressions.
 #[cfg(any(
-    feature = "ocr",
     feature = "office",
     feature = "pdf",
-    paddle_ocr,
     feature = "xml",
-    feature = "hwpx",
     feature = "quality",
     feature = "chunking"
 ))]
@@ -638,12 +550,9 @@ fn page_content_plain_format_unchanged() {
 
 /// Each page's formatted content must only contain that page's elements.
 #[cfg(any(
-    feature = "ocr",
     feature = "office",
     feature = "pdf",
-    paddle_ocr,
     feature = "xml",
-    feature = "hwpx",
     feature = "quality",
     feature = "chunking"
 ))]
@@ -688,12 +597,9 @@ fn page_content_per_page_isolation() {
 
 /// List items must render as `- item` in markdown output, not bare text.
 #[cfg(any(
-    feature = "ocr",
     feature = "office",
     feature = "pdf",
-    paddle_ocr,
     feature = "xml",
-    feature = "hwpx",
     feature = "quality",
     feature = "chunking"
 ))]
@@ -725,12 +631,9 @@ fn page_content_markdown_list_items_formatted() {
 
 /// HTML output must render headings as `<h1>` tags, not bare text.
 #[cfg(any(
-    feature = "ocr",
     feature = "office",
     feature = "pdf",
-    paddle_ocr,
     feature = "xml",
-    feature = "hwpx",
     feature = "quality",
     feature = "chunking"
 ))]
@@ -823,12 +726,9 @@ fn page_content_prebuilt_page_only_tables_are_preserved() {
 /// page-tagged elements must keep its original content unchanged. This covers the
 /// per-page early-return branch inside apply_page_content_format.
 #[cfg(any(
-    feature = "ocr",
     feature = "office",
     feature = "pdf",
-    paddle_ocr,
     feature = "xml",
-    feature = "hwpx",
     feature = "quality",
     feature = "chunking"
 ))]
@@ -894,12 +794,9 @@ fn page_content_page_without_matching_elements_unchanged() {
 /// would produce malformed fragments. The comment in apply_page_content_format
 /// explains the rationale; this test locks the observable contract.
 #[cfg(any(
-    feature = "ocr",
     feature = "office",
     feature = "pdf",
-    paddle_ocr,
     feature = "xml",
-    feature = "hwpx",
     feature = "quality",
     feature = "chunking"
 ))]

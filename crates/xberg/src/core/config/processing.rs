@@ -75,32 +75,12 @@ pub enum ChunkSizing {
     /// Size measured in Unicode characters (default).
     #[default]
     Characters,
-    /// Size measured in tokens from a HuggingFace tokenizer or a registered
-    /// tokenizer backend.
-    #[cfg(feature = "chunking-tokenizers")]
-    Tokenizer {
-        /// Name of a tokenizer backend registered via `register_tokenizer_backend`,
-        /// or a HuggingFace model ID, e.g. "Xenova/gpt-4o", "bert-base-uncased".
-        /// A registered backend name takes precedence over a HuggingFace ID.
-        model: String,
-        /// Optional cache directory override for tokenizer files.
-        /// Defaults to hf-hub's standard cache (`~/.cache/huggingface/`).
-        /// Can also be set via `XBERG_TOKENIZER_CACHE_DIR` environment variable.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        cache_dir: Option<std::path::PathBuf>,
-    },
 }
 
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 enum ChunkSizingWire {
     Characters {},
-    #[cfg(feature = "chunking-tokenizers")]
-    Tokenizer {
-        model: String,
-        #[serde(default)]
-        cache_dir: Option<std::path::PathBuf>,
-    },
 }
 
 impl<'de> Deserialize<'de> for ChunkSizing {
@@ -110,8 +90,6 @@ impl<'de> Deserialize<'de> for ChunkSizing {
     {
         Ok(match ChunkSizingWire::deserialize(deserializer)? {
             ChunkSizingWire::Characters {} => Self::Characters,
-            #[cfg(feature = "chunking-tokenizers")]
-            ChunkSizingWire::Tokenizer { model, cache_dir } => Self::Tokenizer { model, cache_dir },
         })
     }
 }
@@ -226,7 +204,6 @@ pub struct ChunkingConfig {
     /// `embedding`, this has no CLI flag and no environment variable. Only the secret/identity
     /// fields of LLM-routed configs (model, API key, base URL) get that reach. ~keep
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub sparse_embedding: Option<super::sparse_embedding::SparseEmbeddingConfig>,
 
     /// Optional late-interaction (ColBERT) embedding configuration for chunk embeddings.
@@ -238,7 +215,6 @@ pub struct ChunkingConfig {
     ///
     /// Config-file only, for the same reason as `sparse_embedding` above. ~keep
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub late_interaction: Option<super::late_interaction::LateInteractionConfig>,
 
     /// Use a preset configuration (overrides individual settings if provided).
@@ -292,44 +268,8 @@ impl ChunkingConfig {
         self
     }
 
-    /// Resolve a preset name into concrete chunking and embedding configuration.
-    ///
-    /// When `preset` is set (e.g., `"balanced"`), this overrides `max_characters` and
-    /// `overlap` from the preset definition, and configures the embedding model if
-    /// no embedding config was explicitly provided.
-    ///
-    /// If the preset name is not recognized, a warning is logged and the config
-    /// is returned unchanged.
-    ///
-    /// Requires the `embeddings` feature. Without it, this is a no-op that returns
-    /// the config unchanged.
-    #[cfg(feature = "embeddings")]
-    pub(crate) fn resolve_preset(&self) -> Self {
-        let preset_name = match &self.preset {
-            Some(name) => name,
-            None => return self.clone(),
-        };
-
-        let preset = match crate::embeddings::get_preset(preset_name) {
-            Some(p) => p,
-            None => {
-                tracing::warn!(
-                    "Unknown chunking preset '{}', using manual config. Available: {:?}",
-                    preset_name,
-                    crate::embeddings::list_presets()
-                );
-                return self.clone();
-            }
-        };
-
-        let mut resolved = self.clone();
-        resolved.max_characters = preset.chunk_size;
-        resolved.overlap = preset.overlap;
-        resolved
-    }
-
     /// Resolve a preset name (no-op without the `embeddings` feature).
-    #[cfg(all(feature = "chunking", not(feature = "embeddings")))]
+    #[cfg(feature = "chunking")]
     pub(crate) fn resolve_preset(&self) -> Self {
         if self.preset.is_some() {
             tracing::warn!("Chunking presets require the 'embeddings' feature");

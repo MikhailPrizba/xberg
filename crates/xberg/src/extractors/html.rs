@@ -27,7 +27,6 @@ use std::path::Path;
 /// `ProcessingWarning::source` for every warning this extractor emits (#171).
 const HTML_WARNING_SOURCE: &str = "html";
 
-#[cfg_attr(alef, alef(skip))]
 /// HTML document extractor using html-to-markdown.
 pub struct HtmlExtractor;
 
@@ -916,12 +915,7 @@ impl InternalDocumentExtractor for HtmlExtractor {
     }
 
     #[cfg(feature = "tokio-runtime")]
-    #[cfg_attr(feature = "otel", tracing::instrument(
-        skip(self, path, config),
-        fields(
-            extractor.name = self.name(),
-        )
-    ))]
+
     async fn extract_path(&self, path: &Path, mime_type: &str, config: &ExtractionConfig) -> Result<InternalDocument> {
         let bytes = crate::core::io::read_file_async(path).await?;
         self.extract_content(&bytes, mime_type, config).await

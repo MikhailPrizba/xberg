@@ -15,7 +15,7 @@ use std::path::Path;
 /// PST file extractor.
 ///
 /// Supports: .pst (Microsoft Outlook Personal Folders)
-#[cfg_attr(alef, alef(skip))]
+
 pub struct PstExtractor;
 
 impl Default for PstExtractor {
@@ -160,12 +160,7 @@ impl InternalDocumentExtractor for PstExtractor {
     }
 
     #[cfg(feature = "tokio-runtime")]
-    #[cfg_attr(feature = "otel", tracing::instrument(
-        skip(self, path, config),
-        fields(
-            extractor.name = self.name(),
-        )
-    ))]
+
     async fn extract_path(&self, path: &Path, mime_type: &str, config: &ExtractionConfig) -> Result<InternalDocument> {
         let (messages, processing_warnings) = crate::extraction::pst::extract_pst_from_path(path)?;
 

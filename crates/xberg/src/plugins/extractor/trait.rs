@@ -136,7 +136,7 @@ pub trait DocumentExtractor: Plugin {
 ///
 /// Skipped by the binding surface: it returns the internal-only
 /// [`InternalDocument`], which is not part of the public binding API.
-#[cfg_attr(alef, alef(skip))]
+
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait InternalDocumentExtractor: Plugin {

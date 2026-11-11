@@ -21296,18 +21296,6 @@ impl ChunkSizing {
             .map(String::from)
             .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("type not found in serialized enum"))
     }
-    #[cfg(feature = "chunking-tokenizers")]
-    #[pyo3(name = "tokenizer")]
-    #[pyo3(signature = (model, cache_dir=None))]
-    #[staticmethod]
-    pub fn _factory_tokenizer(model: String, cache_dir: Option<String>) -> Self {
-        Self {
-            inner: xberg::ChunkSizing::Tokenizer {
-                model,
-                cache_dir: cache_dir.map(Into::into),
-            },
-        }
-    }
 }
 
 impl From<ChunkSizing> for xberg::ChunkSizing {
@@ -23851,7 +23839,7 @@ impl FormatMetadata {
     #[getter]
     fn code(&self) -> Option<CodeMetadata> {
         match &self.inner {
-            #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+            #[cfg(feature = "tree-sitter-types")]
             xberg::FormatMetadata::Code(data) => Some(data.clone().into()),
             _ => None,
         }
@@ -24035,7 +24023,7 @@ impl FormatMetadata {
         })
     }
 
-    #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+    #[cfg(feature = "tree-sitter-types")]
     #[pyo3(name = "from_code")]
     #[staticmethod]
     pub fn _factory_from_code(py: Python<'_>, value: &Bound<'_, pyo3::types::PyAny>) -> PyResult<Self> {
@@ -31222,7 +31210,9 @@ pub fn classify_chunks_owned<'py>(
     result: ExtractedDocument,
     config: ChunkClassificationConfig,
 ) -> PyResult<Bound<'py, PyAny>> {
-    Err(pyo3::exceptions::PyNotImplementedError::new_err("classify_chunks_owned is disabled in the compact extraction build"))
+    Err(pyo3::exceptions::PyNotImplementedError::new_err(
+        "classify_chunks_owned is disabled in the compact extraction build",
+    ))
 }
 
 #[allow(clippy::missing_errors_doc)]
@@ -31409,7 +31399,9 @@ pub fn extract_with_layout_pages<'py>(
     config: ExtractionConfig,
     pages: Vec<u32>,
 ) -> PyResult<Bound<'py, PyAny>> {
-    Err(pyo3::exceptions::PyNotImplementedError::new_err("extract_with_layout_pages requires layout inference, which is disabled in the compact extraction build"))
+    Err(pyo3::exceptions::PyNotImplementedError::new_err(
+        "extract_with_layout_pages requires layout inference, which is disabled in the compact extraction build",
+    ))
 }
 
 #[pyfunction]
@@ -31508,7 +31500,9 @@ pub fn list_validators(py: Python<'_>) -> PyResult<Vec<String>> {
 #[pyfunction]
 #[pyo3(signature = (uri, config))]
 pub fn map_url<'py>(py: Python<'py>, uri: String, config: UrlExtractionConfig) -> PyResult<Bound<'py, PyAny>> {
-    Err(pyo3::exceptions::PyNotImplementedError::new_err("map_url is disabled in the compact extraction build"))
+    Err(pyo3::exceptions::PyNotImplementedError::new_err(
+        "map_url is disabled in the compact extraction build",
+    ))
 }
 
 #[pyfunction]
@@ -31633,7 +31627,7 @@ pub struct PyTokenizerBackendMarker;
 /// generated `options._from_native_*` converter, so trait-callback hosts receive the
 /// type the package exports under that name. Falls back to the native object when the
 /// options module is unavailable (attribute access is identical either way).
-#[allow(dead_code)]
+
 fn __alef_options_from_native<'py, T>(py: Python<'py>, func: &str, native: T) -> pyo3::Py<pyo3::PyAny>
 where
     T: pyo3::IntoPyObjectExt<'py>,
@@ -33517,7 +33511,7 @@ fn __alef_py_post_processor_bridge_process_merge_public_fields(
     std::mem::swap(&mut target.uris, &mut updated.uris);
     std::mem::swap(&mut target.revisions, &mut updated.revisions);
     std::mem::swap(&mut target.structured_output, &mut updated.structured_output);
-    #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+    #[cfg(feature = "tree-sitter-types")]
     {
         std::mem::swap(&mut target.code_intelligence, &mut updated.code_intelligence);
     }
@@ -37420,7 +37414,7 @@ impl From<xberg::ExtractedDocument> for ExtractedDocument {
             uris: val.uris.map(|v| v.into_iter().map(Into::into).collect()),
             revisions: val.revisions.map(|v| v.into_iter().map(Into::into).collect()),
             structured_output: val.structured_output.as_ref().map(ToString::to_string),
-            #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+            #[cfg(feature = "tree-sitter-types")]
             code_intelligence: val.code_intelligence.as_ref().map(ToString::to_string),
             llm_usage: val.llm_usage.map(|v| v.into_iter().map(Into::into).collect()),
             entities: val.entities.map(|v| v.into_iter().map(Into::into).collect()),
@@ -37600,7 +37594,7 @@ impl From<ExtractionConfig> for xberg::ExtractionConfig {
             concurrency: val.concurrency.map(Into::into),
             url: val.url.into(),
             max_archive_depth: val.max_archive_depth,
-            #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+            #[cfg(feature = "tree-sitter-types")]
             tree_sitter: val.tree_sitter.map(Into::into),
             structured_extraction: val.structured_extraction.map(Into::into),
             ner: val.ner.map(Into::into),
@@ -37672,7 +37666,7 @@ impl From<xberg::ExtractionConfig> for ExtractionConfig {
             concurrency: val.concurrency.map(Into::into),
             url: val.url.into(),
             max_archive_depth: val.max_archive_depth,
-            #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+            #[cfg(feature = "tree-sitter-types")]
             tree_sitter: val.tree_sitter.map(Into::into),
             structured_extraction: val.structured_extraction.map(Into::into),
             ner: val.ner.map(Into::into),
@@ -37842,7 +37836,7 @@ impl From<FileExtractionConfig> for xberg::FileExtractionConfig {
             #[cfg(feature = "transcription-types")]
             transcription: val.transcription.map(Into::into),
             timeout_secs: val.timeout_secs,
-            #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+            #[cfg(feature = "tree-sitter-types")]
             tree_sitter: val.tree_sitter.map(Into::into),
             structured_extraction: val.structured_extraction.map(Into::into),
             url: val.url.map(Into::into),
@@ -37894,7 +37888,7 @@ impl From<xberg::FileExtractionConfig> for FileExtractionConfig {
             #[cfg(feature = "transcription-types")]
             transcription: val.transcription.map(Into::into),
             timeout_secs: val.timeout_secs,
-            #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+            #[cfg(feature = "tree-sitter-types")]
             tree_sitter: val.tree_sitter.map(Into::into),
             structured_extraction: val.structured_extraction.map(Into::into),
             url: val.url.map(Into::into),
@@ -41704,7 +41698,7 @@ impl From<UrlExtractionConfig> for xberg::UrlExtractionConfig {
     fn from(val: UrlExtractionConfig) -> Self {
         Self {
             mode: val.mode.into(),
-            #[cfg(any(feature = "url-ingestion", feature = "url-config-types"))]
+            #[cfg(feature = "url-config-types")]
             crawl: val.crawl.into(),
             document_url_pattern: val.document_url_pattern,
             max_document_urls_per_result: val.max_document_urls_per_result,
@@ -41721,7 +41715,7 @@ impl From<xberg::UrlExtractionConfig> for UrlExtractionConfig {
     fn from(val: xberg::UrlExtractionConfig) -> Self {
         Self {
             mode: val.mode.into(),
-            #[cfg(any(feature = "url-ingestion", feature = "url-config-types"))]
+            #[cfg(feature = "url-config-types")]
             crawl: val.crawl.into(),
             document_url_pattern: val.document_url_pattern.map(|v| v.to_string()),
             max_document_urls_per_result: val.max_document_urls_per_result,

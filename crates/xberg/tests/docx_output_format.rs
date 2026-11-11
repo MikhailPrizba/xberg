@@ -162,39 +162,6 @@ Contact Jane Doe through [her page](https://example.com/jdoe).
         assert!(reread.content.contains("Contact"), "{}", reread.content);
         assert!(reread.content.contains("Lead"), "{}", reread.content);
     }
-
-    /// An archive member runs its own pipeline and is packaged before the parent's
-    /// redaction pass walks into it. `UEsDB` is how every base64-encoded zip archive
-    /// begins, so a parent pass that rewrote the member's `content` would corrupt it.
-    #[cfg(feature = "archives")]
-    #[tokio::test]
-    #[serial_test::serial]
-    async fn archive_members_keep_intact_packages_when_the_parent_is_redacted() {
-        use std::io::Write;
-
-        let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
-        archive
-            .start_file("member.md", zip::write::SimpleFileOptions::default())
-            .unwrap();
-        archive.write_all(b"# Member\n\nJane Doe signed off.\n").unwrap();
-        let bytes = archive.finish().unwrap().into_inner();
-
-        let result = extract_one(&bytes, "application/zip", &redacting(docx(), &["Jane Doe", "UEsDB"])).await;
-        let children = result.children.as_ref().expect("the archive member is extracted");
-        let member = children
-            .iter()
-            .find(|child| child.path == "member.md")
-            .expect("member.md is a child");
-
-        let parts = package_parts(&decode_package(&member.result));
-        let document = parts
-            .iter()
-            .find(|(name, _)| name == "word/document.xml")
-            .map(|(_, xml)| xml)
-            .expect("the member package has a document part");
-        assert!(document.contains("signed off."), "{document}");
-        assert!(!document.to_lowercase().contains("jane doe"), "{document}");
-    }
 }
 
 /// A post-processor that rewrites `content` without the rendering makes the pipeline

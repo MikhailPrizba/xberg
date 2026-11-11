@@ -3,7 +3,7 @@
 use super::bounding_box::BoundingBox;
 
 /// A block of text with spatial and semantic information.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TextBlock {
     /// The text content
@@ -17,7 +17,7 @@ pub struct TextBlock {
 /// Text segment data extracted from PDF.
 ///
 /// Backend-agnostic: populated by either the xberg_native_pdf or another extractor.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone)]
 pub struct SegmentData {
     /// The segment text content (may contain spaces / multiple words)

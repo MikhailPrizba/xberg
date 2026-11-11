@@ -14,7 +14,7 @@ use crate::types::{Metadata, PageInfo, PageStructure, PageUnitType};
 use ahash::AHashMap;
 use async_trait::async_trait;
 use std::borrow::Cow;
-#[cfg_attr(alef, alef(skip))]
+
 /// Native PPT extractor using OLE/CFB parsing.
 ///
 /// This extractor handles PowerPoint 97-2003 binary (.ppt) files without

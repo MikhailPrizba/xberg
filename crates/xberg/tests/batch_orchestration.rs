@@ -15,9 +15,6 @@ use helpers::{BytesInput, UriBatchInput, extract_bytes_documents, extract_uri_do
 use std::time::{Duration, Instant};
 use xberg::core::config::ExtractionConfig;
 
-#[cfg(feature = "ocr")]
-use xberg::core::config::OcrConfig;
-
 fn trim_trailing_newlines(value: &str) -> &str {
     value.trim_end_matches(['\n', '\r'])
 }
@@ -256,62 +253,6 @@ async fn test_concurrent_pdf_extractions() {
     assert_eq!(results.len(), 10);
 
     println!("Processed 10 PDFs in {:?}", duration);
-}
-
-/// Test OCR on multi-page scanned document.
-///
-/// Validates:
-/// - All pages are OCR'd
-/// - Results are combined correctly
-/// - Processing is efficient
-#[cfg(feature = "ocr")]
-#[test]
-fn test_ocr_multipage_efficiency() {
-    use helpers::{get_test_file_path, skip_if_missing};
-
-    if skip_if_missing("images/ocr_image.jpg") {
-        tracing::debug!("Skipping OCR multi-page test: test file not available");
-        return;
-    }
-
-    let config = ExtractionConfig {
-        ocr: Some(OcrConfig {
-            backend: "tesseract".to_string(),
-            language: vec!["eng".to_string()],
-            ..Default::default()
-        }),
-        force_ocr: false,
-        use_cache: true,
-        ..Default::default()
-    };
-
-    let file_path = get_test_file_path("images/ocr_image.jpg");
-
-    let start = Instant::now();
-    let result1 = helpers::extract_uri_document_blocking(&file_path, None, &config);
-    let first_duration = start.elapsed();
-
-    assert!(result1.is_ok(), "First OCR should succeed");
-
-    let start = Instant::now();
-    let result2 = helpers::extract_uri_document_blocking(&file_path, None, &config);
-    let second_duration = start.elapsed();
-
-    assert!(result2.is_ok(), "Second OCR should succeed");
-
-    println!(
-        "OCR timing: first={:?}, cached={:?}, speedup={:.1}x",
-        first_duration,
-        second_duration,
-        first_duration.as_secs_f64() / second_duration.as_secs_f64().max(0.001)
-    );
-
-    assert!(
-        second_duration < first_duration * 2,
-        "Second OCR run should not be significantly slower. First: {:?}, Second: {:?}",
-        first_duration,
-        second_duration
-    );
 }
 
 /// Test parallel processing of byte arrays.

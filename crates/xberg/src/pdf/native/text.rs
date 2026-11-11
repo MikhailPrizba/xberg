@@ -137,31 +137,6 @@ pub(crate) fn extract_text_and_metadata(
     Ok((text, boundaries, page_contents, metadata, evidence.financial_rows))
 }
 
-/// Extract text spans with bounding boxes from a single page.
-///
-/// Retains the native geometry and boundary evidence used to assemble layout-ordered text.
-#[cfg(feature = "layout-detection")]
-pub(crate) fn extract_spans_from_page(
-    doc: &mut xberg_native_pdf::PdfDocument,
-    page_index: usize,
-    margins: PageMarginFractions,
-) -> Result<(Vec<xberg_native_pdf::layout::TextSpan>, bool)> {
-    use xberg_native_pdf::document::ReadingOrder;
-
-    let mut page_text_data = super::guard_native_panic(
-        || {
-            doc.extract_page_text_with_options(page_index, ReadingOrder::ColumnAware)
-                .map_err(|e| PdfError::TextExtractionFailed(format!("Failed to extract page text: {}", e)))
-        },
-        |panic| PdfError::TextExtractionFailed(format!("Page text extraction panicked in xberg_native_pdf: {}", panic)),
-    )?;
-    let (page_bottom, page_top) = page_vertical_bounds(doc, page_index)?;
-    retain_spans_inside_page_margins(&mut page_text_data.spans, page_bottom, page_top, margins);
-    let reordered_sparse_columns = reorder_sparse_two_column_page(&mut page_text_data.spans, page_text_data.page_width);
-
-    Ok((page_text_data.spans, reordered_sparse_columns))
-}
-
 /// Whether the text pass must hand out per-page byte offsets, independent of whether the
 /// caller asked to collect `PageContent` itself.
 ///
@@ -962,46 +937,6 @@ fn assemble_page_text(spans: &[xberg_native_pdf::layout::TextSpan]) -> String {
     let notes = numeric_notes(spans);
     let ordered = order_spans_with_inline_fragments(spans, &notes);
     assemble_ordered_page_text(spans, ordered, &notes, |_, _| {})
-}
-
-/// Add native separators to the selected order without relocating inline fragments.
-#[cfg(feature = "layout-detection")]
-pub(crate) fn assemble_upright_layout_text(spans: &[xberg_native_pdf::layout::TextSpan], order: &[usize]) -> String {
-    assemble_upright_layout_text_observed(spans, order, |_, _| {})
-}
-
-#[cfg(feature = "layout-detection")]
-pub(crate) fn assemble_upright_layout_text_observed(
-    spans: &[xberg_native_pdf::layout::TextSpan],
-    order: &[usize],
-    observe: impl FnMut(usize, usize),
-) -> String {
-    let notes = numeric_notes(spans);
-    let mut anchors = inline_fragment_anchors(spans);
-    for (index, anchor) in anchors.iter_mut().enumerate() {
-        *anchor = anchor
-            .filter(|&base| !needs_numeric_script_boundary(&spans[base], &spans[index], &notes, spans.get(index + 1)));
-    }
-
-    let mut previous: Option<usize> = None;
-    let ordered = order.iter().filter_map(|&index| {
-        let span = spans.get(index)?;
-        let anchor = anchors[index];
-        let glue_to_previous = !span.split_boundary_before
-            && previous.is_some_and(|prev| {
-                let previous_anchor = anchors[prev];
-                anchor == Some(prev)
-                    || previous_anchor == Some(index)
-                    || (anchor.is_some() && anchor == previous_anchor)
-            });
-        previous = Some(index);
-        Some(OrderedSpan {
-            span,
-            glue_to_previous,
-            following: spans.get(index + 1),
-        })
-    });
-    assemble_ordered_page_text(spans, ordered, &notes, observe)
 }
 
 fn assemble_ordered_page_text<'a>(
@@ -3331,42 +3266,6 @@ mod tests {
             admitted.is_empty(),
             "right cells overlapping an earlier wrap or paired label were admitted: {admitted:?}"
         );
-    }
-
-    #[cfg(feature = "layout-detection")]
-    #[test]
-    fn layout_order_retains_source_adjacent_fragments_without_moving_spans() {
-        let spans = [
-            span_with_width("word", 72.0, 700.0, 20.0, 12.0, 12.0),
-            span_with_width("!", 92.0, 706.5, 2.0, 6.0, 6.0),
-            span_with_width("Other line", 72.0, 680.0, 44.0, 12.0, 12.0),
-        ];
-        assert_eq!(inline_fragment_anchors(&spans), [None, Some(0), None]);
-        assert_eq!(assemble_upright_layout_text(&spans, &[2, 0, 1]), "Other line\n\nword!");
-        assert_eq!(assemble_upright_layout_text(&spans, &[1, 0]), "!word");
-        assert_eq!(assemble_upright_layout_text(&spans, &[2, 1]), "Other line\n\n!");
-    }
-
-    #[cfg(feature = "layout-detection")]
-    #[test]
-    fn layout_order_respects_an_explicit_native_split_boundary() {
-        let first = span_with_width("alpha", 72.0, 700.0, 24.0, 12.0, 12.0);
-        let mut second = span_with_width("beta", 96.0, 700.0, 24.0, 12.0, 12.0);
-        second.split_boundary_before = true;
-        assert_eq!(assemble_upright_layout_text(&[first, second], &[0, 1]), "alpha beta");
-    }
-
-    #[cfg(feature = "layout-detection")]
-    #[test]
-    fn layout_order_respects_a_split_on_the_base_of_a_reversed_fragment() {
-        let mut base = span_with_width("word", 72.0, 700.0, 20.0, 12.0, 12.0);
-        base.split_boundary_before = true;
-        let fragment = span_with_width("!", 92.0, 706.5, 2.0, 6.0, 6.0);
-        let spans = [base, fragment];
-
-        assert_eq!(inline_fragment_anchors(&spans), [None, Some(0)]);
-        assert_eq!(assemble_upright_layout_text(&spans, &[0, 1]), "word!");
-        assert_eq!(assemble_upright_layout_text(&spans, &[1, 0]), "! word");
     }
 
     fn extract_fixture_page(relative: &str) -> Option<String> {

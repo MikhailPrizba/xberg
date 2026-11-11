@@ -237,35 +237,6 @@ fn test_archive_deeply_nested_directories() {
 }
 
 #[test]
-#[cfg(feature = "archives")]
-fn test_archive_many_small_files() {
-    let mut cursor = std::io::Cursor::new(Vec::new());
-    {
-        use zip::write::{FileOptions, ZipWriter};
-        let mut zip = ZipWriter::new(&mut cursor);
-        let options = FileOptions::<'_, '_, ()>::default();
-
-        for i in 0..1000 {
-            zip.start_file(format!("file{}.txt", i), options)
-                .expect("Operation failed");
-            zip.write_all(b"small content").expect("Operation failed");
-        }
-
-        zip.finish().expect("Operation failed");
-    }
-
-    let bytes = cursor.into_inner();
-    let config = ExtractionConfig::default();
-
-    let result = extract_bytes_document_blocking(&bytes, "application/zip", &config);
-
-    assert!(result.is_ok());
-    if let Ok(extracted) = result {
-        assert!(extracted.metadata.format.is_some());
-    }
-}
-
-#[test]
 fn test_xml_billion_laughs_attack() {
     let xml = r#"<?xml version="1.0"?>
 <!DOCTYPE lolz [

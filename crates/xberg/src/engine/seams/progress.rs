@@ -58,7 +58,7 @@ impl ProgressSink for NoopProgressSink {
 // only by `ProgressContext::emit_ocr_page`, reachable solely from the PDF OCR pipeline.
 #[cfg(feature = "tokio-runtime")]
 #[derive(Clone)]
-#[allow(dead_code)]
+
 struct ProgressContext {
     sink: std::sync::Arc<dyn ProgressSink>,
     input_index: Option<usize>,
@@ -66,7 +66,7 @@ struct ProgressContext {
 }
 
 #[cfg(feature = "tokio-runtime")]
-#[allow(dead_code)]
+
 impl ProgressContext {
     fn emit_ocr_page(&self, page: usize, total: usize, backend: &str) {
         let Ok(mut completed_pages) = self.completed_pages.lock() else {
@@ -106,7 +106,7 @@ where
 }
 
 #[cfg(feature = "tokio-runtime")]
-#[allow(dead_code)]
+
 pub(crate) fn inherit_progress<F>(future: F) -> impl std::future::Future<Output = F::Output>
 where
     F: std::future::Future,
@@ -126,13 +126,13 @@ where
 }
 
 #[cfg(feature = "tokio-runtime")]
-#[allow(dead_code)]
+
 pub(crate) fn emit_ocr_page(page: usize, total: usize, backend: &str) {
     let _ = CURRENT_PROGRESS.try_with(|context| context.emit_ocr_page(page, total, backend));
 }
 
 #[cfg(not(feature = "tokio-runtime"))]
-#[allow(dead_code)]
+
 pub(crate) fn emit_ocr_page(_page: usize, _total: usize, _backend: &str) {}
 
 #[cfg(all(test, feature = "tokio-runtime"))]

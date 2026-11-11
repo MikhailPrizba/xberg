@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 pub enum ResolveError {
     /// A custom schema override was supplied but is not a JSON object.
     #[error("custom schema must be a JSON object")]
-    #[cfg_attr(alef, alef(error_code = 1300))]
     SchemaNotObject,
 }
 

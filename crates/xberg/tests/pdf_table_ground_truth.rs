@@ -55,72 +55,6 @@ fn extract_markdown(relative_path: &str) -> Option<xberg::types::ExtractedDocume
     extract_uri_document_blocking(&path, None, &config).ok()
 }
 
-#[cfg(feature = "ocr")]
-fn print_table_summary(result: &xberg::types::ExtractedDocument) {
-    println!("  Tables detected: {}", result.tables.len());
-    println!("  Content length: {} chars", result.content.len());
-    for (i, table) in result.tables.iter().enumerate() {
-        let rows = table.cells.len();
-        let cols = if rows > 0 { table.cells[0].len() } else { 0 };
-        println!("  Table {}: {}x{} (page {})", i + 1, rows, cols, table.page_number);
-        if let Some(first_row) = table.cells.first() {
-            let preview: Vec<String> = first_row
-                .iter()
-                .take(3)
-                .map(|c| {
-                    let s = c.trim();
-                    if s.len() > 40 {
-                        format!("{}...", &s[..s.floor_char_boundary(40)])
-                    } else {
-                        s.to_string()
-                    }
-                })
-                .collect();
-            println!("    First row: {:?}", preview);
-        }
-    }
-}
-
-/// Helper to run a false-positive check for a non-table PDF.
-/// Only checks when the ocr feature is enabled (table detection requires it).
-#[cfg(feature = "ocr")]
-fn assert_no_tables(pdf_name: &str) {
-    let rel = format!("pdf/{}", pdf_name);
-    if skip_if_missing(&rel) {
-        return;
-    }
-
-    let result = extract_markdown(&rel).expect("extraction should succeed");
-
-    println!("=== {} false positive check ===", pdf_name);
-    print_table_summary(&result);
-
-    assert!(
-        result.tables.is_empty(),
-        "{} should not have tables detected (got {})",
-        pdf_name,
-        result.tables.len()
-    );
-}
-
-#[cfg(feature = "ocr")]
-#[test]
-fn test_false_positive_simple_pdf() {
-    assert_no_tables("simple.pdf");
-}
-
-#[cfg(feature = "ocr")]
-#[test]
-fn test_false_positive_fake_memo() {
-    assert_no_tables("fake_memo.pdf");
-}
-
-#[cfg(feature = "ocr")]
-#[test]
-fn test_false_positive_searchable() {
-    assert_no_tables("searchable.pdf");
-}
-
 #[test]
 fn test_markdown_quality_fake_memo() {
     if skip_if_missing("pdf/fake_memo.pdf") {
@@ -198,42 +132,6 @@ fn test_markdown_quality_vs_ground_truth_simple() {
     println!("Word similarity: {:.1}%", similarity * 100.0);
 
     println!("NOTE: table_document.pdf is image-only; low similarity expected without OCR.");
-}
-
-#[cfg(feature = "ocr")]
-#[test]
-#[ignore]
-fn test_ocr_path_table_document() {
-    use xberg::core::config::OcrConfig;
-
-    if skip_if_missing("pdf/table_document.pdf") {
-        return;
-    }
-
-    let path = get_test_file_path("pdf/table_document.pdf");
-    let config = ExtractionConfig {
-        output_format: OutputFormat::Markdown,
-        ocr: Some(OcrConfig {
-            backend: "tesseract".to_string(),
-            language: vec!["eng".to_string()],
-            ..Default::default()
-        }),
-        force_ocr: true,
-        ..Default::default()
-    };
-
-    let result = extract_uri_document_blocking(&path, None, &config).expect("extraction should succeed");
-
-    println!("=== table_document.pdf (forced OCR path) ===");
-    print_table_summary(&result);
-    println!("\n--- Content (first 2000 chars) ---");
-    println!("{}", &result.content[..result.content.len().min(2000)]);
-
-    assert!(
-        result.content.len() > 100,
-        "table_document.pdf OCR path should produce substantial content (got {})",
-        result.content.len()
-    );
 }
 
 #[test]

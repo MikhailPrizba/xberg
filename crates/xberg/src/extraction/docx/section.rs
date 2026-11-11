@@ -10,7 +10,7 @@ use quick_xml::Reader;
 use quick_xml::events::{BytesStart, Event};
 
 /// Page orientation.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Orientation {
     /// Page height is greater than page width.
@@ -20,7 +20,7 @@ pub enum Orientation {
 }
 
 /// Page margins in twips (twentieths of a point).
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default)]
 pub struct PageMargins {
     /// Top margin in twips.
@@ -40,7 +40,7 @@ pub struct PageMargins {
 }
 
 /// Page margins converted to points (1/72 inch).
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default)]
 pub struct PageMarginsPoints {
     /// Top margin in points.
@@ -60,7 +60,7 @@ pub struct PageMarginsPoints {
 }
 
 /// Column layout configuration.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default)]
 pub struct ColumnLayout {
     /// Number of columns.
@@ -72,7 +72,7 @@ pub struct ColumnLayout {
 }
 
 /// DOCX section properties parsed from `w:sectPr` element.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default)]
 pub struct SectionProperties {
     /// Page width in twips (from `w:pgSz w:w`).

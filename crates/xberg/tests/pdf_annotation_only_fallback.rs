@@ -3,11 +3,11 @@
 use xberg::core::config::{ExtractInput, OcrConfig, PdfConfig};
 use xberg::{ExtractionConfig, ResultFormat, extract};
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 use async_trait::async_trait;
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 use std::borrow::Cow;
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 use std::{
     path::Path,
     sync::{
@@ -15,22 +15,22 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 use xberg::plugins::{OcrBackend, OcrBackendType, Plugin, register_ocr_backend, unregister_ocr_backend};
 
 const EXPECTED_TEXT: &str = "VISIBLE ANNOTATION TEXT";
 const SECOND_PAGE_TEXT: &str = "PAGE TWO ANNOTATION";
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 const HEADER_TEXT: &str = "HEADER";
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 const TOTAL_TEXT: &str = "TOTAL";
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 const LONG_ANNOTATION_TEXT: &str = concat!(
     "This annotation contains enough ordinary words to look substantive to the native text quality gate ",
     "even though the PDF page itself is only a scanned image and still requires optical character recognition ",
     "to recover its underlying document content."
 );
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 const OCR_TEXT: &str = "OCR RECOVERED SCANNED PAGE";
 const BODY_TEXT: &str = "BODY TEXT";
 const PDF_MIME: &str = "application/pdf";
@@ -574,14 +574,14 @@ async fn should_emit_identical_annotation_text_once_on_each_page() {
     assert_eq!(matching[1].metadata.page_number, Some(2));
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 struct AnnotationScanOcrBackend {
     text: &'static str,
     document_level: bool,
     document_called: Option<Arc<AtomicBool>>,
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 impl Plugin for AnnotationScanOcrBackend {
     fn name(&self) -> &str {
         "tesseract"
@@ -600,7 +600,7 @@ impl Plugin for AnnotationScanOcrBackend {
     }
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[async_trait]
 impl OcrBackend for AnnotationScanOcrBackend {
     async fn process_image(&self, _image_bytes: &[u8], _config: &OcrConfig) -> xberg::Result<xberg::ExtractedDocument> {
@@ -633,7 +633,7 @@ impl OcrBackend for AnnotationScanOcrBackend {
     }
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[tokio::test]
 #[serial_test::serial]
 async fn should_route_scanned_page_to_ocr_despite_long_free_text_annotation() {
@@ -677,7 +677,7 @@ async fn should_route_scanned_page_to_ocr_despite_long_free_text_annotation() {
     assert!(document.annotations.is_none());
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[tokio::test]
 #[serial_test::serial]
 async fn should_retain_each_page_from_document_capable_backend_on_byte_input() {
@@ -727,8 +727,7 @@ async fn should_retain_each_page_from_document_capable_backend_on_byte_input() {
     );
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
-#[cfg(not(paddle_ocr))]
+#[cfg(feature = "ocr-pipeline")]
 #[tokio::test]
 #[serial_test::serial]
 async fn should_replace_stale_native_pages_after_actual_document_ocr() {
@@ -772,7 +771,7 @@ async fn should_replace_stale_native_pages_after_actual_document_ocr() {
     assert_eq!(pages[1].content, SECOND_PAGE_TEXT);
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[tokio::test]
 #[serial_test::serial]
 async fn should_not_treat_annotation_as_substring_duplicate_of_ocr_text() {
@@ -819,7 +818,7 @@ async fn should_not_treat_annotation_as_substring_duplicate_of_ocr_text() {
     );
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[tokio::test]
 #[serial_test::serial]
 async fn should_not_duplicate_exact_annotation_already_present_in_ocr_text() {
@@ -875,7 +874,7 @@ async fn should_not_duplicate_exact_annotation_already_present_in_ocr_text() {
     );
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[tokio::test]
 #[serial_test::serial]
 async fn should_not_duplicate_annotation_line_inside_structured_ocr_element() {

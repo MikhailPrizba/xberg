@@ -10,7 +10,7 @@ use quick_xml::events::{BytesStart, Event};
 use serde::{Deserialize, Serialize};
 
 /// A drawing object extracted from `<w:drawing>`.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Drawing {
     /// Whether the drawing is inline (in text flow) or anchored (floating).
@@ -28,7 +28,7 @@ pub struct Drawing {
 }
 
 /// Whether the drawing is inline or anchored.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub enum DrawingType {
     /// Drawing is inline: placed within the text flow at its insertion point.
@@ -39,7 +39,7 @@ pub enum DrawingType {
 }
 
 /// Size in EMUs (English Metric Units, 1 inch = 914400 EMU).
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Extent {
     /// Width in EMU.
@@ -61,7 +61,7 @@ impl Extent {
 }
 
 /// Document properties from `<wp:docPr>`.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct DocProperties {
     /// Unique numeric identifier for this drawing within the document.
@@ -73,7 +73,7 @@ pub struct DocProperties {
 }
 
 /// Properties for anchored drawings.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct AnchorProperties {
     /// Whether the drawing is placed behind the document text.
@@ -91,7 +91,7 @@ pub struct AnchorProperties {
 }
 
 /// Horizontal or vertical position.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Position {
     /// Reference object for this position: `"page"`, `"margin"`, `"column"`, `"paragraph"`, or `"character"`.
@@ -101,7 +101,7 @@ pub struct Position {
 }
 
 /// Text wrapping type around an anchored drawing.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub enum WrapType {
     /// No text wrapping; drawing floats above or below text.

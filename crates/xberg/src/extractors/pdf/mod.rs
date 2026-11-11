@@ -3,33 +3,17 @@
 //! Provides extraction of text, metadata, tables, and images from PDF documents
 //! using xberg_native_pdf (pure Rust). Supports both native text extraction and OCR fallback.
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 mod automatic_fallback;
-#[cfg(all(test, any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(test, feature = "ocr-pipeline"))]
 mod automatic_fallback_tests;
 mod extraction;
-#[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-mod ink_probe;
-#[cfg(feature = "layout-detection")]
-mod layout_hints;
-#[cfg(all(feature = "pdf", feature = "layout-detection"))]
-mod layout_runner;
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 mod mixed_tables;
-#[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-mod unreadable_script;
-#[cfg(all(test, feature = "pdf", feature = "layout-detection", feature = "tokio-runtime"))]
-pub(crate) use layout_runner::inherit_test_selected_page_detections;
 pub(crate) mod ocr;
-#[cfg(all(feature = "pdf", feature = "ocr", not(target_arch = "wasm32")))]
-mod outline_ocr;
 mod pages;
 #[cfg(all(feature = "pdf", feature = "pdf-pdfium"))]
 mod pdfium_engine;
-#[cfg(feature = "layout-detection")]
-pub(crate) mod reading_order;
-#[cfg(all(feature = "liter-llm", feature = "layout-detection"))]
-mod region_vlm;
 #[cfg(feature = "pdf")]
 pub(crate) mod rotation;
 mod unmapped_glyphs;
@@ -43,17 +27,17 @@ use async_trait::async_trait;
 #[cfg(feature = "tokio-runtime")]
 use std::path::Path;
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 use automatic_fallback::{automatic_page_acceptance_supported, with_native_page_acceptance};
 use extraction::extract_all_from_native_document;
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 use mixed_tables::merge_mixed_ocr_tables;
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn is_khmer_digit(character: char) -> bool {
     ('\u{17e0}'..='\u{17e9}').contains(&character)
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn extraction_method_after_mixed_ocr(replacements: &ahash::AHashMap<u32, String>) -> ExtractionMethod {
     if replacements.is_empty() {
         ExtractionMethod::Native
@@ -62,7 +46,7 @@ fn extraction_method_after_mixed_ocr(replacements: &ahash::AHashMap<u32, String>
     }
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn boundaries_for_ocr_output(
     extraction_method: ExtractionMethod,
     text: &str,
@@ -82,7 +66,7 @@ fn boundaries_for_ocr_output(
     }
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn exact_boundaries_for_page_texts(text: &str, page_texts: &[String]) -> Option<Vec<crate::types::PageBoundary>> {
     let mut boundaries = Vec::with_capacity(page_texts.len());
     let mut search_offset = 0usize;
@@ -105,7 +89,7 @@ fn exact_boundaries_for_page_texts(text: &str, page_texts: &[String]) -> Option<
     Some(boundaries)
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn accepted_mixed_ocr_elements(
     structured_pages: &ahash::AHashMap<u32, InternalDocument>,
 ) -> Vec<crate::types::OcrElement> {
@@ -123,7 +107,7 @@ fn accepted_mixed_ocr_elements(
         .collect()
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn accepted_mixed_ocr_tables(structured_pages: &ahash::AHashMap<u32, InternalDocument>) -> Vec<crate::types::Table> {
     let mut page_numbers = structured_pages.keys().copied().collect::<Vec<_>>();
     page_numbers.sort_unstable();
@@ -140,7 +124,7 @@ fn accepted_mixed_ocr_tables(structured_pages: &ahash::AHashMap<u32, InternalDoc
 /// nothing for a consumer to join the frame to, so it is omitted rather than emitted with an
 /// empty element set. Sorted by page number for a deterministic, reader-facing array; the
 /// backing `structured_pages` is an `AHashMap`, whose iteration order is unspecified.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn accepted_mixed_ocr_coordinate_frames(
     structured_pages: &ahash::AHashMap<u32, InternalDocument>,
 ) -> Vec<crate::types::internal::OcrPageCoordinateFrame> {
@@ -246,7 +230,7 @@ fn enforce_page_limit(content: &[u8], config: &ExtractionConfig) -> Result<()> {
 ///
 /// Whitespace-only counts as nothing: a document yielding `"\n\n  "` is as total a loss as `""`.
 /// So does text of only U+FFFD: it is the same predicate that sends the page to OCR. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn failed_ocr_fallback_is_total_loss(native_text: &str) -> bool {
     native_text_holds_no_content(native_text)
 }
@@ -307,22 +291,9 @@ fn extract_lopdf_compatibility_data(
 #[cfg(feature = "pdf")]
 struct NativeBlockingOutput {
     extraction: extraction::PdfExtractionPhaseResult,
-    #[cfg(all(
-        feature = "pdf",
-        feature = "ocr",
-        feature = "tokio-runtime",
-        not(target_arch = "wasm32")
-    ))]
-    image_gap: Option<crate::extraction::image_ocr::pdf_gap::Placement>,
     bookmark_uris: Vec<crate::types::ExtractedUri>,
     pdf_revisions: Option<Vec<crate::types::DocumentRevision>>,
     diagrams: Vec<crate::types::diagram::DiagramGraph>,
-    #[cfg(feature = "layout-detection")]
-    layout_images: Option<Vec<image::RgbImage>>,
-    #[cfg(feature = "layout-detection")]
-    layout_hints: Option<Vec<Vec<crate::pdf::structure::types::LayoutHint>>>,
-    #[cfg(feature = "layout-detection")]
-    layout_acceleration_override: Option<crate::core::config::acceleration::AccelerationConfig>,
 }
 
 #[cfg(feature = "pdf")]
@@ -357,19 +328,7 @@ where
 }
 
 #[cfg(feature = "pdf")]
-fn extract_native_blocking(
-    content: Vec<u8>,
-    config: ExtractionConfig,
-    #[cfg(feature = "layout-detection")] layout_images: Option<Vec<image::RgbImage>>,
-    #[cfg(feature = "layout-detection")] layout_results: Option<Vec<crate::pdf::structure::types::PageLayoutResult>>,
-    #[cfg(feature = "layout-detection")] layout_hints: Option<Vec<Vec<crate::pdf::structure::types::LayoutHint>>>,
-    #[cfg(feature = "layout-detection")] layout_acceleration_override: Option<
-        crate::core::config::acceleration::AccelerationConfig,
-    >,
-    #[cfg(feature = "layout-detection")] region_text_layout: Option<
-        crate::engine::layout_region_text::RegionTextLayout,
-    >,
-) -> Result<NativeBlockingOutput> {
+fn extract_native_blocking(content: Vec<u8>, config: ExtractionConfig) -> Result<NativeBlockingOutput> {
     ensure_pdf_not_cancelled(&config)?;
     let passwords = config
         .pdf_options
@@ -397,57 +356,18 @@ fn extract_native_blocking(
     } else {
         Vec::new()
     };
-    #[cfg(all(
-        feature = "pdf",
-        feature = "ocr",
-        feature = "tokio-runtime",
-        not(target_arch = "wasm32")
-    ))]
-    let mut image_gap = None;
-    let extraction = extract_all_from_native_document(
-        native_document,
-        &config,
-        &outline_entries,
-        #[cfg(all(
-            feature = "pdf",
-            feature = "ocr",
-            feature = "tokio-runtime",
-            not(target_arch = "wasm32")
-        ))]
-        &mut image_gap,
-        #[cfg(feature = "layout-detection")]
-        extraction::NativeLayoutInput {
-            hints: layout_hints.as_deref(),
-            images: layout_images.as_deref(),
-            results: layout_results.as_deref(),
-            acceleration: layout_acceleration_override.as_ref(),
-            region_text: region_text_layout.as_ref(),
-        },
-    )?;
+    let extraction = extract_all_from_native_document(native_document, &config, &outline_entries)?;
     ensure_pdf_not_cancelled(&config)?;
 
     Ok(NativeBlockingOutput {
         extraction,
-        #[cfg(all(
-            feature = "pdf",
-            feature = "ocr",
-            feature = "tokio-runtime",
-            not(target_arch = "wasm32")
-        ))]
-        image_gap,
         bookmark_uris,
         pdf_revisions,
         diagrams,
-        #[cfg(feature = "layout-detection")]
-        layout_images,
-        #[cfg(feature = "layout-detection")]
-        layout_hints,
-        #[cfg(feature = "layout-detection")]
-        layout_acceleration_override,
     })
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PdfDocumentOrigin {
     Native,
@@ -610,7 +530,7 @@ fn select_native_pdf_document(
     (flat_pdf_document(text, mime_type, boundaries), false)
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[allow(clippy::too_many_arguments)]
 fn select_pdf_document(
     extraction_method: ExtractionMethod,
@@ -835,7 +755,7 @@ fn inject_unrepresented_form_field_elements(doc: &mut InternalDocument, form_fie
 /// dropped on the floor while `Auto` was in fact about to route them. That "will it run"
 /// question is answered by `near_empty_ocr_fallback_applies` and nothing else -- see the
 /// comment on the warning below for why a second derivation of it is not acceptable. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn record_implausible_text_pages(
     config: &ExtractionConfig,
     pdf_metadata: &mut crate::pdf::metadata::PdfExtractionMetadata,
@@ -925,7 +845,7 @@ fn record_implausible_text_pages(
 /// requirement) -- without this, a whole-document failure inside the gate selected every page
 /// for OCR with nothing able to run it, turning a would-be native-text degradation into a
 /// hard extraction failure. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn scanned_page_quality_gate_enabled(config: &ExtractionConfig) -> bool {
     config
         .ocr_scanned_page_quality_gate
@@ -936,7 +856,7 @@ fn scanned_page_quality_gate_enabled(config: &ExtractionConfig) -> bool {
 /// True when the native text is blank or holds only U+FFFD. The extractor keeps one U+FFFD for
 /// each Type0 glyph without a Unicode value, so a page that lost every glyph reads as U+FFFD
 /// and must count as absent text. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn native_text_holds_no_content(native_text: &str) -> bool {
     native_text.chars().all(|c| c.is_whitespace() || c == '\u{FFFD}')
 }
@@ -953,7 +873,7 @@ fn native_text_holds_no_content(native_text: &str) -> bool {
 ///   a setting of its own: always with an `ocr` block, and otherwise only for genuinely
 ///   absent native text, so a legitimately sparse PDF stays native under a default config.
 ///   ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn near_empty_ocr_fallback_applies(config: &ExtractionConfig, native_text: &str) -> bool {
     match config.ocr_near_empty_fallback {
         Some(false) => false,
@@ -972,7 +892,7 @@ fn near_empty_ocr_fallback_applies(config: &ExtractionConfig, native_text: &str)
 ///
 /// `None` means fall through to the `Auto` gate: wrong strategy, no page
 /// qualifies, or the gate wants the whole document rather than a page subset.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn scanned_pages_to_ocr(
     config: &ExtractionConfig,
     pdf_metadata: &crate::pdf::metadata::PdfExtractionMetadata,
@@ -1019,7 +939,7 @@ fn scanned_pages_to_ocr(
 }
 use pages::{assign_hierarchy_to_pages, assign_tables_and_images_to_pages, reconcile_native_page_tables};
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn replace_tables_with_ocr_output(tables: &mut Vec<crate::types::Table>, mut ocr_tables: Vec<crate::types::Table>) {
     if ocr_tables.is_empty() {
         return;
@@ -1029,49 +949,6 @@ fn replace_tables_with_ocr_output(tables: &mut Vec<crate::types::Table>, mut ocr
     *tables = ocr_tables;
 }
 
-#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-pipeline")))]
-fn prepare_ocr_layout_inputs(
-    images: Vec<image::RgbImage>,
-    mut detections: Vec<crate::layout::DetectionResult>,
-) -> (Vec<image::DynamicImage>, Vec<crate::layout::DetectionResult>) {
-    if detections.len() != images.len() {
-        tracing::warn!(
-            images = images.len(),
-            detections = detections.len(),
-            "OCR layout input cardinality mismatch; discarding detections while reusing page rasters"
-        );
-        detections = images
-            .iter()
-            .map(|image| crate::layout::DetectionResult {
-                page_width: image.width(),
-                page_height: image.height(),
-                detections: Vec::new(),
-            })
-            .collect();
-    } else {
-        for (page_index, (image, detection)) in images.iter().zip(&mut detections).enumerate() {
-            if detection.page_width != image.width() || detection.page_height != image.height() {
-                tracing::warn!(
-                    page = page_index + 1,
-                    image_width = image.width(),
-                    image_height = image.height(),
-                    detection_width = detection.page_width,
-                    detection_height = detection.page_height,
-                    "OCR layout dimensions mismatch; discarding detections for this page"
-                );
-                *detection = crate::layout::DetectionResult {
-                    page_width: image.width(),
-                    page_height: image.height(),
-                    detections: Vec::new(),
-                };
-            }
-        }
-    }
-
-    let images = images.into_iter().map(image::DynamicImage::ImageRgb8).collect();
-    (images, detections)
-}
-
 /// Layout gate audit trail: 1-indexed skipped pages and per-page decision
 /// reasons, both `None` unless the `Auto` gate or a `pages` list ran on the
 /// whole-document OCR route (the mixed OCR route records none).
@@ -1079,80 +956,10 @@ fn prepare_ocr_layout_inputs(
 /// Unused only when both OCR features and the pdf + layout-detection pair
 /// are off; the allow is scoped wider because cfg algebra for "either user
 /// present" is not worth the noise.
-#[cfg_attr(not(any(feature = "ocr", feature = "ocr-pipeline")), allow(dead_code))]
+#[cfg_attr(not(feature = "ocr-pipeline"), allow(dead_code))]
 type OcrLayoutGateDecisions = (Option<Vec<u32>>, Option<Vec<String>>);
 
-/// Whether the markdown layout pass's rasters may be reused as OCR input.
-///
-/// Under `LayoutStrategy::Auto` or a `pages` list with `SkipRender`,
-/// gate-skipped pages carry 64x64 white placeholders. Rotated pages also
-/// remain in the display-space coordinate frame required by Markdown layout.
-/// Reuse is therefore allowed only when every page ran the model and no page
-/// has an effective `/Rotate`; otherwise OCR reruns layout with normalized
-/// rasters. ~keep
-#[cfg(all(
-    feature = "pdf",
-    feature = "layout-detection",
-    any(feature = "ocr", feature = "ocr-pipeline")
-))]
-fn markdown_layout_reusable_for_ocr(
-    decisions: Option<&[crate::pdf::layout_gate::PageGateDecision]>,
-    page_rotations: &[u32],
-) -> bool {
-    decisions.is_none_or(|decisions| decisions.iter().all(|decision| decision.run_layout))
-        && markdown_layout_usable_for_native(page_rotations)
-}
-
-/// Whether the markdown layout rasters may still feed the native path when OCR cannot reuse
-/// them: a rotated page's detections are in display space, but formula recognition maps them
-/// against the MediaBox (`pdf_page_sizes_pt`).
-#[cfg(all(
-    feature = "pdf",
-    feature = "layout-detection",
-    any(feature = "ocr", feature = "ocr-pipeline")
-))]
-fn markdown_layout_usable_for_native(page_rotations: &[u32]) -> bool {
-    page_rotations.iter().all(|rotation| rotation.is_multiple_of(360))
-}
-
-/// Convert gate decisions into the metadata representation.
-#[cfg(all(feature = "pdf", feature = "layout-detection"))]
-fn layout_gate_metadata(decisions: Option<&[crate::pdf::layout_gate::PageGateDecision]>) -> OcrLayoutGateDecisions {
-    let Some(decisions) = decisions else {
-        return (None, None);
-    };
-    let gated = decisions
-        .iter()
-        .enumerate()
-        .filter(|(_, decision)| !decision.run_layout)
-        .map(|(page_index, _)| page_index as u32 + 1)
-        .collect();
-    let reasons = decisions
-        .iter()
-        .map(|decision| decision.reason.wire_name().to_string())
-        .collect();
-    (Some(gated), Some(reasons))
-}
-
-#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-pipeline")))]
-fn config_with_layout_acceleration_override(
-    config: &ExtractionConfig,
-    acceleration_override: Option<crate::core::config::acceleration::AccelerationConfig>,
-) -> std::borrow::Cow<'_, ExtractionConfig> {
-    let Some(acceleration) = acceleration_override else {
-        return std::borrow::Cow::Borrowed(config);
-    };
-
-    let mut effective = config.clone();
-    if let Some(layout) = effective.layout.as_mut() {
-        layout.acceleration = Some(acceleration);
-    } else {
-        effective.acceleration = Some(acceleration);
-    }
-    std::borrow::Cow::Owned(effective)
-}
-
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 type WholePageOcrOutput = (
     String,
     Vec<crate::types::Table>,
@@ -1170,39 +977,8 @@ type WholePageOcrOutput = (
     bool,
 );
 
-#[cfg(all(test, paddle_ocr, feature = "ocr"))]
-async fn run_ocr_with_layout(
-    content: &[u8],
-    config: &ExtractionConfig,
-    path: Option<&std::path::Path>,
-    page_ocr_hints: Option<ocr::PageOcrHints>,
-    #[cfg(feature = "layout-detection")] precomputed_layout_images: Option<Vec<image::RgbImage>>,
-    #[cfg(feature = "layout-detection")] precomputed_layout_detections: Option<Vec<crate::layout::DetectionResult>>,
-    #[cfg(feature = "layout-detection")] precomputed_layout_acceleration_override: Option<
-        crate::core::config::acceleration::AccelerationConfig,
-    >,
-) -> ocr::OcrRunResult<WholePageOcrOutput> {
-    run_ocr_with_layout_pages(
-        content,
-        config,
-        path,
-        PageOcrLayoutContext {
-            pages: None,
-            hints: page_ocr_hints,
-        },
-        #[cfg(feature = "layout-detection")]
-        precomputed_layout_images,
-        #[cfg(feature = "layout-detection")]
-        precomputed_layout_detections,
-        #[cfg(feature = "layout-detection")]
-        precomputed_layout_acceleration_override,
-    )
-    .await
-}
-
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
-struct PageOcrLayoutContext<'a> {
-    pages: Option<&'a crate::core::layout_pages::LayoutPageSelection>,
+#[cfg(feature = "ocr-pipeline")]
+struct PageOcrLayoutContext {
     hints: Option<ocr::PageOcrHints>,
 }
 
@@ -1211,259 +987,33 @@ struct PageOcrLayoutContext<'a> {
 /// Reuses detections from native extraction when available. Otherwise, when
 /// layout detection is configured, it runs a soft-failing layout pass before
 /// OCR. Layout failures are logged and OCR continues without layout hints.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
-async fn run_ocr_with_layout_pages(
+#[cfg(feature = "ocr-pipeline")]
+async fn run_ocr(
     content: &[u8],
     config: &ExtractionConfig,
     path: Option<&std::path::Path>,
-    context: PageOcrLayoutContext<'_>,
-    #[cfg(feature = "layout-detection")] precomputed_layout_images: Option<Vec<image::RgbImage>>,
-    #[cfg(feature = "layout-detection")] precomputed_layout_detections: Option<Vec<crate::layout::DetectionResult>>,
-    #[cfg(feature = "layout-detection")] precomputed_layout_acceleration_override: Option<
-        crate::core::config::acceleration::AccelerationConfig,
-    >,
+    context: PageOcrLayoutContext,
 ) -> ocr::OcrRunResult<WholePageOcrOutput> {
-    let PageOcrLayoutContext {
-        pages: layout_pages,
-        hints: page_ocr_hints,
-    } = context;
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    let mut layout_warning = None;
-    #[cfg(not(all(feature = "pdf", feature = "layout-detection")))]
+    let PageOcrLayoutContext { hints: page_ocr_hints } = context;
+
     let layout_warning = None;
 
     // `xberg_native_pdf` glyph-drop warnings captured while the layout pass rendered
     // its pages (#353); populated only on the layout-detection path, since
     // that is the only render call site routed through `spawn_blocking`.
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    let mut layout_glyph_drop_warnings: Vec<crate::types::ProcessingWarning> = Vec::new();
-    #[cfg(not(all(feature = "pdf", feature = "layout-detection")))]
+
     let layout_glyph_drop_warnings: Vec<crate::types::ProcessingWarning> = Vec::new();
 
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    let mut ocr_layout_gate_decisions: OcrLayoutGateDecisions = (None, None);
-    #[cfg(not(all(feature = "pdf", feature = "layout-detection")))]
     let ocr_layout_gate_decisions: OcrLayoutGateDecisions = (None, None);
-
-    let _ = &layout_pages;
-    #[cfg(feature = "layout-detection")]
-    let mut layout_acceleration_override = precomputed_layout_acceleration_override;
-
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    let mut layout_raster_dpis = crate::pdf::render::OcrRasterDpis::new();
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    let owned_layout = if precomputed_layout_detections.is_none() || precomputed_layout_images.is_none() {
-        if let Some(layout_config) = config.resolved_layout_config() {
-            let thread_budget = crate::core::config::concurrency::resolve_thread_budget(config.concurrency.as_ref());
-            let default_security_limits = crate::extractors::security::SecurityLimits::default();
-            let security_limits = config.security_limits.as_ref().unwrap_or(&default_security_limits);
-            match layout_runner::run_layout_for_ocr_with_pages(
-                content,
-                layout_config.as_ref(),
-                thread_budget,
-                security_limits,
-                config.images.as_ref(),
-                layout_pages,
-            )
-            .await
-            {
-                Ok((
-                    layout_runner::LayoutAttempt {
-                        output:
-                            layout_runner::LayoutRunOutput {
-                                data: Some(layout),
-                                gate_decisions,
-                                raster_dpis,
-                            },
-                        acceleration_override,
-                        warning,
-                    },
-                    glyph_drop_warnings,
-                )) => {
-                    layout_acceleration_override = acceleration_override;
-                    layout_raster_dpis = raster_dpis;
-                    layout_warning = warning;
-                    layout_glyph_drop_warnings = glyph_drop_warnings;
-                    ocr_layout_gate_decisions = layout_gate_metadata(gate_decisions.as_deref());
-                    Some(layout)
-                }
-                Ok((
-                    layout_runner::LayoutAttempt {
-                        output:
-                            layout_runner::LayoutRunOutput {
-                                data: None,
-                                gate_decisions,
-                                ..
-                            },
-                        acceleration_override: _,
-                        warning,
-                    },
-                    glyph_drop_warnings,
-                )) => {
-                    layout_warning = warning;
-                    layout_glyph_drop_warnings = glyph_drop_warnings;
-                    tracing::info!("OCR layout: layout gate skipped every page, continuing without layout assembly");
-                    ocr_layout_gate_decisions = layout_gate_metadata(gate_decisions.as_deref());
-                    None
-                }
-                Err(error) => {
-                    tracing::warn!(
-                        error = %error,
-                        "OCR layout detection failed; continuing without layout assembly"
-                    );
-                    layout_warning = Some(layout_runner::layout_failure_warning(&error));
-                    None
-                }
-            }
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    let layout_inputs = match (precomputed_layout_images, precomputed_layout_detections) {
-        (Some(images), Some(detections)) => Some((images, detections)),
-        _ => owned_layout.map(|(images, _, _, detections)| (images, detections)),
-    };
-    #[cfg(all(not(feature = "pdf"), feature = "layout-detection"))]
-    let layout_inputs = precomputed_layout_images.zip(precomputed_layout_detections);
-
-    #[cfg(feature = "layout-detection")]
-    let prepared_layout_inputs =
-        layout_inputs.map(|(images, detections)| prepare_ocr_layout_inputs(images, detections));
-    #[cfg(feature = "layout-detection")]
-    let ocr_images = prepared_layout_inputs.as_ref().map(|(images, _)| images.as_slice());
-    #[cfg(feature = "layout-detection")]
-    let layout_detections = prepared_layout_inputs
-        .as_ref()
-        .map(|(_, detections)| detections.as_slice());
-
-    #[cfg(feature = "layout-detection")]
-    let effective_config = config_with_layout_acceleration_override(config, layout_acceleration_override);
-    #[cfg(feature = "layout-detection")]
-    let config = effective_config.as_ref();
-
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    let page_ocr_hints = {
-        let mut hints = page_ocr_hints;
-        if prepared_layout_inputs.is_some() && !layout_raster_dpis.is_empty() {
-            hints.get_or_insert_with(Default::default).raster_dpis = Some(std::sync::Arc::new(layout_raster_dpis));
-        }
-        hints
-    };
 
     let default_ocr_config = crate::core::config::OcrConfig::default();
     let ocr_config = config.ocr.as_ref().unwrap_or(&default_ocr_config);
-    #[cfg(all(
-        paddle_ocr,
-        feature = "ocr",
-        feature = "pdf",
-        feature = "tokio-runtime",
-        not(target_arch = "wasm32")
-    ))]
-    let ocr_images_absent = {
-        #[cfg(feature = "layout-detection")]
-        let absent = ocr_images.is_none();
-        #[cfg(not(feature = "layout-detection"))]
-        let absent = true;
-        absent
-    };
 
-    #[cfg(all(
-        paddle_ocr,
-        feature = "ocr",
-        feature = "pdf",
-        feature = "tokio-runtime",
-        not(target_arch = "wasm32")
-    ))]
-    let mut accepted_first_pass = None;
-    #[cfg(all(
-        paddle_ocr,
-        feature = "ocr",
-        feature = "pdf",
-        feature = "tokio-runtime",
-        not(target_arch = "wasm32")
-    ))]
-    if ocr::uses_default_ocr_pipeline(ocr_config)
-        && ocr_config.backend == "tesseract"
-        && ocr_images_absent
-        && let Some(pipeline) = ocr_config.effective_pipeline()
-    {
-        accepted_first_pass = ocr::accepted_single_page_first_pass(
-            content,
-            config,
-            path,
-            page_ocr_hints.clone(),
-            &pipeline.quality_thresholds,
-        )
-        .await;
-    }
-
-    #[cfg(all(
-        paddle_ocr,
-        feature = "ocr",
-        feature = "pdf",
-        feature = "tokio-runtime",
-        not(target_arch = "wasm32")
-    ))]
-    let has_accepted_first_pass = accepted_first_pass.is_some();
-    #[cfg(not(all(
-        paddle_ocr,
-        feature = "ocr",
-        feature = "pdf",
-        feature = "tokio-runtime",
-        not(target_arch = "wasm32")
-    )))]
     let has_accepted_first_pass = false;
 
     if let Some(pipeline) = ocr_config.effective_pipeline()
         && !has_accepted_first_pass
     {
-        #[cfg(paddle_ocr)]
-        // The synthesized classical pipeline is an automatic page-quality fallback. Running
-        // it here as one document lets a good page's score hide a bad page, so use the same
-        // page-local runner as selected-page OCR. Explicit pipelines retain their configured
-        // document scope because their stages may intentionally process the document. ~keep
-        if ocr::uses_default_ocr_pipeline(ocr_config) && ocr_config.backend == "tesseract" {
-            let (text, tables, elements, document, usage, page_texts, rasters, formulas, preprocessing, confidence) =
-                Box::pin(ocr::extract_full_document_ocr_pipeline_per_page(
-                    content,
-                    config,
-                    path,
-                    page_ocr_hints,
-                    #[cfg(feature = "layout-detection")]
-                    prepared_layout_inputs.as_ref(),
-                ))
-                .await?;
-            #[cfg(feature = "formula-recognition")]
-            let (mut document, mut formulas) = (document, formulas);
-            #[cfg(feature = "formula-recognition")]
-            if let (Some((images, detections)), Some(layout)) =
-                (prepared_layout_inputs.as_ref(), config.layout.as_ref())
-            {
-                recognize_pdf_formula_regions(document.as_mut(), &mut formulas, images, detections, layout, content)
-                    .await;
-            }
-            return Ok((
-                text,
-                tables,
-                elements,
-                document,
-                usage,
-                page_texts,
-                rasters,
-                formulas,
-                preprocessing,
-                confidence,
-                ocr_layout_gate_decisions,
-                layout_warning,
-                layout_glyph_drop_warnings,
-                false,
-            ));
-        }
-
         let (
             mut text,
             mut ocr_tables,
@@ -1477,12 +1027,7 @@ async fn run_ocr_with_layout_pages(
             pipeline_ocr_confidence,
         ) = Box::pin(ocr::run_ocr_pipeline(
             Some(content),
-            #[cfg(feature = "layout-detection")]
-            ocr_images,
-            #[cfg(not(feature = "layout-detection"))]
             None,
-            #[cfg(feature = "layout-detection")]
-            layout_detections,
             config,
             &pipeline,
             path,
@@ -1494,20 +1039,6 @@ async fn run_ocr_with_layout_pages(
         // ahead of formula recognition on purpose -- see the function's own doc comment. ~keep
         if ocr::numeric_repair_enabled(config) {
             ocr::apply_numeric_repair_to_whole_document_ocr(&mut text, pipeline_doc.as_mut(), &mut ocr_tables);
-        }
-        #[cfg(feature = "formula-recognition")]
-        let (mut pipeline_doc, mut pipeline_formulas) = (pipeline_doc, pipeline_formulas);
-        #[cfg(feature = "formula-recognition")]
-        if let (Some((images, detections)), Some(layout)) = (prepared_layout_inputs.as_ref(), config.layout.as_ref()) {
-            recognize_pdf_formula_regions(
-                pipeline_doc.as_mut(),
-                &mut pipeline_formulas,
-                images,
-                detections,
-                layout,
-                content,
-            )
-            .await;
         }
         return Ok((
             text,
@@ -1543,33 +1074,13 @@ async fn run_ocr_with_layout_pages(
         ),
         discarded_visible_native_page,
     ) = {
-        #[cfg(all(
-            paddle_ocr,
-            feature = "ocr",
-            feature = "pdf",
-            feature = "tokio-runtime",
-            not(target_arch = "wasm32")
-        ))]
-        let first_pass = accepted_first_pass;
-        #[cfg(not(all(
-            paddle_ocr,
-            feature = "ocr",
-            feature = "pdf",
-            feature = "tokio-runtime",
-            not(target_arch = "wasm32")
-        )))]
         let first_pass: Option<_> = None;
         match first_pass {
             Some(output) => output,
             None => {
                 Box::pin(ocr::extract_with_ocr_with_page_hints_and_evidence(
                     Some(content),
-                    #[cfg(feature = "layout-detection")]
-                    ocr_images,
-                    #[cfg(not(feature = "layout-detection"))]
                     None,
-                    #[cfg(feature = "layout-detection")]
-                    layout_detections,
                     config,
                     path,
                     page_ocr_hints,
@@ -1582,12 +1093,6 @@ async fn run_ocr_with_layout_pages(
     // whole-document route, the one `force_ocr` and the near-empty `Auto` fallback reach. ~keep
     if ocr::numeric_repair_enabled(config) {
         ocr::apply_numeric_repair_to_whole_document_ocr(&mut text, ocr_doc.as_mut(), &mut ocr_tables);
-    }
-    #[cfg(feature = "formula-recognition")]
-    let (mut ocr_doc, mut formulas) = (ocr_doc, formulas);
-    #[cfg(feature = "formula-recognition")]
-    if let (Some((images, detections)), Some(layout)) = (prepared_layout_inputs.as_ref(), config.layout.as_ref()) {
-        recognize_pdf_formula_regions(ocr_doc.as_mut(), &mut formulas, images, detections, layout, content).await;
     }
     Ok((
         text,
@@ -1607,707 +1112,10 @@ async fn run_ocr_with_layout_pages(
     ))
 }
 
-/// The formula detections of one page, sorted by raw `y1` then `x1`.
-///
-/// This comparator deliberately matches the order the OCR side channel emits
-/// formulas in (`glm_ocr_backend::process_paired` sorts its regions the same
-/// way). Pairing falls back to position when the page has no geometry or
-/// overlap cannot pair every region, so both sides must sort identically. It
-/// is NOT the row-banded reading order the image extractor uses for element
-/// layout; do not "unify" them while that fallback exists.
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-fn formula_regions_in_reading_order(
-    detection: &crate::layout::DetectionResult,
-) -> Vec<&crate::layout::LayoutDetection> {
-    let mut regions: Vec<&crate::layout::LayoutDetection> = detection
-        .detections
-        .iter()
-        .filter(|d| matches!(d.class_name, crate::layout::LayoutClass::Formula))
-        .collect();
-    regions.sort_by(|a, b| a.bbox.y1.total_cmp(&b.bbox.y1).then(a.bbox.x1.total_cmp(&b.bbox.x1)));
-    regions
-}
-
-#[cfg(all(
-    test,
-    feature = "pdf",
-    feature = "layout-detection",
-    feature = "tokio-runtime",
-    not(target_arch = "wasm32")
-))]
-mod layout_page_selection_tests;
-
-#[cfg(all(test, feature = "formula-recognition", feature = "layout-detection"))]
-mod formula_region_tests;
-
-/// A page raster the formula recognizer can crop, however the flow stores it.
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-trait AsPageRgb: Sync {
-    fn page_rgb(&self) -> std::borrow::Cow<'_, image::RgbImage>;
-}
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-impl AsPageRgb for image::DynamicImage {
-    fn page_rgb(&self) -> std::borrow::Cow<'_, image::RgbImage> {
-        std::borrow::Cow::Owned(self.to_rgb8())
-    }
-}
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-impl AsPageRgb for image::RgbImage {
-    fn page_rgb(&self) -> std::borrow::Cow<'_, image::RgbImage> {
-        std::borrow::Cow::Borrowed(self)
-    }
-}
-
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-fn bbox_intersection_area(a: &crate::types::BoundingBox, b: &crate::types::BoundingBox) -> f64 {
-    let ix = (a.x1.min(b.x1) - a.x0.max(b.x0)).max(0.0);
-    let iy = (a.y1.min(b.y1) - a.y0.max(b.y0)).max(0.0);
-    ix * iy
-}
-
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-fn bbox_area(b: &crate::types::BoundingBox) -> f64 {
-    (b.x1 - b.x0) * (b.y1 - b.y0)
-}
-
-/// Intersection area over the smaller box's area, in a shared coordinate
-/// space. 0.0 when either box is degenerate.
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-fn bbox_overlap_ratio(a: &crate::types::BoundingBox, b: &crate::types::BoundingBox) -> f64 {
-    let min_area = bbox_area(a).min(bbox_area(b));
-    if min_area <= 0.0 {
-        0.0
-    } else {
-        bbox_intersection_area(a, b) / min_area
-    }
-}
-
-/// Intersection over union. Breaks ties between overlaps of 1.0, where one
-/// box sits inside several others.
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-fn bbox_iou(a: &crate::types::BoundingBox, b: &crate::types::BoundingBox) -> f64 {
-    let intersection = bbox_intersection_area(a, b);
-    let union = bbox_area(a) + bbox_area(b) - intersection;
-    if union <= 0.0 { 0.0 } else { intersection / union }
-}
-
-/// A detection must cover a slot's box (or vice versa) by at least this
-/// fraction of the smaller area to pair with it geometrically.
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-const FORMULA_PAIR_MIN_OVERLAP: f64 = 0.5;
-
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-fn complete_formula_assignment(
-    start: usize,
-    choices: &[Vec<usize>],
-    assigned: &mut [Option<usize>],
-    slot_owners: &mut [Option<usize>],
-) -> bool {
-    let mut pending = std::collections::VecDeque::from([start]);
-    let mut visited_regions = vec![false; assigned.len()];
-    let mut predecessors = vec![None; slot_owners.len()];
-    visited_regions[start] = true;
-    while let Some(region) = pending.pop_front() {
-        for &slot in &choices[region] {
-            if predecessors[slot].is_some() {
-                continue;
-            }
-            predecessors[slot] = Some(region);
-            if let Some(owner) = slot_owners[slot] {
-                if !visited_regions[owner] {
-                    visited_regions[owner] = true;
-                    pending.push_back(owner);
-                }
-            } else {
-                let mut next_slot = slot;
-                while let Some(region) = predecessors[next_slot] {
-                    let previous_slot = assigned[region].replace(next_slot);
-                    slot_owners[next_slot] = Some(region);
-                    let Some(previous_slot) = previous_slot else { break };
-                    next_slot = previous_slot;
-                }
-                return true;
-            }
-        }
-    }
-    false
-}
-
-/// Assign each detected region to at most one formula slot on one side
-/// (side-channel formulas or formula elements).
-///
-/// With region geometry, region/slot pairs whose bounding boxes (both in PDF
-/// points) overlap enough are initially accepted best first, by overlap and
-/// then IoU, independently of region order.
-/// When the counts match, contested slots are reassigned along augmenting
-/// paths when needed to pair every region. If no complete matching exists,
-/// geometry is not trusted for the page and pairing is positional in reading
-/// order, as it is without geometry; the OCR side
-/// channel emits its formulas in the same sort (see
-/// [`formula_regions_in_reading_order`]). When the counts differ, unpaired
-/// regions stay unassigned, and without geometry nothing is assigned.
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-fn assign_formula_slots(
-    region_count: usize,
-    slot_bboxes: &[Option<crate::types::BoundingBox>],
-    regions_pts: Option<&[crate::types::BoundingBox]>,
-) -> Vec<Option<usize>> {
-    let counts_match = slot_bboxes.len() == region_count;
-    let positional = || (0..region_count).map(Some).collect();
-    let Some(regions_pts) = regions_pts else {
-        return if counts_match {
-            positional()
-        } else {
-            vec![None; region_count]
-        };
-    };
-    debug_assert_eq!(regions_pts.len(), region_count);
-    let mut candidates: Vec<(usize, usize, f64, f64)> = Vec::new();
-    for (region_idx, region) in regions_pts.iter().enumerate() {
-        for (slot_idx, slot) in slot_bboxes.iter().enumerate() {
-            let Some(slot) = slot else { continue };
-            let overlap = bbox_overlap_ratio(region, slot);
-            if overlap >= FORMULA_PAIR_MIN_OVERLAP {
-                candidates.push((region_idx, slot_idx, overlap, bbox_iou(region, slot)));
-            }
-        }
-    }
-    candidates.sort_by(|&(_, _, overlap_a, iou_a), &(_, _, overlap_b, iou_b)| {
-        overlap_b.total_cmp(&overlap_a).then(iou_b.total_cmp(&iou_a))
-    });
-    let mut assigned: Vec<Option<usize>> = vec![None; region_count];
-    let mut slot_taken = vec![false; slot_bboxes.len()];
-    for &(region_idx, slot_idx, _, _) in &candidates {
-        if assigned[region_idx].is_none() && !slot_taken[slot_idx] {
-            assigned[region_idx] = Some(slot_idx);
-            slot_taken[slot_idx] = true;
-        }
-    }
-    if counts_match && assigned.contains(&None) {
-        let mut choices = vec![Vec::new(); region_count];
-        for (region_idx, slot_idx, _, _) in candidates {
-            choices[region_idx].push(slot_idx);
-        }
-        let mut slot_owners = vec![None; slot_bboxes.len()];
-        for (region, slot) in assigned.iter().enumerate() {
-            if let Some(slot) = slot {
-                slot_owners[*slot] = Some(region);
-            }
-        }
-        for region in 0..region_count {
-            if assigned[region].is_none()
-                && !complete_formula_assignment(region, &choices, &mut assigned, &mut slot_owners)
-            {
-                return positional();
-            }
-        }
-    }
-    assigned
-}
-
-/// Whether an unpaired detection may become a new formula on this page.
-///
-/// Without region geometry, a count mismatch cannot pair regions with the
-/// existing formula text, so a synthesized formula would duplicate one the
-/// page already carries. Synthesis is safe when geometry exists, or when the
-/// page carries no formula text at all (then there is nothing to duplicate).
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-fn formula_synthesis_allowed(has_region_geometry: bool, formula_slot_count: usize, element_slot_count: usize) -> bool {
-    has_region_geometry || (formula_slot_count == 0 && element_slot_count == 0)
-}
-
-/// Per-page MediaBox sizes in points, for mapping detection bboxes into PDF
-/// point space. `None` when the document cannot be opened (for example an
-/// encrypted PDF); synthesized formulas then keep pixel coordinates, the
-/// documented fallback for pages whose geometry is unavailable.
-///
-/// The page rasters reaching formula recognition are MediaBox-oriented: OCR
-/// rasters are normalized, and markdown rasters survive only when no page is
-/// rotated (`markdown_layout_usable_for_native`).
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-fn pdf_page_sizes_pt(content: &[u8], page_count: usize) -> Option<Vec<(f32, f32)>> {
-    let doc = xberg_native_pdf::PdfDocument::from_bytes(content.to_vec()).ok()?;
-    Some(
-        (0..page_count)
-            .map(|index| crate::pdf::render::get_page_dimensions_pt(&doc, index))
-            .collect(),
-    )
-}
-
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-struct FormulaPageInput<'a> {
-    page_index: usize,
-    image: &'a dyn AsPageRgb,
-    detection: &'a crate::layout::DetectionResult,
-}
-
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-struct FormulaPageInputs<'a> {
-    page_count: usize,
-    pages: Vec<FormulaPageInput<'a>>,
-}
-
 // ~keep A sparse borrowed view retains physical page indices and pairs each detection with its
 // own raster. Original Markdown inputs remain untouched for VLM region extraction.
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-fn select_formula_page_inputs<'a>(
-    native: Option<(&'a [image::RgbImage], &'a [crate::layout::DetectionResult])>,
-    mixed: Option<(&'a [image::DynamicImage], &'a [crate::layout::DetectionResult])>,
-) -> FormulaPageInputs<'a> {
-    let page_count = native
-        .map_or(0, |(images, _)| images.len())
-        .max(mixed.map_or(0, |(images, _)| images.len()));
-    let pages = (0..page_count)
-        .filter_map(|page_index| {
-            let mixed_page = mixed.and_then(|(images, detections)| {
-                let detection = detections.get(page_index)?;
-                if !detection
-                    .detections
-                    .iter()
-                    .any(|region| matches!(region.class_name, crate::layout::LayoutClass::Formula))
-                {
-                    return None;
-                }
-                let image = images.get(page_index)?;
-                Some(FormulaPageInput {
-                    page_index,
-                    image: image.as_rgb8().map_or(image as &dyn AsPageRgb, |rgb| rgb),
-                    detection,
-                })
-            });
-            mixed_page.or_else(|| {
-                let (images, detections) = native?;
-                Some(FormulaPageInput {
-                    page_index,
-                    image: images.get(page_index)?,
-                    detection: detections.get(page_index)?,
-                })
-            })
-        })
-        .collect();
-    FormulaPageInputs { page_count, pages }
-}
-
-/// Recognize layout-detected formula regions on rendered PDF pages.
-///
-/// Each detected region pairs with the formula text the extraction side
-/// already produced (side-channel formulas and formula elements), per page,
-/// by bounding-box overlap in PDF points. When the counts match but overlap
-/// cannot pair every region, the page pairs in reading order instead (see
-/// [`assign_formula_slots`] for the rule). Recognized LaTeX replaces the
-/// text of paired slots. A region paired with nothing — for example on a
-/// scanned page whose OCR backend emits plain text only — becomes a new
-/// formula with its bbox in PDF points. Failures keep the existing text.
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-async fn recognize_pdf_formula_regions(
-    ocr_doc: Option<&mut crate::types::internal::InternalDocument>,
-    formulas: &mut Vec<crate::types::Formula>,
-    images: &[impl AsPageRgb],
-    detections: &[crate::layout::DetectionResult],
-    layout: &crate::core::config::LayoutDetectionConfig,
-    content: &[u8],
-) {
-    let pages = images
-        .iter()
-        .zip(detections)
-        .enumerate()
-        .map(|(page_index, (image, detection))| FormulaPageInput {
-            page_index,
-            image,
-            detection,
-        })
-        .collect();
-    let inputs = FormulaPageInputs {
-        page_count: images.len(),
-        pages,
-    };
-    recognize_pdf_formula_page_inputs(ocr_doc, formulas, &inputs, layout, content).await;
-}
-
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-async fn recognize_pdf_formula_page_inputs(
-    mut ocr_doc: Option<&mut crate::types::internal::InternalDocument>,
-    formulas: &mut Vec<crate::types::Formula>,
-    inputs: &FormulaPageInputs<'_>,
-    layout: &crate::core::config::LayoutDetectionConfig,
-    content: &[u8],
-) {
-    if layout.formula_model.is_none() {
-        return;
-    }
-    let page_count = inputs.page_count;
-    let mut element_slots: Vec<Vec<(Option<crate::types::BoundingBox>, &mut String)>> =
-        (0..page_count).map(|_| Vec::new()).collect();
-    if let Some(doc) = ocr_doc.as_deref_mut() {
-        for element in doc.elements.iter_mut() {
-            if matches!(element.kind, crate::types::internal::ElementKind::Formula)
-                && let Some(page) = element.page
-                && let Some(slot) = element_slots.get_mut((page as usize).saturating_sub(1))
-            {
-                slot.push((element.bbox, &mut element.text));
-            }
-        }
-    }
-    let mut missing_elements = Vec::new();
-    // Page MediaBox sizes, parsed once on first need (geometric pairing or a
-    // synthesized bbox); fully positional pages never pay for the parse.
-    let mut page_sizes_pt: Option<Option<Vec<(f32, f32)>>> = None;
-    for input in &inputs.pages {
-        let page_idx = input.page_index;
-        let image = input.image;
-        let detection = input.detection;
-        let regions = formula_regions_in_reading_order(detection);
-        let page_number = (page_idx + 1) as u32;
-        if regions.is_empty() {
-            tracing::debug!(
-                page = page_number,
-                detections = detection.detections.len(),
-                "layout detected no formula regions on this page; formula recognition skipped"
-            );
-            continue;
-        }
-
-        let mut synthesized: Vec<crate::types::Formula> = Vec::new();
-        {
-            let mut formula_slots: Vec<&mut crate::types::Formula> =
-                formulas.iter_mut().filter(|f| f.page == Some(page_number)).collect();
-            let elements = element_slots
-                .get_mut(page_idx)
-                .map(Vec::as_mut_slice)
-                .unwrap_or(&mut []);
-
-            let rgb = image.page_rgb();
-            let rgb: &image::RgbImage = &rgb;
-
-            let counts_differ = formula_slots.len() != regions.len() || elements.len() != regions.len();
-            let formula_boxes: Vec<Option<crate::types::BoundingBox>> = formula_slots.iter().map(|f| f.bbox).collect();
-            let element_boxes: Vec<Option<crate::types::BoundingBox>> =
-                elements.iter().map(|(bbox, _)| *bbox).collect();
-            let page_size = if counts_differ || formula_boxes.iter().chain(&element_boxes).any(Option::is_some) {
-                page_sizes_pt
-                    .get_or_insert_with(|| pdf_page_sizes_pt(content, page_count))
-                    .as_ref()
-                    .and_then(|sizes| sizes.get(page_idx).copied())
-            } else {
-                None
-            };
-            let regions_pts: Option<Vec<crate::types::BoundingBox>> = page_size.map(|(page_w_pt, page_h_pt)| {
-                regions
-                    .iter()
-                    .map(|region| {
-                        let pixel = crate::types::BoundingBox {
-                            x0: f64::from(region.bbox.x1),
-                            y0: f64::from(region.bbox.y1),
-                            x1: f64::from(region.bbox.x2),
-                            y1: f64::from(region.bbox.y2),
-                        };
-                        crate::pdf::render::pixel_bbox_to_pdf_points(
-                            pixel,
-                            rgb.width(),
-                            rgb.height(),
-                            page_w_pt,
-                            page_h_pt,
-                        )
-                    })
-                    .collect()
-            });
-            if counts_differ && (!formula_slots.is_empty() || !elements.is_empty()) {
-                if regions_pts.is_some() {
-                    tracing::warn!(
-                        page = page_number,
-                        detections = regions.len(),
-                        formulas = formula_slots.len(),
-                        elements = elements.len(),
-                        "formula counts differ from detections; pairing regions by bounding-box overlap"
-                    );
-                } else {
-                    tracing::warn!(
-                        page = page_number,
-                        detections = regions.len(),
-                        formulas = formula_slots.len(),
-                        elements = elements.len(),
-                        "formula counts differ from detections and the page geometry is unavailable; keeping OCR text on this page"
-                    );
-                }
-            }
-            let allow_synthesis = formula_synthesis_allowed(regions_pts.is_some(), formula_slots.len(), elements.len());
-            let formula_assign = assign_formula_slots(regions.len(), &formula_boxes, regions_pts.as_deref());
-            let element_assign = assign_formula_slots(regions.len(), &element_boxes, regions_pts.as_deref());
-
-            for (region_idx, region) in regions.iter().enumerate() {
-                if formula_assign[region_idx].is_none() && element_assign[region_idx].is_none() && !allow_synthesis {
-                    continue;
-                }
-                let Some((x, y, w, h)) = region.bbox.clamp_to_image(rgb.width(), rgb.height()) else {
-                    continue;
-                };
-                let crop = image::imageops::crop_imm(rgb, x, y, w, h).to_image();
-                match crate::formula_recognition::recognize_crop_blocking(crop, layout.acceleration.clone()).await {
-                    Ok(Some(latex)) => {
-                        let formula_slot = formula_assign[region_idx].and_then(|i| formula_slots.get_mut(i));
-                        let element_slot = element_assign[region_idx].and_then(|i| elements.get_mut(i));
-                        let bbox = formula_slot.as_ref().and_then(|slot| slot.bbox).unwrap_or_else(|| {
-                            regions_pts
-                                .as_ref()
-                                .map(|pts| pts[region_idx])
-                                .unwrap_or(crate::types::BoundingBox {
-                                    x0: f64::from(x),
-                                    y0: f64::from(y),
-                                    x1: f64::from(x + w),
-                                    y1: f64::from(y + h),
-                                })
-                        });
-                        if element_slot.is_none() && (formula_slot.is_some() || allow_synthesis) {
-                            missing_elements.push((
-                                crate::types::Formula {
-                                    latex: latex.clone(),
-                                    bbox: Some(bbox),
-                                    page: Some(page_number),
-                                },
-                                regions_pts.is_some(),
-                            ));
-                        }
-                        let mut replaced = false;
-                        if let Some(slot) = formula_slot {
-                            slot.latex = latex.clone();
-                            replaced = true;
-                        }
-                        if let Some(entry) = element_slot {
-                            *entry.1 = latex.clone();
-                            replaced = true;
-                        }
-                        if !replaced && allow_synthesis {
-                            synthesized.push(crate::types::Formula {
-                                latex,
-                                bbox: Some(bbox),
-                                page: Some(page_number),
-                            });
-                        }
-                    }
-                    Ok(None) => {}
-                    Err(error) => {
-                        tracing::warn!(error = %error, page = page_number, "pdf formula recognition failed; keeping OCR text");
-                    }
-                }
-            }
-        }
-        if !synthesized.is_empty() {
-            tracing::info!(
-                page = page_number,
-                formulas = synthesized.len(),
-                "recognized formulas from layout regions with no extracted formula text"
-            );
-            formulas.extend(synthesized);
-        }
-    }
-    drop(element_slots);
-    if let Some(doc) = ocr_doc {
-        insert_missing_formula_elements(doc, missing_elements);
-    }
-}
-
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-fn insert_missing_formula_elements(doc: &mut InternalDocument, missing_elements: Vec<(crate::types::Formula, bool)>) {
-    let mut deferred_ids = std::collections::HashSet::new();
-    for (formula, has_point_geometry) in missing_elements {
-        insert_recognized_formula_element(doc, formula, has_point_geometry, &mut deferred_ids);
-    }
-}
-
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-fn insert_recognized_formula_element(
-    doc: &mut InternalDocument,
-    formula: crate::types::Formula,
-    has_point_geometry: bool,
-    deferred_ids: &mut std::collections::HashSet<crate::types::internal::InternalElementId>,
-) {
-    let mut at = doc.elements.len();
-    for (index, element) in doc.elements.iter().enumerate() {
-        if element.page > formula.page
-            || (has_point_geometry
-                && element.page == formula.page
-                && element
-                    .bbox
-                    .zip(formula.bbox)
-                    .is_some_and(|(existing, recognized)| existing.y1 < recognized.y0))
-        {
-            at = index;
-            break;
-        }
-    }
-    let before_later_page = doc.elements.get(at).is_some_and(|element| element.page > formula.page);
-    // ~keep New root-level math must precede unopened containers without splitting their first member from the start.
-    while at > 0
-        && doc.elements[at - 1].kind.is_container_start()
-        && (doc.elements[at - 1].page.is_none() || doc.elements[at - 1].page >= formula.page)
-    {
-        at -= 1;
-    }
-    // ~keep Cross a following page's boundary only for earlier-page math; same-page math stays after its boundary.
-    if before_later_page {
-        while at > 0 && matches!(doc.elements[at - 1].kind, ElementKind::PageBreak) {
-            at -= 1;
-        }
-    }
-    let Some(safe_at) = formula_container_boundary(doc, at, formula.page) else {
-        doc.processing_warnings.push(crate::types::ProcessingWarning {
-            source: std::borrow::Cow::Borrowed("formula_recognition"),
-            message: std::borrow::Cow::Owned(format!(
-                "recognized formula on page {} retained in side channel; body insertion declined because no safe same-page container boundary exists",
-                formula.page.unwrap_or(0),
-            )),
-        });
-        return;
-    };
-    let is_deferred = safe_at > at;
-    if is_deferred {
-        // ~keep Only formulas deferred by this batch share its insertion cursor; original following math stays after them.
-        at = safe_at;
-        while doc.elements.get(at).is_some_and(|element| {
-            matches!(element.kind, ElementKind::Formula)
-                && element.page == formula.page
-                && deferred_ids.contains(&element.id)
-        }) {
-            at += 1;
-        }
-    } else {
-        at = safe_at;
-    }
-    let first_on_page = !doc.elements.iter().any(|element| element.page == formula.page);
-    if first_on_page && at > 0 && !matches!(doc.elements[at - 1].kind, ElementKind::PageBreak) {
-        insert_formula_document_element(doc, at, InternalElement::text(ElementKind::PageBreak, "", 0));
-        at += 1;
-    }
-    let mut element = InternalElement::text(ElementKind::Formula, formula.latex, 0);
-    element.page = formula.page;
-    element.bbox = formula.bbox;
-    insert_formula_document_element(doc, at, element);
-    if is_deferred {
-        deferred_ids.insert(doc.elements[at].id.clone());
-    }
-    if first_on_page
-        && doc
-            .elements
-            .get(at + 1)
-            .is_some_and(|next| !matches!(next.kind, ElementKind::PageBreak))
-    {
-        insert_formula_document_element(doc, at + 1, InternalElement::text(ElementKind::PageBreak, "", 0));
-    }
-}
 
 // ~keep Detection geometry cannot assign list-item ownership. Defer standalone math until all open containers close.
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-fn formula_container_boundary(doc: &InternalDocument, at: usize, page: Option<u32>) -> Option<usize> {
-    let mut open = Vec::new();
-    for element in &doc.elements[..at] {
-        update_formula_container_stack(&mut open, element.kind);
-    }
-    if open.is_empty() {
-        return Some(at);
-    }
-    for (offset, element) in doc.elements[at..].iter().enumerate() {
-        if matches!(element.kind, ElementKind::PageBreak)
-            || element.page.is_some_and(|element_page| Some(element_page) != page)
-        {
-            return None;
-        }
-        update_formula_container_stack(&mut open, element.kind);
-        if open.is_empty() {
-            return Some(at + offset + 1);
-        }
-    }
-    None
-}
-
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-fn update_formula_container_stack(open: &mut Vec<ElementKind>, kind: ElementKind) {
-    if kind.is_container_start() {
-        open.push(kind);
-    } else if let Some(position) = open.iter().rposition(|start| {
-        matches!(
-            (start, kind),
-            (ElementKind::ListStart { .. }, ElementKind::ListEnd)
-                | (ElementKind::QuoteStart, ElementKind::QuoteEnd)
-                | (ElementKind::GroupStart, ElementKind::GroupEnd)
-        )
-    }) {
-        open.truncate(position);
-    }
-}
-
-/// Put a picture's OCR text anchor after the last element of its own page, so the recovered
-/// text reads before the next page instead of after the whole document.
-#[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-fn insert_image_ocr_text_anchor(doc: &mut InternalDocument, anchor: InternalElement) {
-    let next_page = anchor.page.and_then(|page| {
-        doc.elements
-            .iter()
-            .position(|element| element.page.is_some_and(|other| other > page))
-    });
-    let Some(at) = next_page else {
-        doc.push_element(anchor);
-        return;
-    };
-    for relationship in &mut doc.relationships {
-        if relationship.source >= at as u32 {
-            relationship.source += 1;
-        }
-        if let crate::types::internal::RelationshipTarget::Index(target) = &mut relationship.target
-            && *target >= at as u32
-        {
-            *target += 1;
-        }
-    }
-    doc.elements.insert(at, anchor);
-}
-
-#[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-fn insert_formula_document_element(doc: &mut InternalDocument, at: usize, mut element: InternalElement) {
-    // ~keep Insertion positions can be reused after shifts; allocate a fresh identity without renumbering old IDs.
-    let mut identity_index = doc.elements.len() as u32;
-    loop {
-        element.id = crate::types::internal::InternalElementId::generate(
-            element.kind.discriminant(),
-            &element.text,
-            element.page,
-            identity_index,
-        );
-        if doc.elements.iter().all(|existing| existing.id != element.id) {
-            break;
-        }
-        identity_index = identity_index.wrapping_add(1);
-    }
-    // ~keep Preserve stable element IDs while moving positional relationship endpoints with their elements.
-    for relationship in &mut doc.relationships {
-        if relationship.source >= at as u32 {
-            relationship.source += 1;
-        }
-        if let crate::types::internal::RelationshipTarget::Index(target) = &mut relationship.target
-            && *target >= at as u32
-        {
-            *target += 1;
-        }
-    }
-    doc.elements.insert(at, element);
-}
-
-#[cfg(all(
-    test,
-    feature = "pdf",
-    feature = "layout-detection",
-    feature = "ocr",
-    feature = "formula-recognition",
-    feature = "tokio-runtime"
-))]
-pub(crate) async fn recognize_formula_regions_for_test(
-    doc: &mut InternalDocument,
-    formulas: &mut Vec<crate::types::Formula>,
-    images: &[image::RgbImage],
-    detections: &[crate::layout::DetectionResult],
-    layout: &crate::core::config::LayoutDetectionConfig,
-) {
-    recognize_pdf_formula_regions(Some(doc), formulas, images, detections, layout, &[]).await;
-}
 
 /// Whether the caller actually asked for the recovered diagram, i.e. the
 /// request's output format resolves to the `dot` renderer.
@@ -2321,7 +1129,7 @@ fn wants_dot_output(config: &ExtractionConfig) -> bool {
     matches!(&config.output_format, crate::core::config::OutputFormat::Custom(name) if name == "dot")
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn attach_pdf_preprocessing_metadata(
     pages: &mut Option<Vec<crate::types::PageContent>>,
     by_page: &ahash::AHashMap<u32, crate::types::ImagePreprocessingMetadata>,
@@ -2346,7 +1154,7 @@ fn attach_pdf_preprocessing_metadata(
 /// legibility scale. Unlike `attach_pdf_preprocessing_metadata` there is no document-level
 /// aggregate: averaging per-page confidences across pages OCR'd by different backends (the
 /// pipeline route's stages) would compare incomparable scales. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn attach_pdf_ocr_confidence(
     pages: &mut Option<Vec<crate::types::PageContent>>,
     by_page: &ahash::AHashMap<u32, crate::types::page::PageOcrConfidence>,
@@ -2362,7 +1170,7 @@ fn attach_pdf_ocr_confidence(
 ///
 /// With `keep_native_content`, the text layer that `content` held moves to `native_content`
 /// when it is not blank and differs from the OCR text. The same rule applies on every OCR route.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn replace_page_content_with_ocr_text(page: &mut crate::types::PageContent, ocr_text: &str, keep_native_content: bool) {
     let ocr_content = crate::pdf::text::fix_pdf_control_chars(ocr_text).into_owned();
     let native = std::mem::replace(&mut page.content, ocr_content);
@@ -2375,7 +1183,7 @@ fn replace_page_content_with_ocr_text(page: &mut crate::types::PageContent, ocr_
 ///
 /// One OCR text for a document of several pages is the text of the whole document: it goes to
 /// the first page, and the content of every later page is replaced with empty text.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn replace_pages_with_ocr_page_texts(
     pages: &mut [crate::types::PageContent],
     ocr_page_texts: &[String],
@@ -2396,7 +1204,7 @@ fn replace_pages_with_ocr_page_texts(
     replaced
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn automatic_unmapped_text_hints(metadata: &crate::pdf::metadata::PdfExtractionMetadata) -> Option<ocr::PageOcrHints> {
     let pages = metadata.pdf_specific.fabricated_text_pages.as_ref()?;
     (!pages.is_empty()).then(|| ocr::PageOcrHints {
@@ -2410,7 +1218,7 @@ fn automatic_unmapped_text_hints(metadata: &crate::pdf::metadata::PdfExtractionM
 
 /// Hints for the whole-document OCR fallback: the fabricated-text pages, plus the readable text
 /// layer of each page, so a page whose OCR text is judged recognition noise keeps its layer.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn whole_document_ocr_hints(
     metadata: &crate::pdf::metadata::PdfExtractionMetadata,
     native_text: &str,
@@ -2436,57 +1244,20 @@ fn whole_document_ocr_hints(
             })
             .native_page_layers = layers;
     }
-    #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-    if config.ocr_strategy == crate::core::config::OcrStrategy::Auto
-        && config.ocr.as_ref().is_some_and(ocr::uses_default_ocr_pipeline)
-        && let Some([boundary]) = boundaries
-        && boundary.page_number == 1
-        && let Some(native) = native_text.get(boundary.byte_start..boundary.byte_end)
-        && native.contains(unmapped_glyphs::LOST_GLYPH_MARKER)
-    {
-        hints.get_or_insert_with(Default::default).single_native_type0_page = Some(native.into());
-    }
     hints
 }
 
-#[cfg(all(
-    feature = "layout-detection",
-    any(feature = "formula-recognition", feature = "liter-llm"),
-    any(feature = "ocr", feature = "ocr-pipeline")
-))]
-fn native_layout_readers_configured(config: &ExtractionConfig) -> bool {
-    let formula_reads =
-        cfg!(feature = "formula-recognition") && config.layout.as_ref().is_some_and(|l| l.formula_model.is_some());
-    #[cfg(feature = "liter-llm")]
-    let vlm_reads = region_vlm::region_vlm_config(config).is_some();
-    #[cfg(not(feature = "liter-llm"))]
-    let vlm_reads = false;
-    formula_reads || vlm_reads
-}
-
-#[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-use unreadable_script::{dropped_script_warnings, every_page_dropped_script, pages_that_dropped_script};
-
-#[cfg(all(
-    any(feature = "ocr", feature = "ocr-pipeline"),
-    not(all(feature = "ocr", not(target_arch = "wasm32")))
-))]
+#[cfg(feature = "ocr-pipeline")]
 fn every_page_dropped_script(_: &[u32], _: &str, _: Option<&[crate::types::PageBoundary]>, _: &[String]) -> bool {
     false
 }
 
-#[cfg(all(
-    any(feature = "ocr", feature = "ocr-pipeline"),
-    not(all(feature = "ocr", not(target_arch = "wasm32")))
-))]
+#[cfg(feature = "ocr-pipeline")]
 fn pages_that_dropped_script(_: &[u32], _: &str, _: Option<&[crate::types::PageBoundary]>, _: &[String]) -> Vec<u32> {
     Vec::new()
 }
 
-#[cfg(all(
-    any(feature = "ocr", feature = "ocr-pipeline"),
-    not(all(feature = "ocr", not(target_arch = "wasm32")))
-))]
+#[cfg(feature = "ocr-pipeline")]
 fn dropped_script_warnings(
     _: &[u32],
     _: &str,
@@ -2496,7 +1267,7 @@ fn dropped_script_warnings(
 }
 
 /// PDF document extractor using xberg_native_pdf.
-#[cfg_attr(alef, alef(skip))]
+
 pub struct PdfExtractor;
 
 impl Default for PdfExtractor {
@@ -2558,40 +1329,6 @@ impl InternalDocumentExtractor for PdfExtractor {
 
     fn supported_mime_types(&self) -> &[&str] {
         &["application/pdf"]
-    }
-}
-
-#[cfg(all(feature = "pdf", feature = "layout-detection"))]
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl crate::core::layout_pages::LayoutPagesExtractor for PdfExtractor {
-    async fn extract_with_layout_pages(
-        &self,
-        content: &[u8],
-        mime_type: &str,
-        config: &ExtractionConfig,
-        pages: &crate::core::layout_pages::LayoutPageSelection,
-    ) -> Result<InternalDocument> {
-        if config
-            .pdf_options
-            .as_ref()
-            .is_some_and(|options| options.backend != crate::core::config::PdfBackend::Native)
-        {
-            return Err(crate::XbergError::validation(
-                "explicit layout-page selection requires the native PDF backend".to_string(),
-            ));
-        }
-        enforce_page_limit(content, config)?;
-        let page_count = native_page_count(content).ok_or_else(|| {
-            crate::XbergError::validation("unable to count PDF pages for explicit layout selection".to_string())
-        })?;
-        let mut document = self
-            .extract_core_native_with_layout_pages(content, mime_type, config, None, Some(pages))
-            .await?;
-        for warning in pages.warnings(page_count) {
-            crate::core::diagnostics::push_warning_deduped(&mut document.processing_warnings, warning);
-        }
-        Ok(document)
     }
 }
 
@@ -2688,11 +1425,6 @@ impl PdfExtractor {
         pdfium_engine::extract(content, mime_type, config).await
     }
 
-    /// Core extraction via the xberg_native_pdf backend.
-    ///
-    /// Runs text + metadata, tables, and annotation extraction through the native
-    /// modules, then builds an `InternalDocument` using the same post-processing
-    /// pipeline (OCR evaluation, page assembly, image extraction, bookmarks, etc.).
     #[cfg(feature = "pdf")]
     async fn extract_core_native(
         &self,
@@ -2701,83 +1433,15 @@ impl PdfExtractor {
         config: &ExtractionConfig,
         path: Option<&std::path::Path>,
     ) -> Result<InternalDocument> {
-        // ~keep Keep the added compatibility wrapper from doubling the native future's stack footprint.
-        Box::pin(self.extract_core_native_with_layout_pages(content, mime_type, config, path, None)).await
-    }
-
-    #[cfg(feature = "pdf")]
-    async fn extract_core_native_with_layout_pages(
-        &self,
-        content: &[u8],
-        mime_type: &str,
-        config: &ExtractionConfig,
-        path: Option<&std::path::Path>,
-        layout_pages: Option<&crate::core::layout_pages::LayoutPageSelection>,
-    ) -> Result<InternalDocument> {
-        let _ = (&path, &layout_pages);
-
         enforce_page_limit(content, config)?;
-
-        #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-        #[allow(unused_mut, unused_variables)]
-        let (
-            mut markdown_layout_images,
-            markdown_layout_results,
-            markdown_layout_hints,
-            mut markdown_layout_detections,
-            markdown_layout_gate_decisions,
-            markdown_layout_warning,
-            mut markdown_layout_acceleration_override,
-            markdown_layout_glyph_drop_warnings,
-        ) = layout_runner::maybe_run_layout_for_markdown_with_pages(content, config, layout_pages).await;
 
         let blocking_content = content.to_vec();
         let blocking_config = config.clone();
-        #[cfg(feature = "layout-detection")]
-        let region_text_layout = layout_pages
-            .filter(|pages| pages.region_text.is_some() && crate::engine::layout_region_text::capture_allowed(config))
-            .zip(markdown_layout_detections.as_deref())
-            .map(
-                |(selection, detections)| crate::engine::layout_region_text::RegionTextLayout {
-                    selection: selection.clone(),
-                    detector_classes: detections
-                        .iter()
-                        .map(|page| page.detections.iter().map(|detection| detection.class_name).collect())
-                        .collect(),
-                },
-            );
-        let native_output = spawn_pdf_blocking(move || {
-            extract_native_blocking(
-                blocking_content,
-                blocking_config,
-                #[cfg(feature = "layout-detection")]
-                markdown_layout_images,
-                #[cfg(feature = "layout-detection")]
-                markdown_layout_results,
-                #[cfg(feature = "layout-detection")]
-                markdown_layout_hints,
-                #[cfg(feature = "layout-detection")]
-                markdown_layout_acceleration_override,
-                #[cfg(feature = "layout-detection")]
-                region_text_layout,
-            )
-        })
-        .await?;
+        let native_output =
+            spawn_pdf_blocking(move || extract_native_blocking(blocking_content, blocking_config)).await?;
         let bookmark_uris = native_output.bookmark_uris;
         let pdf_revisions = native_output.pdf_revisions;
         let diagrams = native_output.diagrams;
-        #[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-pipeline")))]
-        let mut markdown_layout_images = native_output.layout_images;
-        #[cfg(all(feature = "layout-detection", not(any(feature = "ocr", feature = "ocr-pipeline"))))]
-        let _markdown_layout_images = native_output.layout_images;
-        #[cfg(all(feature = "layout-detection", feature = "liter-llm"))]
-        let markdown_layout_hints = native_output.layout_hints;
-        #[cfg(all(feature = "layout-detection", not(feature = "liter-llm")))]
-        let _markdown_layout_hints = native_output.layout_hints;
-        #[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-pipeline")))]
-        let mut markdown_layout_acceleration_override = native_output.layout_acceleration_override;
-        #[cfg(all(feature = "layout-detection", not(any(feature = "ocr", feature = "ocr-pipeline"))))]
-        let _markdown_layout_acceleration_override = native_output.layout_acceleration_override;
 
         #[allow(unused_variables, unused_mut)]
         let (
@@ -2798,7 +1462,7 @@ impl PdfExtractor {
             mut outlined_ocr_pages,
         ) = native_output.extraction;
 
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         if config.pdf_options.as_ref().is_some_and(|p| p.ocr_inline_images)
             && let Some(ref mut imgs) = extracted_images
             && !imgs.is_empty()
@@ -2839,43 +1503,41 @@ impl PdfExtractor {
             }
         }
 
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let mut ocr_tables: Vec<crate::types::Table> = Vec::new();
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let mut ocr_elements: Vec<crate::types::OcrElement> = Vec::new();
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let mut ocr_coordinate_frames: Vec<crate::types::internal::OcrPageCoordinateFrame> = Vec::new();
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let mut ocr_internal_doc: Option<InternalDocument> = None;
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let mut ocr_llm_usage: Vec<crate::types::LlmUsage> = Vec::new();
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let mut ocr_page_texts: Option<Vec<String>> = None;
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let mut ocr_results_map: Option<ahash::AHashMap<u32, String>> = None;
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let mut structured_ocr_pages: Option<ahash::AHashMap<u32, InternalDocument>> = None;
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let mut ocr_page_rasters: Option<Vec<crate::types::ExtractedImage>> = None;
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let mut ocr_formulas: Vec<crate::types::Formula> = Vec::new();
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let mut ocr_preprocessing_by_page: ahash::AHashMap<u32, crate::types::ImagePreprocessingMetadata> =
             ahash::AHashMap::new();
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let mut ocr_confidence_by_page: ahash::AHashMap<u32, crate::types::page::PageOcrConfidence> =
             ahash::AHashMap::new();
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let mut ocr_fallback_warnings: Vec<crate::types::ProcessingWarning> = Vec::new();
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let mut ocr_page_failures: Vec<crate::types::OcrPageFailure> = Vec::new();
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         #[allow(unused_assignments)]
         let mut ocr_layout_gate_audit: OcrLayoutGateDecisions = (None, None);
-        #[cfg(feature = "formula-recognition")]
-        let mut mixed_formula_layout_inputs = None;
 
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         record_implausible_text_pages(
             config,
             &mut pdf_metadata,
@@ -2885,51 +1547,13 @@ impl PdfExtractor {
         );
 
         // Only formula recognition and VLM regions read the rasters on the native path.
-        #[cfg(all(
-            feature = "pdf",
-            feature = "layout-detection",
-            any(feature = "ocr", feature = "ocr-pipeline"),
-            any(feature = "formula-recognition", feature = "liter-llm")
-        ))]
-        let mut native_only_layout_inputs = None;
-        #[cfg(all(
-            feature = "pdf",
-            feature = "layout-detection",
-            any(feature = "ocr", feature = "ocr-pipeline")
-        ))]
-        {
-            // These values exist only with layout detection; keep the reuse gate in the same cfg block. ~keep
-            let markdown_page_rotations = markdown_layout_images
-                .as_ref()
-                .map(|images| crate::pdf::render::get_page_rotations_from_bytes(content, images.len()))
-                .unwrap_or_default();
-            if !markdown_layout_reusable_for_ocr(markdown_layout_gate_decisions.as_deref(), &markdown_page_rotations) {
-                let native_inputs = (markdown_layout_images.take(), markdown_layout_detections.take());
-                markdown_layout_acceleration_override = None;
-                #[cfg(any(feature = "formula-recognition", feature = "liter-llm"))]
-                {
-                    // Keep the rasters only when this run configures a native reader of them.
-                    if native_layout_readers_configured(config)
-                        && markdown_layout_usable_for_native(&markdown_page_rotations)
-                    {
-                        native_only_layout_inputs = Some(native_inputs);
-                    }
-                }
-                #[cfg(not(any(feature = "formula-recognition", feature = "liter-llm")))]
-                drop(native_inputs);
-            }
-        }
 
         // The result of a targeted per-page run, shared by the `RunFallbackOnPages` arm and the
         // whole-document arm's retry of the pages whose native script the whole read dropped. ~keep
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         macro_rules! apply_targeted_mixed_run {
             ($mixed_run:expr) => {{
                 let mixed_run = $mixed_run;
-                #[cfg(feature = "formula-recognition")]
-                {
-                    mixed_formula_layout_inputs = mixed_run.formula_layout_inputs;
-                }
                 let (
                     mixed,
                     results_map,
@@ -2958,7 +1582,7 @@ impl PdfExtractor {
             }};
         }
 
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let (mut text, extraction_method) = if config.effective_disable_ocr() {
             (native_text, ExtractionMethod::Native)
         } else if config.force_ocr {
@@ -2977,22 +1601,7 @@ impl PdfExtractor {
                 layout_warning,
                 layout_glyph_drop_warnings,
                 _,
-            ) = run_ocr_with_layout_pages(
-                content,
-                config,
-                path,
-                PageOcrLayoutContext {
-                    pages: layout_pages,
-                    hints: None,
-                },
-                #[cfg(feature = "layout-detection")]
-                markdown_layout_images.take(),
-                #[cfg(feature = "layout-detection")]
-                markdown_layout_detections.take(),
-                #[cfg(feature = "layout-detection")]
-                markdown_layout_acceleration_override.take(),
-            )
-            .await?;
+            ) = run_ocr(content, config, path, PageOcrLayoutContext { hints: None }).await?;
             if let Some(warning) = layout_warning {
                 crate::core::diagnostics::push_warning_deduped(&mut ocr_fallback_warnings, warning);
             }
@@ -3014,20 +1623,15 @@ impl PdfExtractor {
             if !ocr_pages.is_empty() {
                 if let Some(ref bounds) = boundaries {
                     if !bounds.is_empty() {
-                        let mixed_run = ocr::extract_mixed_ocr_native_with_layout_pages(
+                        let mixed_run = ocr::extract_mixed_ocr_native(
                             &native_text,
                             bounds,
                             (ocr_pages, &[]),
                             content,
                             config,
-                            layout_pages,
                             (&[], &[]),
                         )
                         .await?;
-                        #[cfg(feature = "formula-recognition")]
-                        {
-                            mixed_formula_layout_inputs = mixed_run.formula_layout_inputs;
-                        }
                         let (
                             mixed,
                             results_map,
@@ -3082,7 +1686,7 @@ impl PdfExtractor {
                 // EXPLICIT sites (`force_ocr_pages` above, `ocr_inline_images`) keep their
                 // hard error, because there the caller asked for something the build cannot
                 // do. See GH#1610. ~keep
-                match ocr::extract_mixed_ocr_native_with_layout_pages(
+                match ocr::extract_mixed_ocr_native(
                     &native_text,
                     bounds,
                     (
@@ -3095,16 +1699,11 @@ impl PdfExtractor {
                     ),
                     content,
                     config,
-                    layout_pages,
                     (&[], &[]),
                 )
                 .await
                 {
                     Ok(mixed_run) => {
-                        #[cfg(feature = "formula-recognition")]
-                        {
-                            mixed_formula_layout_inputs = mixed_run.formula_layout_inputs;
-                        }
                         let (
                             mixed,
                             results_map,
@@ -3196,33 +1795,8 @@ impl PdfExtractor {
                 pdf_metadata.pdf_specific.page_count,
                 &thresholds,
             );
-            #[cfg(not(all(feature = "ocr", not(target_arch = "wasm32"))))]
+
             let native_script_pages: Vec<u32> = Vec::new();
-            #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-            let probe_reads = {
-                let layer = unreadable_script::NativeLayer {
-                    text: &native_text,
-                    boundaries: boundaries.as_deref(),
-                    page_count: pdf_metadata.pdf_specific.page_count,
-                };
-                let ink = ink_probe::contradicted_pages(&decision, layer, content, config, layout_pages).await?;
-                let reads = ink.reads.filter(|reads| reads.finish(&ink.contradicted));
-                crate::core::diagnostics::dedup_extend_warnings(&mut ocr_fallback_warnings, ink.warnings);
-                crate::core::diagnostics::dedup_extend_warnings(
-                    &mut ocr_fallback_warnings,
-                    unreadable_script::retain_unreadable_script_pages(
-                        &mut decision,
-                        layer,
-                        content,
-                        config,
-                        &ink.contradicted,
-                    ),
-                );
-                reads
-            };
-            #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-            let native_script_pages =
-                unreadable_script::native_script_pages(&decision, &native_text, boundaries.as_deref(), content, config);
 
             // `NativeTextStats`' character-class checks cannot see a font whose mapping
             // legitimately (per the §9.10.2 cascade) resolves to the wrong-but-ordinary
@@ -3343,18 +1917,6 @@ impl PdfExtractor {
                     // decided. The whole read consumes the reusable Markdown inputs, so a clone is held
                     // when a native reader is configured; the clone holds every page raster a second time
                     // until the retry is decided. ~keep
-                    #[cfg(all(
-                        feature = "layout-detection",
-                        any(feature = "formula-recognition", feature = "liter-llm")
-                    ))]
-                    let mut held_markdown_inputs = if native_script_pages.is_empty() {
-                        drop(native_only_layout_inputs.take());
-                        None
-                    } else if native_only_layout_inputs.is_none() && native_layout_readers_configured(config) {
-                        Some((markdown_layout_images.clone(), markdown_layout_detections.clone()))
-                    } else {
-                        None
-                    };
                     // `images.run_ocr_on_images` controls whether extracted images are
                     // separately OCR'd (`core/pipeline/mod.rs`); it does not gate this
                     // document-level page OCR fallback. Reading it here made any
@@ -3362,14 +1924,11 @@ impl PdfExtractor {
                     // silently suppress page OCR on scanned PDFs, leaving `pages[].content`
                     // empty (#1576). `RunFallbackOnPages` below has never read this field;
                     // this now matches it. ~keep
-                    #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-                    let release_reads = probe_reads.as_ref().and_then(|reads| reads.release_after_final_read());
-                    let whole_read = run_ocr_with_layout_pages(
+                    let whole_read = run_ocr(
                         content,
                         config,
                         path,
                         PageOcrLayoutContext {
-                            pages: layout_pages,
                             hints: {
                                 #[allow(unused_mut)]
                                 let mut hints = whole_document_ocr_hints(
@@ -3378,24 +1937,11 @@ impl PdfExtractor {
                                     boundaries.as_deref(),
                                     config,
                                 );
-                                #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-                                if let Some(reads) = &probe_reads {
-                                    hints.get_or_insert_with(Default::default).probe_reads =
-                                        Some(std::sync::Arc::clone(reads));
-                                }
                                 hints
                             },
                         },
-                        #[cfg(feature = "layout-detection")]
-                        markdown_layout_images.take(),
-                        #[cfg(feature = "layout-detection")]
-                        markdown_layout_detections.take(),
-                        #[cfg(feature = "layout-detection")]
-                        markdown_layout_acceleration_override.take(),
                     )
                     .await;
-                    #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-                    drop(release_reads);
                     // Some marked pages lost their script to the whole read while others did not
                     // (a scan beside a native page): the pages go through the per-page route, which
                     // keeps the native text of the marked ones. That is a second OCR run over the
@@ -3416,7 +1962,7 @@ impl PdfExtractor {
                     let partial_script_drop = !dropped_pages.is_empty();
                     let targeted_retry = match boundaries.as_deref() {
                         Some(bounds) if partial_script_drop => Some(
-                            ocr::extract_mixed_ocr_native_with_layout_pages(
+                            ocr::extract_mixed_ocr_native(
                                 &native_text,
                                 bounds,
                                 (
@@ -3429,7 +1975,6 @@ impl PdfExtractor {
                                 ),
                                 content,
                                 config,
-                                layout_pages,
                                 (&outlined_ocr_pages, &native_script_pages),
                             )
                             .await,
@@ -3491,16 +2036,6 @@ impl PdfExtractor {
                         }
                         None => None,
                     };
-                    #[cfg(all(
-                        feature = "layout-detection",
-                        any(feature = "formula-recognition", feature = "liter-llm")
-                    ))]
-                    if retried.is_some() {
-                        native_only_layout_inputs = native_only_layout_inputs.take().or(held_markdown_inputs.take());
-                    } else {
-                        drop(native_only_layout_inputs.take());
-                        drop(held_markdown_inputs.take());
-                    }
                     if let Some(retried) = retried {
                         retried
                     } else {
@@ -3629,8 +2164,7 @@ impl PdfExtractor {
                 }
                 ocr::OcrGateOutcome::RunFallbackOnPages(pages) => match boundaries.as_deref() {
                     Some(bounds) if !bounds.is_empty() => {
-                        #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-                        let selected_run = ocr::extract_mixed_ocr_native_with_probe_reads(
+                        let selected_run = ocr::extract_mixed_ocr_native(
                             &native_text,
                             bounds,
                             (
@@ -3643,25 +2177,6 @@ impl PdfExtractor {
                             ),
                             content,
                             config,
-                            layout_pages,
-                            (&outlined_ocr_pages, &native_script_pages, probe_reads.clone()),
-                        )
-                        .await;
-                        #[cfg(not(all(feature = "ocr", not(target_arch = "wasm32"))))]
-                        let selected_run = ocr::extract_mixed_ocr_native_with_layout_pages(
-                            &native_text,
-                            bounds,
-                            (
-                                &pages,
-                                pdf_metadata
-                                    .pdf_specific
-                                    .fabricated_text_pages
-                                    .as_deref()
-                                    .unwrap_or(&[]),
-                            ),
-                            content,
-                            config,
-                            layout_pages,
                             (&outlined_ocr_pages, &native_script_pages),
                         )
                         .await;
@@ -3719,46 +2234,14 @@ impl PdfExtractor {
                         (native_text, ExtractionMethod::Native)
                     }
                 },
-                #[cfg(not(all(feature = "ocr", not(target_arch = "wasm32"))))]
+
                 ocr::OcrGateOutcome::UseNative => (native_text, ExtractionMethod::Native),
-                #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-                ocr::OcrGateOutcome::UseNative => {
-                    let probe = ocr::probe_incomplete_hidden_layers(
-                        &native_text,
-                        boundaries.as_deref().unwrap_or(&[]),
-                        pdf_metadata.pdf_specific.scanned_pages.as_deref().unwrap_or(&[]),
-                        content,
-                        config,
-                    )
-                    .await?;
-                    if let Some(mixed_run) = probe {
-                        let (text, replacements, _, _, _, _, preprocessing, confidence, warnings, page_failures) =
-                            mixed_run.output;
-                        let method = extraction_method_after_mixed_ocr(&replacements);
-                        ocr_preprocessing_by_page.extend(
-                            preprocessing
-                                .into_iter()
-                                .filter(|(page, _)| replacements.contains_key(page)),
-                        );
-                        ocr_confidence_by_page.extend(
-                            confidence
-                                .into_iter()
-                                .filter(|(page, _)| replacements.contains_key(page)),
-                        );
-                        ocr_fallback_warnings.extend(warnings);
-                        ocr_page_failures.extend(page_failures);
-                        ocr_results_map = Some(replacements);
-                        (text, method)
-                    } else {
-                        (native_text, ExtractionMethod::Native)
-                    }
-                }
             }
         } else {
             (native_text, ExtractionMethod::Native)
         };
 
-        #[cfg(not(any(feature = "ocr", feature = "ocr-pipeline")))]
+        #[cfg(not(feature = "ocr-pipeline"))]
         let (mut text, extraction_method) = (native_text, ExtractionMethod::Native);
 
         // The routing gates above have read the lost-glyph markers. Pages that stay native must not
@@ -3774,18 +2257,7 @@ impl PdfExtractor {
             unmapped_glyphs::strip_document(native_doc);
         }
 
-        #[cfg(all(
-            feature = "pdf",
-            feature = "layout-detection",
-            any(feature = "ocr", feature = "ocr-pipeline"),
-            any(feature = "formula-recognition", feature = "liter-llm")
-        ))]
-        if let Some((images, detections)) = native_only_layout_inputs {
-            markdown_layout_images = images;
-            markdown_layout_detections = detections;
-        }
-
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         // Full-document OCR is authoritative for tables when it produced
         // them. The structured OCR document already contains the same table
         // values, so later document assembly must not inject them a second
@@ -3797,9 +2269,9 @@ impl PdfExtractor {
             Option<crate::types::ProcessingWarning>,
         ) = (extracted_images, None);
 
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let mut ocr_text_pages: Vec<u32> = Vec::new();
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         {
             let keep_native_content = config.pages.as_ref().is_some_and(|pages| pages.keep_native_content);
 
@@ -3858,29 +2330,29 @@ impl PdfExtractor {
             }
         }
 
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let image_preprocessing = attach_pdf_preprocessing_metadata(&mut page_contents, &ocr_preprocessing_by_page);
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         attach_pdf_ocr_confidence(&mut page_contents, &ocr_confidence_by_page);
-        #[cfg(not(any(feature = "ocr", feature = "ocr-pipeline")))]
+        #[cfg(not(feature = "ocr-pipeline"))]
         let image_preprocessing = None;
 
-        #[cfg_attr(not(any(feature = "ocr", feature = "ocr-pipeline")), allow(unused_variables))]
+        #[cfg_attr(not(feature = "ocr-pipeline"), allow(unused_variables))]
         let annotation_fallback_applied = annotation_text_fallback.is_some();
         if let Some(annotation_text_fallback) = annotation_text_fallback.as_ref() {
             extraction::apply_annotation_text_fallback(
                 annotation_text_fallback,
-                #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+                #[cfg(feature = "ocr-pipeline")]
                 ocr_page_texts.as_deref(),
-                #[cfg(not(any(feature = "ocr", feature = "ocr-pipeline")))]
+                #[cfg(not(feature = "ocr-pipeline"))]
                 None,
-                #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+                #[cfg(feature = "ocr-pipeline")]
                 ocr_results_map.as_ref(),
-                #[cfg(not(any(feature = "ocr", feature = "ocr-pipeline")))]
+                #[cfg(not(feature = "ocr-pipeline"))]
                 None,
-                #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+                #[cfg(feature = "ocr-pipeline")]
                 (extraction_method == ExtractionMethod::Ocr),
-                #[cfg(not(any(feature = "ocr", feature = "ocr-pipeline")))]
+                #[cfg(not(feature = "ocr-pipeline"))]
                 false,
                 extraction::AnnotationFallbackTarget {
                     text: &mut text,
@@ -3892,7 +2364,7 @@ impl PdfExtractor {
             );
         }
 
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         if extraction_method == ExtractionMethod::Mixed
             && let Some(ref accepted_pages) = structured_ocr_pages
         {
@@ -3909,7 +2381,7 @@ impl PdfExtractor {
         // `boundaries` index the NATIVE text; on the mixed path the OCR replacements have
         // already shifted every later offset, so re-map before handing them to the document
         // selector or page tagging would attribute content to the wrong page. ~keep
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let mut selector_boundaries = if annotation_fallback_applied {
             boundaries.clone()
         } else {
@@ -3925,30 +2397,30 @@ impl PdfExtractor {
         let lost_glyphs = if extraction_method == ExtractionMethod::Ocr {
             0
         } else {
-            #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+            #[cfg(feature = "ocr-pipeline")]
             let page_boundaries = selector_boundaries.as_mut();
-            #[cfg(not(any(feature = "ocr", feature = "ocr-pipeline")))]
+            #[cfg(not(feature = "ocr-pipeline"))]
             let page_boundaries = boundaries.as_mut();
-            #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+            #[cfg(feature = "ocr-pipeline")]
             let ocr_pages: Vec<u32> = ocr_results_map
                 .iter()
                 .flat_map(|replaced| replaced.keys().copied())
                 .collect();
-            #[cfg(not(any(feature = "ocr", feature = "ocr-pipeline")))]
+            #[cfg(not(feature = "ocr-pipeline"))]
             let ocr_pages: Vec<u32> = Vec::new();
             unmapped_glyphs::strip_text(&mut text, page_boundaries, &ocr_pages)
         };
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         if let Some(ref mut page_structure) = pdf_metadata.page_structure {
             page_structure.boundaries = selector_boundaries.clone();
         }
-        #[cfg(not(any(feature = "ocr", feature = "ocr-pipeline")))]
+        #[cfg(not(feature = "ocr-pipeline"))]
         if lost_glyphs > 0
             && let Some(ref mut page_structure) = pdf_metadata.page_structure
         {
             page_structure.boundaries = boundaries.clone();
         }
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let (mut doc, document_origin, document_is_structured) = select_pdf_document(
             extraction_method,
             &text,
@@ -3960,14 +2432,14 @@ impl PdfExtractor {
             selector_boundaries.as_deref(),
             &config.output_format,
         );
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         if extraction_method == ExtractionMethod::Mixed
             && let Some(ref accepted_pages) = structured_ocr_pages
         {
             ocr_elements = accepted_mixed_ocr_elements(accepted_pages);
             ocr_coordinate_frames = accepted_mixed_ocr_coordinate_frames(accepted_pages);
         }
-        #[cfg(not(any(feature = "ocr", feature = "ocr-pipeline")))]
+        #[cfg(not(feature = "ocr-pipeline"))]
         let (mut doc, document_is_structured) =
             select_native_pdf_document(&text, mime_type, pre_rendered_doc, boundaries.as_deref());
         // #1575: `doc.metadata` is fully replaced by a fresh `Metadata { .. }` literal below
@@ -3976,31 +2448,31 @@ impl PdfExtractor {
         // `tesseract_dict_invalid_word_ratio` keys set on `ocr_internal_doc.metadata.additional`
         // (`extract_with_ocr_for_page`) before they ever reached a caller. Taken here and
         // merged back in after that literal is built. ~keep
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let ocr_backend_additional_metadata = std::mem::take(&mut doc.metadata.additional);
         if let Some(annotation_text_fallback) = annotation_text_fallback.as_ref() {
             extraction::append_annotation_fallback_elements(annotation_text_fallback, &mut doc);
         }
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         tracing::debug!(?document_origin, document_is_structured, "selected PDF document origin");
 
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         crate::core::diagnostics::dedup_extend_warnings(
             &mut doc.processing_warnings,
             std::mem::take(&mut ocr_fallback_warnings),
         );
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         doc.ocr_page_failures.append(&mut ocr_page_failures);
         if let Some(warning) = unmapped_glyphs::lost_glyph_warning(lost_glyphs, config) {
             crate::core::diagnostics::push_warning_deduped(&mut doc.processing_warnings, warning);
         }
 
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         crate::core::diagnostics::dedup_extend_warnings(
             &mut doc.processing_warnings,
             std::mem::take(&mut pdf_extraction_warnings),
         );
-        #[cfg(not(any(feature = "ocr", feature = "ocr-pipeline")))]
+        #[cfg(not(feature = "ocr-pipeline"))]
         doc.processing_warnings.append(&mut pdf_extraction_warnings);
 
         // #340: drain any xberg_native_pdf glyph-drop warnings captured while this
@@ -4030,31 +2502,19 @@ impl PdfExtractor {
         // Surface a hard layout-inference failure (e.g. CoreML kernel error) so
         // degraded no-layout output is never silent to the caller (#1344). Runs
         // whenever layout-detection is on, independent of OCR.
-        #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-        if let Some(warning) = markdown_layout_warning {
-            crate::core::diagnostics::push_warning_deduped(&mut doc.processing_warnings, warning);
-        }
 
         // #353: merge `xberg_native_pdf` glyph-drop warnings captured while the
         // markdown layout pass rendered its pages off-thread inside
         // `spawn_blocking` (see the drain comment above).
-        #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-        for warning in markdown_layout_glyph_drop_warnings {
-            crate::core::diagnostics::push_warning_deduped(&mut doc.processing_warnings, warning);
-        }
 
         // Record the layout gate's audit trail from whichever pass ran
         // it. Compiled whenever `pdf` is on so `ocr_layout_gate_audit` keeps
         // a reader in profiles without layout-detection (it is always
         // `(None, None)` there and the fields stay `None`). ~keep
         {
-            #[cfg(feature = "layout-detection")]
-            #[allow(unused_mut)]
-            let (mut gated_pages, mut gate_reasons) = layout_gate_metadata(markdown_layout_gate_decisions.as_deref());
-            #[cfg(not(feature = "layout-detection"))]
             #[allow(unused_mut)]
             let (mut gated_pages, mut gate_reasons): OcrLayoutGateDecisions = (None, None);
-            #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+            #[cfg(feature = "ocr-pipeline")]
             if gated_pages.is_none() {
                 let (ocr_gated_pages, ocr_gate_reasons) = ocr_layout_gate_audit;
                 gated_pages = ocr_gated_pages;
@@ -4081,7 +2541,7 @@ impl PdfExtractor {
         );
         // #1575: restore the OCR-pipeline keys taken above, now that the fresh `Metadata`
         // literal they would otherwise have been lost to already exists.
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         doc.metadata.additional.extend(ocr_backend_additional_metadata);
 
         // GH#1645: one authoritative processed-raster coordinate frame per OCR page with
@@ -4090,7 +2550,7 @@ impl PdfExtractor {
         // pair, which cannot describe differently sized, preprocessed, or rotated pages.
         // Rides in `additional` rather than a new public binding type, same as the
         // `page_labels` key below (issue #66).
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         if !ocr_coordinate_frames.is_empty() {
             doc.metadata.additional.insert(
                 std::borrow::Cow::Borrowed(crate::ocr_metadata_keys::OCR_PAGE_COORDINATE_FRAMES_METADATA_KEY),
@@ -4114,12 +2574,12 @@ impl PdfExtractor {
         inject_unrepresented_form_field_elements(&mut doc, &pdf_form_fields);
         doc.form_fields = pdf_form_fields;
 
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let allow_table_injection = (!document_is_structured
             && (config.output_format != crate::core::config::OutputFormat::Plain
                 || document_origin == PdfDocumentOrigin::Ocr))
             || (document_origin == PdfDocumentOrigin::Ocr && doc.tables.is_empty());
-        #[cfg(not(any(feature = "ocr", feature = "ocr-pipeline")))]
+        #[cfg(not(feature = "ocr-pipeline"))]
         let allow_table_injection =
             document_is_structured || config.output_format != crate::core::config::OutputFormat::Plain;
         attach_unrepresented_tables(&mut doc, tables);
@@ -4128,36 +2588,16 @@ impl PdfExtractor {
         if let Some(imgs) = images {
             // The OCR path has its own guarded injection block below (see the `#[cfg(feature = "ocr")]`
             let image_anchor = extraction::image_anchor(config);
-            let document_has_image_elements = doc.elements.iter().any(|element| {
-                #[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-                if element.image_ocr_text_anchor_index().is_some() {
-                    return true;
-                }
-                matches!(element.kind, ElementKind::Image { .. })
-            });
+            let document_has_image_elements = doc
+                .elements
+                .iter()
+                .any(|element| matches!(element.kind, ElementKind::Image { .. }));
             if !document_has_image_elements && image_anchor != extraction::ImageAnchor::None {
                 for (idx, img) in imgs.iter().enumerate() {
                     // Page OCR already read the picture as part of the page, so the picture's
                     // own OCR text is not rendered there: no anchor, and a placeholder without
                     // the text. The OCR merge of a structured document does the same for the
                     // pages it replaces. ~keep
-                    #[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-                    let page_text_is_from_ocr = extraction_method == ExtractionMethod::Ocr
-                        || img.page_number.is_some_and(|page| {
-                            ocr_results_map
-                                .as_ref()
-                                .is_some_and(|results| results.contains_key(&page))
-                        });
-                    #[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-                    if image_anchor == extraction::ImageAnchor::OcrTextOnly {
-                        if !page_text_is_from_ocr {
-                            insert_image_ocr_text_anchor(
-                                &mut doc,
-                                InternalElement::image_ocr_text_anchor(idx as u32, img.page_number),
-                            );
-                        }
-                        continue;
-                    }
                     let mut elem = InternalElement::text(
                         ElementKind::Image {
                             image_index: idx as u32,
@@ -4166,19 +2606,15 @@ impl PdfExtractor {
                         0,
                     );
                     elem.page = img.page_number;
-                    #[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-                    if page_text_is_from_ocr {
-                        elem.suppress_image_ocr_rendering();
-                    }
                     doc.push_element(elem);
                 }
             }
             doc.images = imgs;
         }
 
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         let ocr_rasters_bypass = ocr_page_rasters.is_none();
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         if let Some(rasters) = ocr_page_rasters {
             let base_idx = doc.images.len() as u32;
             for (offset, mut raster) in rasters.into_iter().enumerate() {
@@ -4187,7 +2623,7 @@ impl PdfExtractor {
             }
         }
 
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         if used_ocr
             && ocr_rasters_bypass
             && extraction_method == ExtractionMethod::Ocr
@@ -4202,7 +2638,7 @@ impl PdfExtractor {
             });
         }
 
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         if used_ocr && !doc.images.is_empty() {
             let images_enabled = config.images.as_ref().map(|c| c.extract_images).unwrap_or(false)
                 || config.pdf_options.as_ref().map(|p| p.extract_images).unwrap_or(false);
@@ -4345,17 +2781,17 @@ impl PdfExtractor {
             reconcile_native_page_tables(pages, &doc.tables);
         }
         doc.prebuilt_pages = final_pages;
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         {
             doc.ocr_text_pages = ocr_text_pages;
         }
 
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         if !ocr_elements.is_empty() {
             doc.prebuilt_ocr_elements = Some(ocr_elements);
         }
 
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         if !ocr_formulas.is_empty() {
             doc.formulas = ocr_formulas;
         }
@@ -4364,23 +2800,8 @@ impl PdfExtractor {
         // region's glyph text; a configured model replaces it with LaTeX.
         // Accepted mixed OCR pages use their own layout inputs; untouched pages
         // retain their Markdown inputs. Each page has one formula owner. ~keep
-        #[cfg(all(feature = "formula-recognition", feature = "layout-detection"))]
-        if let Some(layout) = config.layout.as_ref() {
-            let mut side_channel = std::mem::take(&mut doc.formulas);
-            let mixed_inputs = mixed_formula_layout_inputs.take();
-            let inputs = select_formula_page_inputs(
-                markdown_layout_images
-                    .as_deref()
-                    .zip(markdown_layout_detections.as_deref()),
-                mixed_inputs
-                    .as_ref()
-                    .map(|(images, detections)| (images.as_slice(), detections.as_slice())),
-            );
-            recognize_pdf_formula_page_inputs(Some(&mut doc), &mut side_channel, &inputs, layout, content).await;
-            doc.formulas = side_channel;
-        }
 
-        #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         if !ocr_llm_usage.is_empty() {
             doc.llm_usage = Some(ocr_llm_usage);
         }
@@ -4395,26 +2816,6 @@ impl PdfExtractor {
             "InternalDocument finalized (native path)"
         );
 
-        #[cfg(all(feature = "liter-llm", feature = "layout-detection"))]
-        {
-            if let Some(vlm_cfg) = region_vlm::region_vlm_config(config)
-                && let (Some(layout_images), Some(hints), Some(detections)) = (
-                    markdown_layout_images.as_deref(),
-                    markdown_layout_hints.as_deref(),
-                    markdown_layout_detections.as_deref(),
-                )
-            {
-                let region_results = region_vlm::extract_vlm_regions(layout_images, hints, detections, vlm_cfg).await;
-                if !region_results.is_empty() {
-                    tracing::debug!(
-                        count = region_results.len(),
-                        "injecting VLM region results into document"
-                    );
-                    region_vlm::inject_region_results(&mut doc, region_results);
-                }
-            }
-        }
-
         {
             let mut budget = crate::extractors::security::SecurityBudget::from_config(config);
             for elem in &doc.elements {
@@ -4422,30 +2823,6 @@ impl PdfExtractor {
             }
         }
 
-        #[cfg(all(
-            feature = "pdf",
-            feature = "ocr",
-            feature = "tokio-runtime",
-            not(target_arch = "wasm32")
-        ))]
-        if extraction_method == ExtractionMethod::Native
-            && let Some(placement) = native_output.image_gap
-        {
-            crate::extraction::image_ocr::pdf_gap::publish(placement);
-        }
-        Ok(doc)
-    }
-
-    /// Fallback extraction path when pdf feature is not enabled.
-    #[cfg(not(feature = "pdf"))]
-    async fn extract_core_native(
-        &self,
-        _content: &[u8],
-        mime_type: &str,
-        _config: &ExtractionConfig,
-        _path: Option<&std::path::Path>,
-    ) -> Result<InternalDocument> {
-        let doc = InternalDocument::new(mime_type);
         Ok(doc)
     }
 }

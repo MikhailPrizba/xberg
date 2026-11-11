@@ -220,8 +220,6 @@ async fn run_case_with_image_capture(
     Box::pin(run_ocr_pipeline_for_page(
         content,
         Some(&images),
-        #[cfg(feature = "layout-detection")]
-        None,
         &config,
         &pipeline,
         None,
@@ -230,13 +228,7 @@ async fn run_case_with_image_capture(
         Some(72.0 / HEIGHT as f32),
         None,
         page_index_offset,
-        source.map(|document| DetachedOcrPage {
-            document,
-            #[cfg(all(paddle_ocr, feature = "ocr", not(target_arch = "wasm32")))]
-            stored_scan: None,
-            #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-            orientation_retry: None,
-        }),
+        source.map(|document| DetachedOcrPage { document }),
     ))
     .await
 }
@@ -461,8 +453,6 @@ async fn run_case_with_explicit_caps(
     Box::pin(run_ocr_pipeline_for_page(
         None,
         Some(&[raster()]),
-        #[cfg(feature = "layout-detection")]
-        None,
         &config,
         &pipeline,
         None,
@@ -471,13 +461,7 @@ async fn run_case_with_explicit_caps(
         Some(72.0 / HEIGHT as f32),
         None,
         0,
-        Some(DetachedOcrPage {
-            document: doc,
-            #[cfg(all(paddle_ocr, feature = "ocr", not(target_arch = "wasm32")))]
-            stored_scan: None,
-            #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-            orientation_retry: None,
-        }),
+        Some(DetachedOcrPage { document: doc }),
     ))
     .await
 }

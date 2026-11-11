@@ -38,8 +38,6 @@ pub(crate) use sections::{
 // Re-exported only for `ocr::validation`, which is itself `#[cfg(feature = "ocr")]`. Without the
 // same gate the re-export is an unused import on every narrow leg, and CI builds with
 // `-D warnings`. ~keep
-#[cfg(feature = "ocr")]
-pub(crate) use sections::TESSERACT_LANGUAGE_CODES;
 
 // `layout_wastes_plain_output` is `pub`, not `pub(crate)`, unlike its siblings above: it backs
 // a CLI-level warning (`xberg-cli`'s `ExtractionOverrides::apply`), a downstream crate that

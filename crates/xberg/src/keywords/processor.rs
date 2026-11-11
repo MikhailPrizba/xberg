@@ -34,7 +34,7 @@ pub(crate) const KEYWORD_PROCESSOR_NAME: &str = "keyword-extraction";
 /// let processor = KeywordExtractor;
 /// assert_eq!(processor.name(), "keyword-extraction");
 /// ```
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Copy)]
 pub struct KeywordExtractor;
 

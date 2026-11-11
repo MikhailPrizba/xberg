@@ -179,19 +179,6 @@ fn add_recursive_json(result: &mut ExtractedDocument, owner: &str, value: serde_
     }
 }
 
-#[cfg(feature = "tree-sitter")]
-fn code_node(children: Vec<xberg::types::metadata::CodeDataNode>) -> xberg::types::metadata::CodeDataNode {
-    xberg::types::metadata::CodeDataNode {
-        kind: xberg::types::metadata::CodeDataNodeKind::Sequence,
-        key: None,
-        value: children.is_empty().then(|| "leaf".into()),
-        attributes: vec![],
-        children,
-        byte_start: 0,
-        byte_end: 1,
-    }
-}
-
 fn recursive_metadata_fixture(result: &mut ExtractedDocument, config: &OcrConfig) {
     let options = config.backend_options.as_ref().unwrap();
     let owner = options["owner"].as_str().unwrap();
@@ -206,28 +193,6 @@ fn recursive_metadata_fixture(result: &mut ExtractedDocument, config: &OcrConfig
         serde_json::from_value(serde_json::json!({"model": "fixture-ocr", "source": "ocr", "total_tokens": 7}))
             .unwrap(),
     ]);
-    #[cfg(feature = "tree-sitter")]
-    if owner == "code" {
-        let data = match shape {
-            "depth" => (1..8).fold(code_node(vec![]), |child, _| code_node(vec![child])),
-            "depth-boundary" => (1..4).fold(code_node(vec![]), |child, _| code_node(vec![child])),
-            "width" => code_node((0..33).map(|_| code_node(vec![])).collect()),
-            "work-boundary" => code_node((0..27).map(|_| code_node(vec![])).collect()),
-            "cross-work" => {
-                add_recursive_json(result, "additional", json_width(14));
-                code_node((0..14).map(|_| code_node(vec![])).collect())
-            }
-            "flat" => code_node(vec![]),
-            _ => panic!("unknown code fixture shape"),
-        };
-        result.metadata.format = Some(xberg::types::FormatMetadata::Code(
-            xberg::types::metadata::CodeMetadata {
-                chunks: vec![],
-                data: Some(data),
-            },
-        ));
-        return;
-    }
     if shape == "cross-work" {
         for root in owner.split('+') {
             add_recursive_json(result, root, json_width(14));
@@ -368,44 +333,6 @@ async fn recursive_metadata_work_budget_is_shared_across_roots() {
                 "{pipeline}/{owner}: {error}"
             );
             assert!(error.to_string().contains("Invalid structured OCR document"));
-        }
-    }
-}
-
-#[cfg(feature = "tree-sitter")]
-#[tokio::test]
-async fn recursive_metadata_code_tree_limits_and_controls() {
-    register_ocr_backend(Arc::new(StructuredBackend)).unwrap();
-    for pipeline in [false, true] {
-        for shape in ["depth", "width", "cross-work"] {
-            let error = xberg::extract(
-                xberg::ExtractInput::from_bytes(png(), "image/png", None),
-                &recursive_metadata_config(pipeline, "code", shape),
-            )
-            .await
-            .unwrap_err();
-            assert!(
-                matches!(error, xberg::XbergError::Validation { .. }),
-                "{pipeline}/{shape}: {error}"
-            );
-            assert!(error.to_string().contains("Invalid structured OCR document"));
-        }
-        for shape in ["flat", "depth-boundary", "work-boundary"] {
-            let output = xberg::extract(
-                xberg::ExtractInput::from_bytes(png(), "image/png", None),
-                &recursive_metadata_config(pipeline, "code", shape),
-            )
-            .await
-            .unwrap();
-            assert!(output.errors.is_empty(), "{pipeline}/{shape}: {:?}", output.errors);
-            assert_eq!(output.results[0].content.matches(TABLE).count(), 1);
-            assert_eq!(output.results[0].llm_usage.as_ref().unwrap()[0].total_tokens, Some(7));
-            assert!(
-                output.results[0]
-                    .processing_warnings
-                    .iter()
-                    .any(|warning| warning.source == "recursive-fixture")
-            );
         }
     }
 }

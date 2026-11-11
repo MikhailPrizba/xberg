@@ -63,7 +63,7 @@ use image_handling::detect_image_format;
 use metadata::{extract_all_notes, extract_metadata, extract_section_names};
 
 /// Options for PPTX content extraction.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone)]
 pub struct PptxExtractionOptions {
     /// Whether to extract embedded images.

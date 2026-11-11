@@ -26,7 +26,7 @@ use async_trait::async_trait;
 /// let processor = LanguageDetector;
 /// assert_eq!(processor.name(), "language-detection");
 /// ```
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Copy)]
 pub struct LanguageDetector;
 

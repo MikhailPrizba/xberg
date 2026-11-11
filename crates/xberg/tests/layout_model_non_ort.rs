@@ -1,7 +1,7 @@
 //! Public-API check that selecting PP-DocLayout-V3 on a build without the ORT layout engine
 //! fails loudly instead of silently skipping layout.
 
-#![cfg(all(feature = "layout-types", not(feature = "layout-detection")))]
+#![cfg(feature = "layout-types")]
 
 mod helpers;
 

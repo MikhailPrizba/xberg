@@ -38,7 +38,6 @@ use super::types::{
 pub struct ExtractionConfig {
     /// ~keep: Controls whether MIME inference prefers content, a supported extension, or content alone.
     #[serde(default)]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub mime_detection_policy: MimeDetectionPolicy,
 
     /// Enable caching of extraction results
@@ -321,7 +320,6 @@ pub struct ExtractionConfig {
     /// Defaults to `true`. Set this to `false` to preserve all saved notebook
     /// content regardless of cell tags. ~keep
     #[serde(default = "default_true")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub apply_notebook_cell_tags: bool,
 
     /// Layout detection configuration (None = layout detection disabled).
@@ -422,7 +420,6 @@ pub struct ExtractionConfig {
     /// prefixes to skip, instead of relying solely on delimiter
     /// auto-detection. See [`crate::core::config::CsvConfig`] for details.
     #[serde(default)]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub csv: Option<super::super::csv::CsvConfig>,
 
     /// GeoJSON extraction configuration (None = bounded summary).
@@ -432,7 +429,6 @@ pub struct ExtractionConfig {
     /// [`crate::core::config::GeoJsonExtractionConfig::include_full_coordinates`]
     /// explicitly to retain the legacy full-coordinate output.
     #[serde(default)]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub geojson: Option<super::super::geojson::GeoJsonExtractionConfig>,
 
     /// Concurrency limits for constrained environments (None = use defaults).
@@ -456,7 +452,7 @@ pub struct ExtractionConfig {
     ///
     /// When set, enables code file extraction using tree-sitter parsers.
     /// Controls grammar download behavior and code analysis options.
-    #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+    #[cfg(feature = "tree-sitter-types")]
     #[serde(default)]
     pub tree_sitter: Option<super::super::tree_sitter::TreeSitterConfig>,
 
@@ -471,52 +467,44 @@ pub struct ExtractionConfig {
     /// Named-entity recognition configuration. When set, the NER post-processor runs at
     /// the Middle stage and populates `ExtractedDocument::entities`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
     pub ner: Option<super::super::ner::NerConfig>,
 
     /// Redaction / anonymisation configuration. When set, the redaction post-processor
     /// runs at the Late stage and rewrites every textual field in `ExtractedDocument`,
     /// emitting an audit trail in `ExtractedDocument::redaction_report`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
     pub redaction: Option<super::super::redaction::RedactionConfig>,
 
     /// Summarisation configuration. When set, the summarisation post-processor runs at
     /// the Middle stage and populates `ExtractedDocument::summary`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
     pub summarization: Option<super::super::summarization::SummarizationConfig>,
 
     /// Translation configuration. When set, the translation post-processor runs at the
     /// Middle stage and populates `ExtractedDocument::translation`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
     pub translation: Option<super::super::translation::TranslationConfig>,
 
     /// Per-page classification configuration. When set, the classification post-processor
     /// runs at the Middle stage and populates `ExtractedDocument::page_classifications`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
     pub page_classification: Option<super::super::classification::PageClassificationConfig>,
 
     /// Per-chunk multi-label classification configuration. When set, the
     /// chunk-classification post-processor runs at the Middle stage (after
     /// chunking) and populates `ChunkMetadata::classifications` on every chunk.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
     pub chunk_classification: Option<super::super::chunk_classification::ChunkClassificationConfig>,
 
     /// VLM captioning configuration for extracted images. When set, the captioning
     /// post-processor runs at the Middle stage and writes a caption into each
     /// `ExtractedImage::caption`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
     pub captioning: Option<super::super::captioning::CaptioningConfig>,
 
     /// Enable QR-code detection in extracted images. When `true`, the QR post-processor
     /// runs at the Middle stage and populates `ExtractedImage::qr_codes`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.0.0"))]
     pub qr_codes: Option<bool>,
 
     /// Cooperative cancellation handle (`None` = no caller-initiated cancellation).
@@ -531,7 +519,6 @@ pub struct ExtractionConfig {
     /// timeouts and REST async jobs. This field remains excluded from serialization
     /// and Alef-generated language bindings.
     #[serde(skip)]
-    #[cfg_attr(alef, alef(skip))]
     pub cancel_token: Option<crate::cancellation::CancellationToken>,
 
     /// Transient source-filename hint for extension-based language detection.
@@ -547,7 +534,6 @@ pub struct ExtractionConfig {
     /// would make that construction illegal across crates (E0451), matching the
     /// existing `cancel_token` precedent.
     #[serde(skip)]
-    #[cfg_attr(alef, alef(skip))]
     pub source_name: Option<String>,
 }
 
@@ -643,7 +629,7 @@ impl Default for ExtractionConfig {
             concurrency: None,
             url: UrlExtractionConfig::default(),
             max_archive_depth: ExtractionConfig::default_archive_depth(),
-            #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+            #[cfg(feature = "tree-sitter-types")]
             tree_sitter: None,
             structured_extraction: None,
             ner: None,
@@ -661,36 +647,6 @@ impl Default for ExtractionConfig {
 }
 
 impl ExtractionConfig {
-    /// Resolve layout acceleration, preferring an explicit nested setting.
-    #[cfg(all(
-        feature = "layout-detection",
-        any(feature = "pdf", feature = "ocr", feature = "ocr-wasm")
-    ))]
-    pub(crate) fn resolved_layout_acceleration(&self) -> Option<&AccelerationConfig> {
-        self.layout
-            .as_ref()
-            .and_then(|layout| layout.acceleration.as_ref())
-            .or(self.acceleration.as_ref())
-    }
-
-    /// Resolve layout configuration with global acceleration as its fallback.
-    ///
-    /// An explicit layout-specific acceleration setting always takes precedence.
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    pub(crate) fn resolved_layout_config(
-        &self,
-    ) -> Option<std::borrow::Cow<'_, super::super::layout::LayoutDetectionConfig>> {
-        let layout = self.layout.as_ref()?;
-        let acceleration = self.resolved_layout_acceleration();
-        if layout.acceleration.is_some() || acceleration.is_none() {
-            return Some(std::borrow::Cow::Borrowed(layout));
-        }
-
-        let mut resolved = layout.clone();
-        resolved.acceleration = acceleration.cloned();
-        Some(std::borrow::Cow::Owned(resolved))
-    }
-
     /// Install an internal cancellation token when a timeout is configured but no
     /// caller supplied one.
     ///
@@ -771,7 +727,7 @@ impl ExtractionConfig {
             #[cfg(feature = "transcription-types")]
             ref transcription,
             ref timeout_secs,
-            #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+            #[cfg(feature = "tree-sitter-types")]
             ref tree_sitter,
             ref structured_extraction,
             ref url,
@@ -869,7 +825,7 @@ impl ExtractionConfig {
         if let Some(v) = timeout_secs {
             config.extraction_timeout_secs = Some(*v);
         }
-        #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+        #[cfg(feature = "tree-sitter-types")]
         if let Some(v) = tree_sitter {
             config.tree_sitter = Some(v.clone());
         }
@@ -1210,9 +1166,6 @@ impl ExtractionConfig {
     pub fn needs_image_processing(&self) -> bool {
         let ocr_enabled = !self.effective_disable_ocr() && (self.ocr.is_some() || self.force_ocr);
 
-        #[cfg(feature = "layout-detection")]
-        let layout_enabled = self.layout.is_some();
-        #[cfg(not(feature = "layout-detection"))]
         let layout_enabled = false;
 
         ocr_enabled || self.needs_image_data() || layout_enabled
@@ -1249,7 +1202,7 @@ fn default_true() -> bool {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(all(feature = "layout-types", not(feature = "layout-detection")))]
+    #[cfg(feature = "layout-types")]
     #[test]
     fn pp_doclayout_v3_selection_is_rejected_without_the_ort_engine() {
         use crate::core::config::layout::{LayoutDetectionConfig, LayoutDetectionModel};
@@ -1356,8 +1309,6 @@ mod tests {
     }
 
     use super::*;
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    use crate::core::config::{AccelerationConfig, ExecutionProviderType, LayoutDetectionConfig};
     use crate::core::config::{
         CaptioningConfig, LlmConfig, NerConfig, OcrConfig, PageClassificationConfig, RedactionConfig,
         SummarizationConfig, TranslationConfig,
@@ -1612,68 +1563,6 @@ mod tests {
         );
     }
 
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    #[test]
-    fn resolved_layout_config_uses_global_acceleration_as_fallback() {
-        let config = ExtractionConfig {
-            layout: Some(Default::default()),
-            acceleration: Some(AccelerationConfig {
-                provider: ExecutionProviderType::Cpu,
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        let resolved = config.resolved_layout_config().expect("layout must be enabled");
-        assert_eq!(
-            config
-                .resolved_layout_acceleration()
-                .map(|acceleration| &acceleration.provider),
-            Some(&ExecutionProviderType::Cpu)
-        );
-        assert_eq!(
-            resolved
-                .acceleration
-                .as_ref()
-                .map(|acceleration| &acceleration.provider),
-            Some(&ExecutionProviderType::Cpu)
-        );
-    }
-
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    #[test]
-    fn resolved_layout_config_prefers_explicit_nested_auto_acceleration() {
-        let config = ExtractionConfig {
-            layout: Some(LayoutDetectionConfig {
-                acceleration: Some(AccelerationConfig {
-                    provider: ExecutionProviderType::Auto,
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
-            acceleration: Some(AccelerationConfig {
-                provider: ExecutionProviderType::Cpu,
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        let resolved = config.resolved_layout_config().expect("layout must be enabled");
-        assert_eq!(
-            config
-                .resolved_layout_acceleration()
-                .map(|acceleration| &acceleration.provider),
-            Some(&ExecutionProviderType::Auto)
-        );
-        assert_eq!(
-            resolved
-                .acceleration
-                .as_ref()
-                .map(|acceleration| &acceleration.provider),
-            Some(&ExecutionProviderType::Auto)
-        );
-    }
-
     #[test]
     fn test_effective_disable_ocr_from_top_level_flag() {
         let config = ExtractionConfig {
@@ -1731,43 +1620,6 @@ mod tests {
         let json = r#"{"ocr": {"backend": "tesseract"}}"#;
         let config: ExtractionConfig = serde_json::from_str(json).unwrap();
         assert!(!config.effective_disable_ocr(), "OCR should be enabled by default");
-    }
-
-    #[cfg(feature = "layout-detection")]
-    #[test]
-    fn test_use_layout_for_markdown_defaults_to_false() {
-        let config = ExtractionConfig::default();
-        assert!(!config.use_layout_for_markdown);
-    }
-
-    #[cfg(feature = "layout-detection")]
-    #[test]
-    fn test_use_layout_for_markdown_can_be_set_true() {
-        let config = ExtractionConfig {
-            use_layout_for_markdown: true,
-            ..Default::default()
-        };
-        assert!(config.use_layout_for_markdown);
-    }
-
-    #[cfg(feature = "layout-detection")]
-    #[test]
-    fn test_use_layout_for_markdown_serde_round_trip() {
-        let config = ExtractionConfig {
-            use_layout_for_markdown: true,
-            ..Default::default()
-        };
-        let json = serde_json::to_string(&config).unwrap();
-        let deserialized: ExtractionConfig = serde_json::from_str(&json).unwrap();
-        assert!(deserialized.use_layout_for_markdown);
-    }
-
-    #[cfg(feature = "layout-detection")]
-    #[test]
-    fn test_use_layout_for_markdown_serde_default_false() {
-        let json = r#"{}"#;
-        let config: ExtractionConfig = serde_json::from_str(json).unwrap();
-        assert!(!config.use_layout_for_markdown);
     }
 
     #[test]

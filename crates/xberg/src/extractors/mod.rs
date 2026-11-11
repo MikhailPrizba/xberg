@@ -4,11 +4,11 @@
 //! All extractors implement the `DocumentExtractor` plugin trait.
 
 use crate::Result;
-#[cfg(any(feature = "email", feature = "html", feature = "xml",))]
+#[cfg(any(feature = "email", feature = "html", feature = "xml"))]
 use crate::core::config::ExtractionConfig;
 use crate::plugins::registry::get_document_extractor_registry;
 
-#[cfg(any(feature = "email", feature = "html", feature = "xml",))]
+#[cfg(any(feature = "email", feature = "html", feature = "xml"))]
 use crate::types::internal::InternalDocument;
 use once_cell::sync::OnceCell;
 use std::sync::Arc;
@@ -37,7 +37,7 @@ use std::sync::Arc;
 ///     }
 /// }
 /// ```
-#[cfg(any(feature = "email", feature = "html", feature = "xml",))]
+#[cfg(any(feature = "email", feature = "html", feature = "xml"))]
 pub(crate) trait SyncExtractor {
     /// Extract content from a byte array synchronously.
     ///
@@ -55,9 +55,6 @@ pub(crate) trait SyncExtractor {
     fn extract_sync(&self, content: &[u8], mime_type: &str, config: &ExtractionConfig) -> Result<InternalDocument>;
 }
 
-#[cfg(feature = "tree-sitter")]
-pub mod code;
-
 pub mod asciidoc;
 pub mod csv;
 pub mod structured;
@@ -74,20 +71,8 @@ pub mod security;
 #[cfg(test)]
 mod security_tests;
 
-#[cfg(feature = "sqlite")]
-pub mod sqlite;
-
-#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub mod image;
-
-#[cfg(feature = "qr-codes")]
-pub mod qr;
-
-#[cfg(feature = "archives")]
-pub mod archive;
-
-#[cfg(feature = "transcription")]
-pub mod transcription;
 
 #[cfg(feature = "email")]
 pub mod email;
@@ -95,20 +80,8 @@ pub mod email;
 #[cfg(feature = "email")]
 pub mod pst;
 
-#[cfg(any(feature = "excel", feature = "excel-wasm"))]
+#[cfg(feature = "excel")]
 pub mod excel;
-
-#[cfg(feature = "hwp")]
-pub mod hwp;
-
-#[cfg(feature = "hwpx")]
-pub mod hwpx;
-
-#[cfg(feature = "wordperfect")]
-pub mod wordperfect;
-
-#[cfg(feature = "iwork")]
-pub mod iwork;
 
 #[cfg(feature = "html")]
 pub mod html;
@@ -138,9 +111,6 @@ pub mod doctags;
 
 pub mod markdown;
 pub(crate) mod myst;
-
-#[cfg(feature = "mdx")]
-pub mod mdx;
 
 #[cfg(feature = "office")]
 pub mod rst;
@@ -187,9 +157,6 @@ pub mod xml;
 #[cfg(feature = "xml")]
 pub mod docbook;
 
-#[cfg(feature = "tree-sitter")]
-pub use code::CodeExtractor;
-
 pub use asciidoc::AsciiDocExtractor;
 pub use csv::CsvExtractor;
 pub use doctags::DocTagsExtractor;
@@ -198,14 +165,8 @@ pub use structured::StructuredExtractor;
 pub use text::PlainTextExtractor;
 pub use vtt::WebVttExtractor;
 
-#[cfg(feature = "sqlite")]
-pub use sqlite::SqliteExtractor;
-
-#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub use image::ImageExtractor;
-
-#[cfg(feature = "archives")]
-pub use archive::{GzipExtractor, SevenZExtractor, TarExtractor, ZipExtractor};
 
 #[cfg(feature = "email")]
 pub use email::EmailExtractor;
@@ -213,20 +174,8 @@ pub use email::EmailExtractor;
 #[cfg(feature = "email")]
 pub use pst::PstExtractor;
 
-#[cfg(any(feature = "excel", feature = "excel-wasm"))]
+#[cfg(feature = "excel")]
 pub use excel::ExcelExtractor;
-
-#[cfg(feature = "hwp")]
-pub use hwp::HwpExtractor;
-
-#[cfg(feature = "hwpx")]
-pub use hwpx::HwpxExtractor;
-
-#[cfg(feature = "wordperfect")]
-pub use wordperfect::WordPerfectExtractor;
-
-#[cfg(feature = "iwork")]
-pub use iwork::{keynote::KeynoteExtractor, numbers::NumbersExtractor, pages::PagesExtractor};
 
 #[cfg(feature = "html")]
 pub use html::HtmlExtractor;
@@ -253,9 +202,6 @@ pub use epub::EpubExtractor;
 pub use fictionbook::FictionBookExtractor;
 
 pub use djot_format::DjotExtractor;
-
-#[cfg(feature = "mdx")]
-pub use mdx::MdxExtractor;
 
 #[cfg(feature = "office")]
 pub use rst::RstExtractor;
@@ -300,9 +246,6 @@ pub use xml::XmlExtractor;
 
 #[cfg(feature = "xml")]
 pub use docbook::DocbookExtractor;
-
-#[cfg(feature = "transcription")]
-pub use transcription::TranscriptionExtractor;
 
 /// One-time initialization guard for the built-in extractor registry.
 ///
@@ -358,10 +301,7 @@ pub(crate) fn register_default_extractors() -> Result<()> {
 
     register_baseline_extractors(&mut registry)?;
 
-    #[cfg(feature = "sqlite")]
-    registry.register_internal(Arc::new(SqliteExtractor::new()))?;
-
-    #[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+    #[cfg(feature = "ocr-pipeline")]
     registry.register_internal(Arc::new(ImageExtractor::new()))?;
 
     #[cfg(feature = "xml")]
@@ -371,12 +311,10 @@ pub(crate) fn register_default_extractors() -> Result<()> {
         registry.register_internal(Arc::new(DocbookExtractor::new()))?;
     }
 
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    registry.register_internal_with_layout_pages(Arc::new(PdfExtractor::new()))?;
-    #[cfg(all(feature = "pdf", not(feature = "layout-detection")))]
+    #[cfg(feature = "pdf")]
     registry.register_internal(Arc::new(PdfExtractor::new()))?;
 
-    #[cfg(any(feature = "excel", feature = "excel-wasm"))]
+    #[cfg(feature = "excel")]
     registry.register_internal(Arc::new(ExcelExtractor::new()))?;
 
     registry.register_internal(Arc::new(DjotExtractor::new()))?;
@@ -387,12 +325,6 @@ pub(crate) fn register_default_extractors() -> Result<()> {
     #[cfg(feature = "office")]
     register_office_extractors(&mut registry)?;
 
-    #[cfg(any(feature = "hwp", feature = "hwpx", feature = "wordperfect", feature = "iwork"))]
-    register_container_format_extractors(&mut registry)?;
-
-    #[cfg(feature = "mdx")]
-    registry.register_internal(Arc::new(MdxExtractor::new()))?;
-
     #[cfg(feature = "email")]
     {
         registry.register_internal(Arc::new(EmailExtractor::new()))?;
@@ -401,20 +333,6 @@ pub(crate) fn register_default_extractors() -> Result<()> {
 
     #[cfg(feature = "html")]
     registry.register_internal(Arc::new(HtmlExtractor::new()))?;
-
-    #[cfg(feature = "tree-sitter")]
-    registry.register_internal(Arc::new(CodeExtractor::new()))?;
-
-    #[cfg(feature = "archives")]
-    {
-        registry.register_internal(Arc::new(ZipExtractor::new()))?;
-        registry.register_internal(Arc::new(TarExtractor::new()))?;
-        registry.register_internal(Arc::new(SevenZExtractor::new()))?;
-        registry.register_internal(Arc::new(GzipExtractor::new()))?;
-    }
-
-    #[cfg(feature = "transcription")]
-    registry.register_internal(Arc::new(TranscriptionExtractor))?;
 
     Ok(())
 }
@@ -453,29 +371,6 @@ fn register_office_extractors(registry: &mut crate::plugins::registry::DocumentE
     Ok(())
 }
 
-#[cfg(any(feature = "hwp", feature = "hwpx", feature = "wordperfect", feature = "iwork"))]
-fn register_container_format_extractors(
-    registry: &mut crate::plugins::registry::DocumentExtractorRegistry,
-) -> Result<()> {
-    #[cfg(feature = "hwp")]
-    registry.register_internal(Arc::new(HwpExtractor::new()))?;
-
-    #[cfg(feature = "hwpx")]
-    registry.register_internal(Arc::new(HwpxExtractor::new()))?;
-
-    #[cfg(feature = "wordperfect")]
-    registry.register_internal(Arc::new(WordPerfectExtractor::new()))?;
-
-    #[cfg(feature = "iwork")]
-    {
-        registry.register_internal(Arc::new(PagesExtractor::new()))?;
-        registry.register_internal(Arc::new(NumbersExtractor::new()))?;
-        registry.register_internal(Arc::new(KeynoteExtractor::new()))?;
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -487,10 +382,7 @@ mod tests {
             assert!(extractor_names.contains(&name.to_string()));
         };
 
-        #[cfg(feature = "sqlite")]
-        assert_present("sqlite-extractor");
-
-        #[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+        #[cfg(feature = "ocr-pipeline")]
         assert_present("image-extractor");
 
         #[cfg(feature = "xml")]
@@ -503,23 +395,14 @@ mod tests {
         #[cfg(feature = "pdf")]
         assert_present("pdf-extractor");
 
-        #[cfg(any(feature = "excel", feature = "excel-wasm"))]
+        #[cfg(feature = "excel")]
         assert_present("excel-extractor");
 
         #[cfg(feature = "notebook")]
         assert_present("jupyter-extractor");
 
-        #[cfg(feature = "mdx")]
-        assert_present("mdx-extractor");
-
         #[cfg(feature = "html")]
         assert_present("html-extractor");
-
-        #[cfg(feature = "tree-sitter")]
-        assert_present("code-extractor");
-
-        #[cfg(feature = "transcription")]
-        assert_present("transcription");
     }
 
     #[allow(unused_mut, unused_variables)]
@@ -550,34 +433,10 @@ mod tests {
             assert_present("odp-extractor");
         }
 
-        #[cfg(feature = "hwp")]
-        assert_present("hwp-extractor");
-
-        #[cfg(feature = "hwpx")]
-        assert_present("hwpx-extractor");
-
-        #[cfg(feature = "wordperfect")]
-        assert_present("wordperfect-extractor");
-
-        #[cfg(feature = "iwork")]
-        {
-            assert_present("iwork-pages-extractor");
-            assert_present("iwork-numbers-extractor");
-            assert_present("iwork-keynote-extractor");
-        }
-
         #[cfg(feature = "email")]
         {
             assert_present("email-extractor");
             assert_present("pst-extractor");
-        }
-
-        #[cfg(feature = "archives")]
-        {
-            assert_present("zip-extractor");
-            assert_present("tar-extractor");
-            assert_present("7z-extractor");
-            assert_present("gzip-extractor");
         }
     }
 

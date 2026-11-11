@@ -35,7 +35,7 @@ use crate::types::entity::Entity;
 /// assert!(opts.labels.is_empty());
 /// ```
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct EnrichOptions {
     /// Run keyword extraction on the input text.
     ///
@@ -77,7 +77,7 @@ pub struct EnrichOptions {
 /// assert!(result.labels.is_empty());
 /// ```
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct EnrichResult {
     /// Salient terms extracted from the text.
     ///
@@ -128,7 +128,6 @@ pub struct EnrichResult {
 /// assert_eq!(json["status"], "completed");
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum EnrichStatus {
     /// Job submitted; processing has not yet started or is in progress.

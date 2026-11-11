@@ -591,7 +591,7 @@ pub struct OcrPipelineStage {
 ///
 /// Both users are feature-gated (`ocr`/`ocr-pipeline`, and `pdf` for the producer), so builds
 /// that compile neither leave this unreferenced rather than unused-by-mistake.
-#[allow(dead_code)]
+
 pub(crate) const SOURCE_DPI_BACKEND_OPTION: &str = "source_dpi";
 
 /// [`OcrConfig::backend_options`] key carrying a page's PDF `/Rotate` value, in degrees.
@@ -599,7 +599,7 @@ pub(crate) const SOURCE_DPI_BACKEND_OPTION: &str = "source_dpi";
 /// Stamped per page by the PDF OCR route alongside [`SOURCE_DPI_BACKEND_OPTION`] (see
 /// `crate::extractors::pdf::ocr::pipeline::ocr_config_with_page_rotation_hint`). Declared here
 /// for the same reason: so the producer and any consumer cannot drift apart on the key's spelling.
-#[allow(dead_code)]
+
 pub(crate) const PAGE_ROTATION_DEGREES_BACKEND_OPTION: &str = "page_rotation_degrees";
 
 /// [`OcrConfig::backend_options`] key carrying whether the PDF OCR route's scan-detection density
@@ -617,13 +617,10 @@ pub(crate) const PAGE_ROTATION_DEGREES_BACKEND_OPTION: &str = "page_rotation_deg
 ///
 /// Declared here rather than as a literal at each end so the producer and the consumer
 /// (`ocr::tesseract_backend::TesseractBackend::config_to_tesseract`) cannot drift apart.
-#[allow(dead_code)]
+
 pub(crate) const KNOWN_FULL_PAGE_SCAN_BACKEND_OPTION: &str = "known_full_page_scan";
 
-#[cfg(all(
-    not(target_arch = "wasm32"),
-    any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline")
-))]
+#[cfg(all(not(target_arch = "wasm32"), feature = "ocr-pipeline"))]
 pub(crate) fn is_strong_rtl_tesseract_language(language: &str) -> bool {
     language.split('+').any(|language| {
         matches!(
@@ -656,7 +653,7 @@ fn default_priority() -> u32 {
 /// from the [`OcrConfig`] that produced the pipeline (see [`OcrConfig::pipeline_selection`]),
 /// so keeping it off the binding-facing config avoids a public API break and a full
 /// binding regeneration for a behavior-only fix (#1341).
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(crate) enum OcrPipelineSelection {
     /// Return the highest-scoring stage result (default).
@@ -1141,7 +1138,7 @@ impl Default for OcrConfig {
 }
 
 impl OcrConfig {
-    #[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+    #[cfg(feature = "ocr-pipeline")]
     pub(crate) fn select_public_elements(
         &self,
         elements: Option<Vec<crate::types::OcrElement>>,
@@ -1151,7 +1148,7 @@ impl OcrConfig {
         (!selected.is_empty()).then_some(selected)
     }
 
-    #[cfg(any(feature = "ocr", all(feature = "pdf", feature = "ocr-pipeline")))]
+    #[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
     pub(crate) fn apply_public_element_policy(&self, document: &mut crate::types::ExtractedDocument) {
         document.ocr_elements = self.select_public_elements(document.ocr_elements.take());
     }
@@ -1241,19 +1238,6 @@ impl OcrConfig {
         Ok(())
     }
 
-    /// Effective OCR languages, with the documented default applied.
-    ///
-    /// Blank entries are dropped and an empty list falls back to
-    /// [`DEFAULT_OCR_LANGUAGE`]. OCR backends call this instead of reading
-    /// [`language`](Self::language) directly so an unset language never reaches
-    /// an engine as an empty language string — which Tesseract would otherwise
-    /// try to load as a language pack named `""`, surfacing as a confusing
-    /// "Failed to download language pack ''" error.
-    #[cfg(any(feature = "ocr", paddle_ocr, all(feature = "liter-llm", not(target_arch = "wasm32")),))]
-    pub(crate) fn effective_languages(&self) -> Vec<String> {
-        effective_languages_for(&self.language)
-    }
-
     /// Resolve the language Tesseract should use, reconciling [`Self::language`] with
     /// `tesseract_config.language` (#1572).
     ///
@@ -1264,19 +1248,13 @@ impl OcrConfig {
     /// so a caller who only configures `TesseractConfig` still gets their language. Both
     /// native (`ocr::tesseract_backend`) and WASM (`ocr::tesseract_wasm_backend`) Tesseract
     /// backends call this so they agree on which field wins.
-    #[cfg(any(
-        feature = "ocr",
-        feature = "ocr-wasm",
-        feature = "ocr-pipeline",
-        paddle_ocr,
-        all(feature = "liter-llm", not(target_arch = "wasm32")),
-    ))]
+    #[cfg(feature = "ocr-pipeline")]
     pub(crate) fn effective_tesseract_language(&self) -> Vec<String> {
         effective_tesseract_language_for(&self.language, self.tesseract_config.as_ref())
     }
 
     /// Returns the effective quality thresholds, using configured values or defaults.
-    #[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+    #[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
     pub(crate) fn effective_thresholds(&self) -> OcrQualityThresholds {
         self.quality_thresholds.clone().unwrap_or_default()
     }
@@ -1299,7 +1277,7 @@ impl OcrConfig {
     ///
     /// Explicit non-default backend selections are honored as-is — a silent
     /// paddleocr fallback would mask errors from the chosen backend.
-    #[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+    #[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
     pub(crate) fn effective_pipeline(&self) -> Option<OcrPipelineConfig> {
         if self.pipeline.is_some() {
             return self.pipeline.clone();
@@ -1312,7 +1290,7 @@ impl OcrConfig {
                         "vlm_fallback=OnLowQuality is set but vlm_config is missing; \
                          falling through to single-backend mode"
                     );
-                    return self.effective_pipeline_classical();
+                    return None;
                 };
                 let mut thresholds = self.effective_thresholds();
                 thresholds.pipeline_min_quality = *quality_threshold;
@@ -1351,7 +1329,7 @@ impl OcrConfig {
                         "vlm_fallback=Always is set but vlm_config is missing; \
                          falling through to single-backend mode"
                     );
-                    return self.effective_pipeline_classical();
+                    return None;
                 };
                 let vlm_stage = OcrPipelineStage {
                     backend: "vlm".to_string(),
@@ -1371,57 +1349,7 @@ impl OcrConfig {
             VlmFallbackPolicy::Disabled => {}
         }
 
-        self.effective_pipeline_classical()
-    }
-
-    /// Classical pipeline synthesis: paddle-ocr auto-fallback or `None`.
-    ///
-    /// Extracted so the vlm_fallback paths can fall through cleanly without
-    /// duplicating the paddle-ocr conditional compilation block.
-    #[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
-    fn effective_pipeline_classical(&self) -> Option<OcrPipelineConfig> {
-        #[cfg(paddle_ocr)]
-        {
-            if self.backend != default_tesseract_backend() {
-                return None;
-            }
-
-            let stages = vec![
-                OcrPipelineStage {
-                    backend: self.backend.clone(),
-                    priority: 100,
-                    language: if self.language.len() == 1 && self.language[0] == "eng" {
-                        None
-                    } else {
-                        Some(self.language.clone())
-                    },
-                    tesseract_config: self.tesseract_config.clone(),
-                    paddle_ocr_config: None,
-                    paddle_ocr_settings: None,
-                    vlm_config: self.vlm_config.clone(),
-                    backend_options: self.backend_options.clone(),
-                },
-                OcrPipelineStage {
-                    backend: "paddleocr".to_string(),
-                    priority: 50,
-                    language: None,
-                    tesseract_config: None,
-                    paddle_ocr_config: self.paddle_ocr_config.clone(),
-                    paddle_ocr_settings: self.paddle_ocr_settings.clone(),
-                    vlm_config: None,
-                    backend_options: None,
-                },
-            ];
-            Some(OcrPipelineConfig {
-                stages,
-                quality_thresholds: self.effective_thresholds(),
-            })
-        }
-
-        #[cfg(not(paddle_ocr))]
-        {
-            None
-        }
+        None
     }
 
     /// Best-effort selection policy for the pipeline this config produces.
@@ -1431,7 +1359,7 @@ impl OcrConfig {
     /// result should be the last non-empty stage rather than the highest-scoring one
     /// (#1341). Explicit pipelines and the classical paddle auto-fallback keep the
     /// score-based selection. Mirrors the branch structure of [`Self::effective_pipeline`].
-    #[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+    #[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
     pub(crate) fn pipeline_selection(&self) -> OcrPipelineSelection {
         // Explicit pipelines keep score-based selection regardless of vlm_fallback
         // (they take precedence in `effective_pipeline`).
@@ -1510,37 +1438,13 @@ fn validate_tesseract_tuning(tesseract_config: Option<&crate::types::TesseractCo
 /// This runs the same check the backend runs on each page, so an invalid value fails the
 /// extraction before any page runs. The automatic OCR route keeps native text when a page
 /// fails, so a value first rejected on a page would surface only as a warning. ~keep
-#[cfg_attr(
-    not(all(
-        paddle_ocr,
-        any(
-            feature = "candle-trocr",
-            feature = "candle-paddleocr-vl",
-            all(
-                not(target_arch = "wasm32"),
-                any(feature = "candle-glm-ocr", feature = "candle-deepseek-ocr")
-            )
-        )
-    )),
-    allow(unused_variables)
-)]
+#[allow(unused_variables)]
 fn validate_backend_owned_options(
     backend: &str,
     backend_options: Option<&serde_json::Value>,
     paddle_ocr_config: Option<&serde_json::Value>,
     paddle_ocr_settings: Option<&crate::paddle_ocr::PaddleOcrConfig>,
 ) -> Result<(), XbergError> {
-    #[cfg(any(
-        feature = "candle-trocr",
-        feature = "candle-paddleocr-vl",
-        all(
-            not(target_arch = "wasm32"),
-            any(feature = "candle-glm-ocr", feature = "candle-deepseek-ocr")
-        )
-    ))]
-    crate::candle_ocr::validate_backend_options(backend, backend_options)?;
-    #[cfg(paddle_ocr)]
-    resolve_paddle_ocr_settings(paddle_ocr_settings, paddle_ocr_config)?;
     Ok(())
 }
 
@@ -1558,13 +1462,7 @@ fn default_tesseract_backend() -> String {
 /// language list is needed.
 pub(crate) const DEFAULT_OCR_LANGUAGE: &str = "eng";
 
-#[cfg(any(
-    feature = "ocr",
-    feature = "ocr-wasm",
-    feature = "ocr-pipeline",
-    paddle_ocr,
-    all(feature = "liter-llm", not(target_arch = "wasm32"))
-))]
+#[cfg(feature = "ocr-pipeline")]
 fn effective_languages_for(language: &[String]) -> Vec<String> {
     let languages: Vec<_> = language
         .iter()
@@ -1579,13 +1477,7 @@ fn effective_languages_for(language: &[String]) -> Vec<String> {
     }
 }
 
-#[cfg(any(
-    feature = "ocr",
-    feature = "ocr-wasm",
-    feature = "ocr-pipeline",
-    paddle_ocr,
-    all(feature = "liter-llm", not(target_arch = "wasm32"))
-))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn effective_tesseract_language_for(
     language: &[String],
     tesseract: Option<&crate::types::TesseractConfig>,
@@ -1951,23 +1843,6 @@ mod tests {
         assert!(error.to_string().contains("expected f32"), "{error}");
     }
 
-    #[cfg(paddle_ocr)]
-    #[test]
-    fn should_validate_legacy_paddle_ocr_config_with_unknown_extension_keys() {
-        let config = OcrConfig {
-            backend: "paddle-ocr".to_string(),
-            paddle_ocr_config: Some(serde_json::json!({
-                "model_tier": "server",
-                "vendor_extension": true
-            })),
-            ..Default::default()
-        };
-
-        config
-            .validate()
-            .expect("unknown legacy extension keys must not fail validation");
-    }
-
     #[test]
     fn test_typed_paddle_ocr_settings_take_precedence_over_legacy_json() {
         let legacy = serde_json::json!({"model_tier": 42});
@@ -2082,211 +1957,6 @@ model_tier = "server"
         assert!(config.validate().is_ok());
     }
 
-    #[cfg(feature = "ocr")]
-    #[test]
-    fn test_effective_languages_defaults_and_filters() {
-        let empty = OcrConfig {
-            language: vec![],
-            ..Default::default()
-        };
-        assert_eq!(empty.effective_languages(), vec!["eng".to_string()]);
-
-        let blank = OcrConfig {
-            language: vec![String::new(), "   ".to_string()],
-            ..Default::default()
-        };
-        assert_eq!(blank.effective_languages(), vec!["eng".to_string()]);
-
-        let mixed = OcrConfig {
-            language: vec!["eng".to_string(), " ".to_string(), " deu".to_string()],
-            ..Default::default()
-        };
-        assert_eq!(mixed.effective_languages(), vec!["eng".to_string(), "deu".to_string()]);
-    }
-
-    #[cfg(all(feature = "ocr", feature = "pdf"))]
-    #[test]
-    fn test_effective_pipeline_explicit_pipeline_returned_unchanged() {
-        let explicit_pipeline = OcrPipelineConfig {
-            stages: vec![OcrPipelineStage {
-                backend: "paddleocr".to_string(),
-                priority: 200,
-                language: Some(vec!["fra".to_string()]),
-                tesseract_config: None,
-                paddle_ocr_config: None,
-                paddle_ocr_settings: None,
-                vlm_config: None,
-                backend_options: None,
-            }],
-            quality_thresholds: OcrQualityThresholds::default(),
-        };
-        let config = OcrConfig {
-            pipeline: Some(explicit_pipeline.clone()),
-            ..Default::default()
-        };
-        let result = config.effective_pipeline().unwrap();
-        assert_eq!(result.stages.len(), 1);
-        assert_eq!(result.stages[0].backend, "paddleocr");
-        assert_eq!(result.stages[0].priority, 200);
-        assert_eq!(result.stages[0].language, Some(vec!["fra".to_string()]));
-        assert_eq!(
-            config.pipeline_selection(),
-            OcrPipelineSelection::HighestScore,
-            "an explicit pipeline must keep score-based selection"
-        );
-    }
-
-    #[cfg(all(feature = "ocr", feature = "pdf"))]
-    #[test]
-    fn test_effective_pipeline_explicit_paddleocr_no_autofallback() {
-        let config = OcrConfig {
-            backend: "paddleocr".to_string(),
-            ..Default::default()
-        };
-        assert!(config.effective_pipeline().is_none());
-    }
-
-    #[cfg(feature = "ocr")]
-    #[test]
-    fn test_effective_pipeline_unknown_backend_rejected_by_validation() {
-        let config = OcrConfig {
-            backend: "unsupported-ocr".to_string(),
-            ..Default::default()
-        };
-        let result = config.validate();
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid OCR backend"));
-    }
-
-    #[cfg(all(feature = "ocr", feature = "pdf"))]
-    #[test]
-    fn test_effective_pipeline_default_tesseract_backend() {
-        let config = OcrConfig::default();
-        let result = config.effective_pipeline();
-        #[cfg(paddle_ocr)]
-        {
-            let pipeline = result.unwrap();
-            assert_eq!(pipeline.stages.len(), 2);
-            assert_eq!(pipeline.stages[0].backend, "tesseract");
-            assert_eq!(pipeline.stages[0].priority, 100);
-            assert_eq!(pipeline.stages[1].backend, "paddleocr");
-            assert_eq!(pipeline.stages[1].priority, 50);
-        }
-        #[cfg(not(paddle_ocr))]
-        {
-            assert!(result.is_none());
-        }
-    }
-
-    #[cfg(all(feature = "ocr", paddle_ocr, feature = "pdf"))]
-    #[test]
-    fn should_keep_synthesized_paddle_fallback_on_its_safe_table_default() {
-        let pipeline = OcrConfig::default()
-            .effective_pipeline()
-            .expect("paddle-ocr feature must produce a pipeline");
-
-        assert!(pipeline.stages[1].paddle_ocr_config.is_none());
-        assert!(pipeline.stages[1].paddle_ocr_settings.is_none());
-    }
-
-    #[cfg(all(feature = "ocr", paddle_ocr, feature = "pdf"))]
-    #[test]
-    fn should_not_copy_tesseract_table_intent_into_synthesized_paddle_fallback() {
-        let config = OcrConfig {
-            tesseract_config: Some(crate::types::TesseractConfig {
-                enable_table_detection: false,
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let pipeline = config
-            .effective_pipeline()
-            .expect("paddle-ocr feature must produce a pipeline");
-
-        assert_eq!(pipeline.stages[1].paddle_ocr_config, None);
-        assert_eq!(pipeline.stages[1].paddle_ocr_settings, None);
-    }
-
-    #[cfg(all(feature = "ocr", paddle_ocr, feature = "pdf"))]
-    #[test]
-    fn should_preserve_explicit_legacy_paddle_table_setting_in_synthesized_fallback() {
-        let paddle_ocr_config = serde_json::json!({
-            "enable_table_detection": false,
-            "model_tier": "server"
-        });
-        let config = OcrConfig {
-            paddle_ocr_config: Some(paddle_ocr_config.clone()),
-            ..Default::default()
-        };
-        let pipeline = config
-            .effective_pipeline()
-            .expect("paddle-ocr feature must produce a pipeline");
-
-        assert_eq!(pipeline.stages[1].paddle_ocr_config, Some(paddle_ocr_config));
-        assert_eq!(pipeline.stages[1].paddle_ocr_settings, None);
-    }
-
-    #[cfg(all(feature = "ocr", paddle_ocr, feature = "pdf"))]
-    #[test]
-    fn should_preserve_typed_paddle_model_settings_without_enabling_tables() {
-        let paddle_ocr_settings = crate::paddle_ocr::PaddleOcrConfig::default().with_model_tier("server");
-        let config = OcrConfig {
-            paddle_ocr_settings: Some(paddle_ocr_settings.clone()),
-            ..Default::default()
-        };
-        let pipeline = config
-            .effective_pipeline()
-            .expect("paddle-ocr feature must produce a pipeline");
-
-        assert_eq!(pipeline.stages[1].paddle_ocr_config, None);
-        assert_eq!(pipeline.stages[1].paddle_ocr_settings, Some(paddle_ocr_settings));
-        assert!(
-            !pipeline.stages[1]
-                .paddle_ocr_settings
-                .as_ref()
-                .expect("typed settings must remain present")
-                .enable_table_detection
-        );
-    }
-
-    #[cfg(all(feature = "ocr", paddle_ocr, feature = "pdf"))]
-    #[test]
-    fn should_preserve_explicit_typed_paddle_table_setting_in_synthesized_fallback() {
-        let paddle_ocr_settings = crate::paddle_ocr::PaddleOcrConfig::default().with_table_detection(true);
-        let config = OcrConfig {
-            paddle_ocr_settings: Some(paddle_ocr_settings.clone()),
-            ..Default::default()
-        };
-        let pipeline = config
-            .effective_pipeline()
-            .expect("paddle-ocr feature must produce a pipeline");
-
-        assert_eq!(pipeline.stages[1].paddle_ocr_config, None);
-        assert_eq!(pipeline.stages[1].paddle_ocr_settings, Some(paddle_ocr_settings));
-    }
-
-    #[cfg(all(feature = "ocr", feature = "pdf"))]
-    #[test]
-    fn test_effective_thresholds_custom_vs_default() {
-        let custom = OcrQualityThresholds {
-            min_total_non_whitespace: 128,
-            min_meaningful_words: 10,
-            ..Default::default()
-        };
-        let config_custom = OcrConfig {
-            quality_thresholds: Some(custom.clone()),
-            ..Default::default()
-        };
-        let eff = config_custom.effective_thresholds();
-        assert_eq!(eff.min_total_non_whitespace, 128);
-        assert_eq!(eff.min_meaningful_words, 10);
-
-        let config_default = OcrConfig::default();
-        let eff_default = config_default.effective_thresholds();
-        assert_eq!(eff_default.min_total_non_whitespace, 64);
-        assert_eq!(eff_default.min_meaningful_words, 3);
-    }
-
     #[test]
     fn test_vlm_fallback_policy_default_is_disabled() {
         let config = OcrConfig::default();
@@ -2392,183 +2062,6 @@ model_tier = "server"
         );
     }
 
-    #[cfg(all(feature = "ocr", feature = "pdf"))]
-    fn explicit_low_quality_vlm_config(vlm_cfg: super::super::llm::LlmConfig) -> OcrConfig {
-        OcrConfig {
-            pipeline: Some(OcrPipelineConfig {
-                stages: vec![
-                    OcrPipelineStage {
-                        backend: "tesseract".to_string(),
-                        priority: 100,
-                        language: None,
-                        tesseract_config: None,
-                        paddle_ocr_config: None,
-                        paddle_ocr_settings: None,
-                        vlm_config: None,
-                        backend_options: None,
-                    },
-                    OcrPipelineStage {
-                        backend: "vlm".to_string(),
-                        priority: 50,
-                        language: None,
-                        tesseract_config: None,
-                        paddle_ocr_config: None,
-                        paddle_ocr_settings: None,
-                        vlm_config: Some(vlm_cfg),
-                        backend_options: None,
-                    },
-                ],
-                quality_thresholds: OcrQualityThresholds {
-                    pipeline_min_quality: 0.6,
-                    ..Default::default()
-                },
-            }),
-            ..Default::default()
-        }
-    }
-
-    #[cfg(all(feature = "ocr", feature = "pdf"))]
-    fn assert_vlm_pipeline_stages_match(synthesised: &OcrPipelineConfig, hand_written: &OcrPipelineConfig) {
-        assert_eq!(
-            synthesised.stages.len(),
-            hand_written.stages.len(),
-            "stage count mismatch"
-        );
-
-        assert_eq!(synthesised.stages[0].backend, hand_written.stages[0].backend);
-        assert_eq!(synthesised.stages[0].priority, hand_written.stages[0].priority);
-
-        assert_eq!(synthesised.stages[1].backend, hand_written.stages[1].backend);
-        assert_eq!(synthesised.stages[1].priority, hand_written.stages[1].priority);
-        let s_vlm = synthesised.stages[1]
-            .vlm_config
-            .as_ref()
-            .expect("synthesised stage 1 must have vlm_config");
-        let h_vlm = hand_written.stages[1]
-            .vlm_config
-            .as_ref()
-            .expect("hand-written stage 1 must have vlm_config");
-        assert_eq!(s_vlm.model, h_vlm.model);
-    }
-
-    /// `OnLowQuality` synthesises a two-stage pipeline equivalent to what a caller
-    /// would write by hand with an explicit `OcrPipelineConfig`.
-    #[cfg(all(feature = "ocr", feature = "pdf"))]
-    #[test]
-    fn test_vlm_fallback_on_low_quality_synthesises_two_stage_pipeline() {
-        use super::super::llm::LlmConfig;
-
-        let vlm_cfg = LlmConfig {
-            model: "openai/gpt-4o-mini".to_string(),
-            base_url: Some("http://localhost:9999".to_string()),
-            ..Default::default()
-        };
-
-        let config = OcrConfig {
-            backend: "tesseract".to_string(),
-            vlm_fallback: VlmFallbackPolicy::OnLowQuality { quality_threshold: 0.6 },
-            vlm_config: Some(vlm_cfg.clone()),
-            ..Default::default()
-        };
-
-        let explicit = explicit_low_quality_vlm_config(vlm_cfg);
-
-        let synthesised = config.effective_pipeline().expect("must synthesise a pipeline");
-        let hand_written = explicit
-            .effective_pipeline()
-            .expect("explicit pipeline must be returned");
-
-        assert_vlm_pipeline_stages_match(&synthesised, &hand_written);
-
-        assert!(
-            (synthesised.quality_thresholds.pipeline_min_quality - 0.6).abs() < f64::EPSILON,
-            "threshold must be 0.6, got {}",
-            synthesised.quality_thresholds.pipeline_min_quality
-        );
-        assert!((hand_written.quality_thresholds.pipeline_min_quality - 0.6).abs() < f64::EPSILON,);
-        assert_eq!(
-            config.pipeline_selection(),
-            OcrPipelineSelection::PreferLastNonEmpty,
-            "OnLowQuality synthesis must prefer the last non-empty stage as its best-effort fallback"
-        );
-    }
-
-    /// `Always` synthesises a single-stage VLM-only pipeline.
-    #[cfg(all(feature = "ocr", feature = "pdf"))]
-    #[test]
-    fn test_vlm_fallback_always_synthesises_single_stage_vlm_pipeline() {
-        use super::super::llm::LlmConfig;
-
-        let vlm_cfg = LlmConfig {
-            model: "anthropic/claude-sonnet-4-20250514".to_string(),
-            ..Default::default()
-        };
-        let config = OcrConfig {
-            vlm_fallback: VlmFallbackPolicy::Always,
-            vlm_config: Some(vlm_cfg),
-            ..Default::default()
-        };
-
-        let pipeline = config.effective_pipeline().expect("Always must produce a pipeline");
-        assert_eq!(pipeline.stages.len(), 1, "Always must produce exactly one stage");
-        assert_eq!(pipeline.stages[0].backend, "vlm");
-        assert_eq!(pipeline.stages[0].priority, 100);
-        assert!(pipeline.stages[0].vlm_config.is_some());
-        assert_eq!(
-            config.pipeline_selection(),
-            OcrPipelineSelection::PreferLastNonEmpty,
-            "Always synthesis must prefer the last non-empty stage as its best-effort fallback"
-        );
-    }
-
-    /// `Disabled` with no explicit pipeline produces no synthesised pipeline
-    /// (consistent with pre-policy single-backend mode).
-    #[cfg(all(feature = "ocr", feature = "pdf"))]
-    #[test]
-    fn test_vlm_fallback_disabled_no_synthesis() {
-        let config = OcrConfig {
-            backend: "paddleocr".to_string(),
-            vlm_fallback: VlmFallbackPolicy::Disabled,
-            vlm_config: None,
-            ..Default::default()
-        };
-        assert!(config.effective_pipeline().is_none());
-    }
-
-    /// Explicit pipeline always wins over vlm_fallback (regression guard).
-    #[cfg(all(feature = "ocr", feature = "pdf"))]
-    #[test]
-    fn test_explicit_pipeline_wins_over_vlm_fallback() {
-        use super::super::llm::LlmConfig;
-
-        let explicit = OcrPipelineConfig {
-            stages: vec![OcrPipelineStage {
-                backend: "paddleocr".to_string(),
-                priority: 99,
-                language: None,
-                tesseract_config: None,
-                paddle_ocr_config: None,
-                paddle_ocr_settings: None,
-                vlm_config: None,
-                backend_options: None,
-            }],
-            quality_thresholds: OcrQualityThresholds::default(),
-        };
-        let config = OcrConfig {
-            pipeline: Some(explicit),
-            vlm_fallback: VlmFallbackPolicy::Always,
-            vlm_config: Some(LlmConfig {
-                model: "openai/gpt-4o".to_string(),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
-        let pipeline = config.effective_pipeline().expect("explicit pipeline must be returned");
-        assert_eq!(pipeline.stages.len(), 1, "explicit pipeline must win");
-        assert_eq!(pipeline.stages[0].backend, "paddleocr", "explicit pipeline must win");
-    }
-
     #[test]
     fn test_vlm_fallback_policy_serde_roundtrip_disabled() {
         let policy = VlmFallbackPolicy::Disabled;
@@ -2646,40 +2139,6 @@ model_tier = "server"
             deserialized.stages[1].paddle_ocr_settings, pipeline.stages[1].paddle_ocr_settings,
             "typed paddle_ocr_settings must survive a JSON round trip"
         );
-    }
-
-    /// `pipeline_selection` derives the best-effort policy from the `OcrConfig` rather
-    /// than a serialized pipeline field (#1341): score-based by default and for explicit
-    /// pipelines, last-non-empty only for a genuinely-synthesised vlm_fallback pipeline.
-    #[cfg(all(feature = "ocr", feature = "pdf"))]
-    #[test]
-    fn test_pipeline_selection_derivation() {
-        use super::super::llm::LlmConfig;
-
-        // Default (classical / no fallback): score-based.
-        assert_eq!(
-            OcrConfig::default().pipeline_selection(),
-            OcrPipelineSelection::HighestScore
-        );
-
-        // vlm_fallback requested but no vlm_config: falls through to classical, score-based.
-        let missing_vlm = OcrConfig {
-            vlm_fallback: VlmFallbackPolicy::Always,
-            vlm_config: None,
-            ..Default::default()
-        };
-        assert_eq!(missing_vlm.pipeline_selection(), OcrPipelineSelection::HighestScore);
-
-        // vlm_fallback with vlm_config present: synthesised fallback prefers last non-empty.
-        let with_vlm = OcrConfig {
-            vlm_fallback: VlmFallbackPolicy::Always,
-            vlm_config: Some(LlmConfig {
-                model: "openai/gpt-4o-mini".to_string(),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        assert_eq!(with_vlm.pipeline_selection(), OcrPipelineSelection::PreferLastNonEmpty);
     }
 
     #[test]
@@ -3035,96 +2494,6 @@ model_tier = "server"
             !json.contains("backend_options"),
             "backend_options must be omitted when None"
         );
-    }
-
-    #[cfg(all(feature = "ocr", paddle_ocr, feature = "pdf"))]
-    #[test]
-    fn test_effective_pipeline_propagates_backend_options_to_primary_stage() {
-        let config = OcrConfig {
-            backend_options: Some(serde_json::json!({"mode": "fast"})),
-            ..Default::default()
-        };
-        let pipeline = config
-            .effective_pipeline()
-            .expect("paddle-ocr feature must produce a pipeline");
-        assert_eq!(pipeline.stages.len(), 2);
-
-        let primary = &pipeline.stages[0];
-        assert_eq!(primary.backend, "tesseract");
-        let opts = primary
-            .backend_options
-            .as_ref()
-            .expect("primary stage must carry backend_options");
-        assert_eq!(opts["mode"], "fast");
-
-        let fallback = &pipeline.stages[1];
-        assert_eq!(fallback.backend, "paddleocr");
-        assert!(
-            fallback.backend_options.is_none(),
-            "paddleocr stage must not inherit backend_options"
-        );
-    }
-
-    #[cfg(all(feature = "ocr", feature = "pdf"))]
-    #[test]
-    fn test_explicit_pipeline_ignores_top_level_backend_options() {
-        let config = OcrConfig {
-            backend_options: Some(serde_json::json!({"mode": "fast"})),
-            pipeline: Some(OcrPipelineConfig {
-                stages: vec![OcrPipelineStage {
-                    backend: "tesseract".to_string(),
-                    priority: 100,
-                    language: None,
-                    tesseract_config: None,
-                    paddle_ocr_config: None,
-                    paddle_ocr_settings: None,
-                    vlm_config: None,
-                    backend_options: None,
-                }],
-                quality_thresholds: OcrQualityThresholds::default(),
-            }),
-            ..Default::default()
-        };
-        let pipeline = config
-            .effective_pipeline()
-            .expect("explicit pipeline must be returned as-is");
-        assert_eq!(pipeline.stages.len(), 1);
-        assert!(
-            pipeline.stages[0].backend_options.is_none(),
-            "top-level backend_options must not be injected into an explicit pipeline stage"
-        );
-    }
-
-    #[cfg(all(feature = "ocr", feature = "pdf"))]
-    #[test]
-    fn test_stage_level_backend_options_preserved_in_explicit_pipeline() {
-        let stage_opts = serde_json::json!({"device": "gpu", "batch": 8});
-        let config = OcrConfig {
-            backend_options: Some(serde_json::json!({"mode": "fast"})),
-            pipeline: Some(OcrPipelineConfig {
-                stages: vec![OcrPipelineStage {
-                    backend: "custom".to_string(),
-                    priority: 100,
-                    language: None,
-                    tesseract_config: None,
-                    paddle_ocr_config: None,
-                    paddle_ocr_settings: None,
-                    vlm_config: None,
-                    backend_options: Some(stage_opts.clone()),
-                }],
-                quality_thresholds: OcrQualityThresholds::default(),
-            }),
-            ..Default::default()
-        };
-        let pipeline = config
-            .effective_pipeline()
-            .expect("explicit pipeline must be returned as-is");
-        let returned_opts = pipeline.stages[0]
-            .backend_options
-            .as_ref()
-            .expect("stage-level backend_options must be preserved");
-        assert_eq!(returned_opts["device"], "gpu");
-        assert_eq!(returned_opts["batch"], 8);
     }
 }
 #[test]

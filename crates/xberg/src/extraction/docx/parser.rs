@@ -29,7 +29,7 @@ use quick_xml::events::{BytesStart, Event};
 pub(crate) type MathSpan = (Range<usize>, bool);
 
 /// Tracks document element ordering (paragraphs, tables, and drawings interleaved).
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) enum DocumentElement {
     Paragraph(usize),
@@ -38,7 +38,6 @@ pub(crate) enum DocumentElement {
     PageBreak,
 }
 
-#[cfg_attr(alef, alef(skip))]
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Document {
     pub paragraphs: Vec<Paragraph>,
@@ -82,7 +81,7 @@ pub(crate) struct Document {
 }
 
 /// A DOCX paragraph containing formatted text runs.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Paragraph {
     /// Formatted text runs that make up this paragraph.
@@ -163,7 +162,7 @@ impl NoteNumbers {
 }
 
 /// A formatted text run within a DOCX paragraph.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Run {
     /// Plain text content of this run.
@@ -199,7 +198,7 @@ pub struct Run {
 }
 
 /// A DOCX table parsed from `<w:tbl>`.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Table {
     /// Ordered list of table rows.
@@ -211,7 +210,7 @@ pub struct Table {
 }
 
 /// A single row within a DOCX table.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TableRow {
     /// Cells in this row.
@@ -221,7 +220,7 @@ pub struct TableRow {
 }
 
 /// A single cell within a DOCX table row.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TableCell {
     /// Paragraphs contained in this cell.
@@ -230,7 +229,6 @@ pub struct TableCell {
     pub properties: Option<super::table::CellProperties>,
 }
 
-#[cfg_attr(alef, alef(skip))]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum ListType {
     Bullet,
@@ -332,7 +330,7 @@ pub(crate) struct Numbering {
 }
 
 /// A header or footer block from a DOCX section.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default)]
 pub struct HeaderFooter {
     /// Paragraphs in this header or footer.
@@ -344,7 +342,7 @@ pub struct HeaderFooter {
 }
 
 /// Specifies which pages a header or footer applies to.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub enum HeaderFooterType {
     /// Default header/footer (applies to all pages not covered by First or Even).
@@ -359,7 +357,7 @@ pub enum HeaderFooterType {
 }
 
 /// A footnote or endnote from a DOCX document.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone)]
 pub struct Note {
     /// Note identifier matching the in-text reference mark.
@@ -371,7 +369,7 @@ pub struct Note {
 }
 
 /// Distinguishes footnotes from endnotes in DOCX documents.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NoteType {
     /// Note appears at the bottom of the page.
@@ -384,7 +382,7 @@ pub enum NoteType {
 ///
 /// Joined to the body text via `w:commentRangeStart`/`w:commentRangeEnd` (anchors,
 /// not carrying content) and `w:commentReference` (the marker matched to this `id`).
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default)]
 pub struct Comment {
     /// Comment identifier matching `w:commentReference/@w:id`.

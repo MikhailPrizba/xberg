@@ -20,7 +20,7 @@ use std::collections::BTreeMap;
 use crate::types::document_structure::{AnnotationKind, TextAnnotation};
 #[cfg(feature = "office")]
 use biblatex::{Bibliography, ChunksExt};
-#[cfg_attr(alef, alef(skip))]
+
 /// BibTeX bibliography extractor.
 ///
 /// Parses BibTeX files and extracts structured bibliography data including
@@ -153,8 +153,6 @@ fn parse_bibliography(input: &str, builder: &mut InternalDocumentBuilder) -> Par
             }
         }
         Err(_error) => {
-            #[cfg(feature = "otel")]
-            tracing::warn!("BibTeX parsing failed, returning raw content: {}", _error);
             builder.add_warning(crate::core::diagnostics::warning(
                 "bibtex",
                 "BibTeX parsing failed; returning raw text as a fallback",
@@ -209,13 +207,6 @@ impl Plugin for BibtexExtractor {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl InternalDocumentExtractor for BibtexExtractor {
-    #[cfg_attr(feature = "otel", tracing::instrument(
-        skip(self, content, _config),
-        fields(
-            extractor.name = self.name(),
-            content.size_bytes = content.len(),
-        )
-    ))]
     async fn extract_content(
         &self,
         content: &[u8],

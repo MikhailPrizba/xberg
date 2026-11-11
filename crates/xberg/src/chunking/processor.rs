@@ -26,7 +26,7 @@ use async_trait::async_trait;
 /// let processor = ChunkingProcessor;
 /// assert_eq!(processor.name(), "text-chunking");
 /// ```
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Copy)]
 pub struct ChunkingProcessor;
 

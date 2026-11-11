@@ -1,7 +1,7 @@
 use crate::core::config::{OcrConfig, OcrPipelineStage};
-#[cfg(any(test, all(feature = "ocr", not(target_arch = "wasm32"))))]
+#[cfg(test)]
 use crate::types::TesseractConfig;
-#[cfg(any(test, all(feature = "ocr", not(target_arch = "wasm32"))))]
+#[cfg(test)]
 use std::path::Path;
 
 pub(crate) struct StageModelInputs<'a> {
@@ -16,18 +16,18 @@ impl<'a> StageModelInputs<'a> {
     pub(crate) fn backend(&self) -> &str {
         &self.stage.backend
     }
-    #[cfg(any(test, all(feature = "ocr", not(target_arch = "wasm32"))))]
+    #[cfg(test)]
     pub(crate) fn tesseract(&self) -> Option<&TesseractConfig> {
         self.stage
             .tesseract_config
             .as_ref()
             .or(self.parent.tesseract_config.as_ref())
     }
-    #[cfg(any(test, all(feature = "ocr", not(target_arch = "wasm32"))))]
+    #[cfg(test)]
     pub(crate) fn directory(&self) -> Option<&Path> {
         self.parent.tessdata_path.as_deref()
     }
-    #[cfg(any(test, all(feature = "ocr", not(target_arch = "wasm32"))))]
+    #[cfg(test)]
     pub(crate) fn languages(&self) -> Vec<String> {
         crate::core::config::ocr::effective_tesseract_language_for(
             self.stage.language.as_deref().unwrap_or(&self.parent.language),

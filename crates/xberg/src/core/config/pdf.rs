@@ -233,14 +233,13 @@ impl PdfConfig {
             )));
         }
 
-        #[cfg(not(feature = "layout-detection"))]
         if self.reading_order {
             return Err(crate::XbergError::validation(
                 "pdf_options.reading_order requires the layout-detection feature",
             ));
         }
 
-        #[cfg(not(any(feature = "ocr", feature = "ocr-pipeline")))]
+        #[cfg(not(feature = "ocr-pipeline"))]
         if self.ocr_inline_images {
             return Err(crate::XbergError::validation(
                 "pdf_options.ocr_inline_images requires the ocr or ocr-pipeline feature",
@@ -287,7 +286,7 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg(all(feature = "pdf", not(feature = "layout-detection")))]
+    #[cfg(feature = "pdf")]
     fn should_reject_reading_order_without_layout_detection() {
         let config = PdfConfig {
             reading_order: true,
@@ -299,7 +298,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(all(feature = "pdf", not(any(feature = "ocr", feature = "ocr-pipeline"))))]
+    #[cfg(all(feature = "pdf", not(feature = "ocr-pipeline")))]
     fn should_reject_inline_image_ocr_without_ocr_support() {
         let config = PdfConfig {
             ocr_inline_images: true,

@@ -750,62 +750,6 @@ fn table_repeat_header_alignment_separators_are_detected_correctly() {
     }
 }
 
-/// Regression test for #255: with `ChunkSizing::Tokenizer` pointed at a registered
-/// [`crate::plugins::TokenizerBackend`], `token_count` must be populated from that
-/// backend's count instead of staying `None` forever.
-#[cfg(feature = "chunking-tokenizers")]
-#[test]
-fn test_token_count_populated_from_registered_tokenizer_backend() {
-    use crate::plugins::registry::test_support::TokenizerRegistryGuard;
-    use crate::plugins::{Plugin, TokenizerBackend, register_tokenizer_backend};
-    use std::sync::Arc;
-
-    struct WordCountTokenizer;
-    impl Plugin for WordCountTokenizer {
-        fn name(&self) -> &str {
-            "chunking-core-word-count-tokenizer"
-        }
-        fn version(&self) -> String {
-            "1.0.0".to_string()
-        }
-        fn initialize(&self) -> crate::Result<()> {
-            Ok(())
-        }
-        fn shutdown(&self) -> crate::Result<()> {
-            Ok(())
-        }
-    }
-    impl TokenizerBackend for WordCountTokenizer {
-        fn count_tokens(&self, text: &str) -> usize {
-            text.split_whitespace().count()
-        }
-    }
-
-    let _guard = TokenizerRegistryGuard::acquire();
-    register_tokenizer_backend(Arc::new(WordCountTokenizer)).unwrap();
-
-    let config = ChunkingConfig {
-        max_characters: 100,
-        overlap: 0,
-        trim: true,
-        chunker_type: ChunkerType::Text,
-        sizing: crate::core::config::ChunkSizing::Tokenizer {
-            model: "chunking-core-word-count-tokenizer".to_string(),
-            cache_dir: None,
-        },
-        ..Default::default()
-    };
-    let text = "one two three four five";
-    let result = chunk_text(text, &config, None).unwrap();
-
-    assert_eq!(result.chunks.len(), 1);
-    assert_eq!(
-        result.chunks[0].metadata.token_count,
-        Some(5),
-        "token_count must be populated from the registered tokenizer backend, not left None"
-    );
-}
-
 /// `token_count` has no meaningful value for character-based sizing (the default);
 /// it must stay `None` rather than being populated with a bogus count.
 #[test]

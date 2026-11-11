@@ -43,12 +43,6 @@ async fn should_read_markdown_djot_and_doctags_that_start_with_a_utf8_bom() {
     .await;
 }
 
-#[cfg(feature = "mdx")]
-#[tokio::test]
-async fn should_read_mdx_that_starts_with_a_utf8_bom() {
-    assert_a_bom_changes_nothing("text/mdx", "# Title\n\nBody text.\n").await;
-}
-
 #[cfg(feature = "office")]
 #[tokio::test]
 async fn should_read_org_rst_typst_and_rtf_that_start_with_a_utf8_bom() {

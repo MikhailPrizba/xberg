@@ -34,7 +34,7 @@ fn old_exhaustive_input_and_file_config_literals_still_compile() {
         #[cfg(feature = "transcription-types")]
         transcription: None,
         timeout_secs: None,
-        #[cfg(feature = "tree-sitter")]
+        #[cfg(feature = "tree-sitter-types")]
         tree_sitter: None,
         structured_extraction: None,
         url: None,

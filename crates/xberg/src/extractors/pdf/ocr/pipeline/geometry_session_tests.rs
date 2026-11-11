@@ -73,8 +73,6 @@ fn source_pages(bytes: &[u8]) -> Vec<RunPageParagraphs> {
                 segments,
                 native_scripts: vec![],
                 baseline_y: 100.,
-                dominant_font_size: 10.,
-                is_bold: false,
                 is_monospace: false,
             };
             RunPageParagraphs {
@@ -385,16 +383,7 @@ async fn should_return_cancelled_when_cancellation_arrives_during_native_geometr
     let hints = geometry_page_hints();
     OPEN_ROUTINES.with(|count| count.set(0));
     CANCEL_ON_OPEN.with(|slot| *slot.borrow_mut() = Some(token.clone()));
-    let result = extract_with_ocr_with_page_hints(
-        Some(&bytes),
-        None,
-        #[cfg(feature = "layout-detection")]
-        None,
-        &config,
-        None,
-        Some(hints),
-    )
-    .await;
+    let result = extract_with_ocr_with_page_hints(Some(&bytes), None, &config, None, Some(hints)).await;
     CANCEL_ON_OPEN.with(|slot| {
         slot.borrow_mut().take();
     });

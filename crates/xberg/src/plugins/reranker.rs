@@ -113,7 +113,7 @@ pub trait RerankerBackend: Plugin {
 /// - [`crate::XbergError::Plugin`] if a backend with that name is already registered.
 /// - Any error from the backend's `initialize()` method.
 ///
-#[cfg_attr(alef, alef(skip))]
+
 pub fn register_reranker_backend(backend: Arc<dyn RerankerBackend>) -> Result<()> {
     use crate::plugins::registry::get_reranker_backend_registry;
 
@@ -130,7 +130,7 @@ pub fn register_reranker_backend(backend: Arc<dyn RerankerBackend>) -> Result<()
 ///
 /// - Any error returned by the backend's `shutdown()` method.
 ///
-#[cfg_attr(alef, alef(skip))]
+
 pub fn unregister_reranker_backend(name: &str) -> Result<()> {
     use crate::plugins::registry::get_reranker_backend_registry;
 

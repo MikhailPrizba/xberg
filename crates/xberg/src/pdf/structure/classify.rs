@@ -2421,8 +2421,6 @@ mod tests {
             native_scripts: Vec::new(),
             segments,
             baseline_y: 700.0,
-            dominant_font_size: font_size,
-            is_bold: false,
             is_monospace: false,
         }];
         let word_count = PdfParagraph::compute_word_count("", &lines);
@@ -2979,7 +2977,6 @@ mod tests {
         let heading_map = vec![(12.0, None)];
         let mut para = make_paragraph(12.0, 3);
         para.is_bold = true;
-        para.lines[0].is_bold = true;
         let mut paragraphs = vec![para];
         classify_paragraphs(&mut paragraphs, &heading_map);
         assert_eq!(paragraphs[0].heading_level, Some(3));
@@ -3029,8 +3026,6 @@ mod tests {
             native_scripts: Vec::new(),
             segments,
             baseline_y: 700.0,
-            dominant_font_size: 18.0,
-            is_bold: false,
             is_monospace: false,
         }];
         let word_count = PdfParagraph::compute_word_count("", &lines);
@@ -3500,8 +3495,6 @@ mod tests {
             native_scripts: Vec::new(),
             segments,
             baseline_y: 700.0,
-            dominant_font_size: font_size,
-            is_bold,
             is_monospace: false,
         }];
         let word_count = PdfParagraph::compute_word_count("", &lines);
@@ -4337,8 +4330,6 @@ mod tests {
                     assigned_role: None,
                 }],
                 baseline_y: 700.0 - i as f32 * 12.0,
-                dominant_font_size: 10.0,
-                is_bold: false,
                 is_monospace,
             })
             .collect();

@@ -130,19 +130,19 @@ impl InternalRenderer for DotRenderer {
 // `-D dead-code` fires on a leg without them. A hand-kept union-of-consumers `cfg` is what
 // drifted and failed the 1.3.0 publish (GH#1951).
 /// Name of the built-in DOCX renderer, reached through `OutputFormat::Custom`.
-#[allow(dead_code)]
+
 pub(crate) const DOCX_RENDERER_NAME: &str = "docx";
 
 /// Name of the built-in PDF renderer, reached through `OutputFormat::Custom`.
-#[allow(dead_code)]
+
 pub(crate) const PDF_RENDERER_NAME: &str = "pdf";
 
 /// How the base64 encoding of a zip archive begins: its first local file header, `PK\x03\x04`.
-#[allow(dead_code)]
+
 const BASE64_ZIP_PREFIX: &str = "UEsDB";
 
 /// How the base64 encoding of a PDF file begins: its `%PDF-` header.
-#[allow(dead_code)]
+
 const BASE64_PDF_PREFIX: &str = "JVBERi0";
 
 /// Whether a finished document's `content` is a base64-encoded binary document (DOCX or
@@ -150,7 +150,7 @@ const BASE64_PDF_PREFIX: &str = "JVBERi0";
 ///
 /// Both the recorded format and the bytes have to agree, so text that merely claims the
 /// format is still treated as text.
-#[allow(dead_code)]
+
 pub(crate) fn holds_encoded_package(output_format: Option<&str>, content: &str) -> bool {
     let prefix = match output_format {
         Some(DOCX_RENDERER_NAME) => BASE64_ZIP_PREFIX,
@@ -164,7 +164,7 @@ pub(crate) fn holds_encoded_package(output_format: Option<&str>, content: &str) 
 ///
 /// An extractor that recovers headings and tables only for markup output formats has to
 /// recover them for these too, or the output carries none.
-#[allow(dead_code)]
+
 pub(crate) fn renders_from_markdown(name: &str) -> bool {
     (cfg!(feature = "office") && name == DOCX_RENDERER_NAME) || (cfg!(feature = "pdf") && name == PDF_RENDERER_NAME)
 }
@@ -276,7 +276,7 @@ const BUILTIN_RENDERER_NAMES: &[&str] = &[
 /// let available = registry.list();
 /// // Built-in renderers: "markdown", "html", "djot", "doctags", "dot", "docx", "pdf", "plain"
 /// ```
-#[cfg_attr(alef, alef(skip))]
+
 pub struct RendererRegistry {
     renderers: AHashMap<String, RegisteredRenderer>,
 }

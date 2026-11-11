@@ -53,7 +53,6 @@ use std::borrow::Cow;
 #[cfg(feature = "office")]
 const ORGMODE_WARNING_SOURCE: &str = "orgmode";
 
-#[cfg_attr(alef, alef(skip))]
 #[cfg(feature = "office")]
 pub struct OrgModeExtractor;
 
@@ -1171,16 +1170,6 @@ impl Plugin for OrgModeExtractor {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl InternalDocumentExtractor for OrgModeExtractor {
-    #[cfg_attr(
-        feature = "otel",
-        tracing::instrument(
-            skip(self, content, config),
-            fields(
-                extractor.name = self.name(),
-                content.size_bytes = content.len(),
-            )
-        )
-    )]
     async fn extract_content(
         &self,
         content: &[u8],

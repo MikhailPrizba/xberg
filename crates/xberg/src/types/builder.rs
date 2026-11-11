@@ -33,7 +33,7 @@ use super::document_structure::{
 };
 #[cfg(any(feature = "office", feature = "email"))]
 use super::extraction::BoundingBox;
-#[cfg_attr(alef, alef(skip))]
+
 /// Builder for constructing `DocumentStructure` trees with automatic
 /// heading-driven section nesting.
 ///
@@ -353,7 +353,7 @@ impl DocumentStructureBuilder {
 
     /// Push a raw `NodeContent` with full control over content layer and annotations.
     /// Nests under current section unless the content type is a root-level type.
-    #[cfg(any(feature = "office", test))]
+    #[cfg(test)]
     pub(crate) fn push_raw(
         &mut self,
         content: NodeContent,
@@ -486,7 +486,7 @@ fn cells_to_grid(cells: &[Vec<String>]) -> TableGrid {
 
 /// Check if a content type should always be root-level (not nested under sections).
 #[cfg(any(feature = "office", feature = "email"))]
-#[cfg(any(feature = "office", test))]
+#[cfg(test)]
 fn is_always_root(content: &NodeContent) -> bool {
     matches!(content, NodeContent::PageBreak)
 }
@@ -495,7 +495,7 @@ fn is_always_root(content: &NodeContent) -> bool {
 /// offsets to match, dropping any annotation that fell entirely within the trimmed
 /// prefix. Byte offsets are computed against the untrimmed text, so trimming
 /// without this adjustment would silently misalign every annotation.
-#[cfg(any(feature = "office", feature = "hwpx"))]
+#[cfg(feature = "office")]
 pub(crate) fn trim_text_and_annotations(text: &str, annotations: Vec<TextAnnotation>) -> (&str, Vec<TextAnnotation>) {
     let trimmed = text.trim();
     let trim_start = (text.len() - text.trim_start().len()) as u32;

@@ -117,7 +117,7 @@ pub(super) fn scan_cache_directory(cache_dir: &str) -> Result<CacheScanResult> {
 /// # Errors
 ///
 /// Returns an error if the directory cannot be read or its metadata cannot be queried.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn get_cache_metadata(cache_dir: &str) -> Result<CacheStats> {
     let scan_result = scan_cache_directory(cache_dir)?;
     Ok(scan_result.stats)
@@ -228,7 +228,7 @@ pub(crate) fn smart_cleanup_cache(
 /// # Errors
 ///
 /// Returns an error if the directory cannot be read.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn clear_cache_directory(cache_dir: &str) -> Result<(usize, f64)> {
     let dir_path = Path::new(cache_dir);
 

@@ -20,30 +20,6 @@
 //! `video/mpeg` (video/mp4), all of which `TranscriptionExtractor` leaves
 //! unclaimed. Those four are tracked separately — see the task for #229.
 
-#[cfg(feature = "wordperfect")]
-#[test]
-fn wordperfect_alias_mime_resolves_to_wordperfect_extractor() {
-    use xberg::extractors::ensure_initialized;
-    use xberg::plugins::registry::get_document_extractor_registry;
-
-    ensure_initialized().expect("failed to initialize default extractors");
-
-    let registry = get_document_extractor_registry();
-    let registry = registry.read();
-
-    // Canonical MIME type must resolve.
-    let canonical = registry
-        .get("application/vnd.wordperfect")
-        .expect("canonical WordPerfect MIME type must resolve to an extractor, not UnsupportedFormat");
-    assert_eq!(canonical.name(), "wordperfect-extractor");
-
-    // The alias declared in core/mime.rs must resolve to the same extractor.
-    let aliased = registry
-        .get("application/wordperfect")
-        .expect("application/wordperfect (declared as an alias in core/mime.rs) must resolve to an extractor, not UnsupportedFormat");
-    assert_eq!(aliased.name(), "wordperfect-extractor");
-}
-
 /// `application/x-quarto` is declared as an alias of `text/x-quarto` in
 /// `core/mime.rs`; `MarkdownExtractor::supported_mime_types()` now registers
 /// both, so the alias routes to the same extractor as the canonical string.

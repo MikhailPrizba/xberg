@@ -191,7 +191,7 @@ pub(crate) fn ensure_initialized() -> Result<()> {
 /// # Ok(())
 /// # }
 /// ```
-#[cfg_attr(alef, alef(skip))]
+
 #[cfg(any(feature = "keywords-yake", feature = "keywords-rake"))]
 pub(crate) fn register_keyword_processor() -> Result<()> {
     crate::plugins::processor::register_post_processor_if_absent(Arc::new(KeywordExtractor)).map(|_| ())

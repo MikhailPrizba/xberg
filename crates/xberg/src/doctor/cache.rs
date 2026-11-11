@@ -28,23 +28,6 @@ pub(super) fn check_cache(_config: &ExtractionConfig) -> Vec<DoctorCheck> {
     checks
 }
 
-#[cfg(all(not(target_arch = "wasm32"), any(paddle_ocr, layout_detection)))]
-fn hf_stale_check() -> Option<DoctorCheck> {
-    let stale = stale_hf_revisions();
-    if stale.is_empty() {
-        return None;
-    }
-    Some(DoctorCheck::warn(
-        "cache.hf",
-        format!(
-            "{} stale revision(s) of xberg-pinned models in the shared HF cache (report-only, not cleaned): {}",
-            stale.len(),
-            stale.join(", ")
-        ),
-    ))
-}
-
-#[cfg(not(all(not(target_arch = "wasm32"), any(paddle_ocr, layout_detection))))]
 fn hf_stale_check() -> Option<DoctorCheck> {
     None
 }
@@ -123,7 +106,7 @@ fn cache_base_checks(base: &Path, overridden: bool) -> Vec<DoctorCheck> {
 /// Result of [`clean_obsolete`]: how many stray files were removed and how
 /// many removals failed (e.g. permissions).
 #[derive(Debug, Clone, Copy, Default)]
-#[cfg_attr(alef, alef(skip))]
+
 pub struct CleanOutcome {
     /// Files successfully deleted.
     pub removed: usize,
@@ -138,7 +121,7 @@ pub struct CleanOutcome {
 ///
 /// Excluded from the polyglot binding surface: exposed for the CLI's
 /// `xberg doctor --clean`.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn clean_obsolete() -> Option<CleanOutcome> {
     if cache_dir_overridden() {
         return None;
@@ -188,52 +171,6 @@ fn unknown_dirs(base: &Path) -> Vec<String> {
         .filter_map(|entry| entry.file_name().to_str().map(str::to_string))
         .filter(|name| !KNOWN_MODULE_DIRS.contains(&name.as_str()))
         .collect()
-}
-
-/// Revisions of xberg-pinned HF model repos present in the shared cache that do
-/// not match the currently pinned revision(s). Report-only: the cache is shared.
-///
-/// Pinned revisions are grouped per repository: layout pins models in both
-/// `layout-models` and `paddleocr-onnx-models`, so a revision valid for one
-/// repo must not be accepted for the other.
-#[cfg(all(not(target_arch = "wasm32"), any(paddle_ocr, layout_detection)))]
-fn stale_hf_revisions() -> Vec<String> {
-    let mut pinned: std::collections::BTreeMap<String, Vec<&'static str>> = std::collections::BTreeMap::new();
-    #[cfg(paddle_ocr)]
-    pinned
-        .entry(hf_repo_dir("xberg-io/paddleocr-onnx-models"))
-        .or_default()
-        .push(crate::paddle_ocr::ModelManager::pinned_revision());
-    #[cfg(layout_detection)]
-    for (repo_id, revision) in crate::layout::model_manager::pinned_repo_revisions() {
-        pinned.entry(hf_repo_dir(repo_id)).or_default().push(revision);
-    }
-
-    let hf_cache = hf_hub::resolve_cache_dir();
-    let mut stale = Vec::new();
-    for (repo_dir, revisions) in &pinned {
-        collect_stale_revisions(&mut stale, &hf_cache, repo_dir, revisions);
-    }
-    stale
-}
-
-/// The hf-hub on-disk directory name for a Hub repo id.
-#[cfg(all(not(target_arch = "wasm32"), any(paddle_ocr, layout_detection)))]
-fn hf_repo_dir(repo_id: &str) -> String {
-    format!("models--{}", repo_id.replace('/', "--"))
-}
-
-#[cfg(all(not(target_arch = "wasm32"), any(paddle_ocr, layout_detection)))]
-fn collect_stale_revisions(stale: &mut Vec<String>, hf_cache: &Path, repo_dir: &str, pinned: &[&str]) {
-    let Ok(revisions) = std::fs::read_dir(hf_cache.join(repo_dir).join("snapshots")) else {
-        return;
-    };
-    for revision in revisions.flatten() {
-        let name = revision.file_name().to_string_lossy().into_owned();
-        if !pinned.contains(&name.as_str()) {
-            stale.push(format!("{repo_dir}@{name}"));
-        }
-    }
 }
 
 #[cfg(test)]
@@ -300,28 +237,6 @@ mod tests {
             !checks.iter().any(|c| c.name == "cache.xberg.dirs"),
             "extraction is a known module"
         );
-    }
-
-    #[cfg(all(not(target_arch = "wasm32"), any(paddle_ocr, layout_detection)))]
-    #[test]
-    fn stale_revisions_are_matched_per_repository() {
-        let hf = tempfile::tempdir().unwrap();
-        for (repo, revision) in [("models--org--alpha", "aaa"), ("models--org--beta", "bbb")] {
-            std::fs::create_dir_all(hf.path().join(repo).join("snapshots").join(revision)).unwrap();
-        }
-
-        let mut stale = Vec::new();
-        // "bbb" is pinned only for beta, so alpha@aaa is stale even though
-        // alpha@aaa would match alpha's own pin.
-        collect_stale_revisions(&mut stale, hf.path(), "models--org--alpha", &["bbb"]);
-        collect_stale_revisions(&mut stale, hf.path(), "models--org--beta", &["bbb"]);
-        assert_eq!(stale, vec!["models--org--alpha@aaa".to_string()]);
-    }
-
-    #[cfg(all(not(target_arch = "wasm32"), any(paddle_ocr, layout_detection)))]
-    #[test]
-    fn hf_repo_dir_follows_hub_layout() {
-        assert_eq!(hf_repo_dir("xberg-io/layout-models"), "models--xberg-io--layout-models");
     }
 
     #[test]

@@ -688,13 +688,6 @@ struct PageInput {
     /// Semantic refinement runs in native order before this spatial order is
     /// applied during final assembly.
     use_layout_reading_order: bool,
-    /// Per-hint validation results from CC analysis (parallel to page_hints).
-    /// Empty when layout-detection is not active.
-    #[cfg(feature = "layout-detection")]
-    hint_validations: Vec<super::regions::layout_validation::RegionValidation>,
-    /// Actual PDF page width in points, used by layout reading-order refinement.
-    #[cfg(feature = "layout-detection")]
-    page_width_pts: Option<f32>,
     /// Whether this page's structure-tree paragraphs need font-size classification.
     needs_classify: bool,
     /// Y-coordinates of paragraph gaps detected from segment boundaries.
@@ -729,19 +722,15 @@ fn process_single_page(
         table_bboxes,
         preserve_native_semantics,
         use_layout_reading_order,
-        #[cfg(feature = "layout-detection")]
-        hint_validations,
-        #[cfg(feature = "layout-detection")]
-        page_width_pts,
         needs_classify,
         paragraph_gap_ys,
         include_headers,
         include_footers,
         include_footnotes,
     } = input;
-    #[cfg(not(feature = "layout-detection"))]
+
     let _ = preserve_native_semantics;
-    #[cfg(not(feature = "layout-detection"))]
+
     let _ = use_layout_reading_order;
     if let Some(mut paragraphs) = struct_paragraphs {
         apply_text_repair_to_structure_tree_paragraphs(&mut paragraphs, true, witnesses);
@@ -785,45 +774,14 @@ fn process_single_page(
             "process_single_page: heuristic path"
         );
         let page_segments = filter_segments_by_table_bboxes(page_segments, &table_bboxes);
-        #[cfg(feature = "layout-detection")]
-        let mut paragraphs = if let Some(ref hints) = page_hints {
-            let wrapper_ownership = wrapper_ownership_by_hint(hints, &hint_validations);
-            if use_layout_reading_order
-                && crate::extractors::pdf::reading_order::has_eligible_layout_hints(hints, &wrapper_ownership)
-            {
-                process_layout_segment_groups(
-                    page_segments,
-                    hints,
-                    &wrapper_ownership,
-                    LayoutParagraphContext {
-                        heading_map,
-                        paragraph_gap_ys: &paragraph_gap_ys,
-                        doc_body_font_size,
-                        include_headers,
-                        include_footers,
-                        include_footnotes,
-                        page_width_pts,
-                        apply_layout_overrides: !preserve_native_semantics,
-                        witnesses,
-                    },
-                )
-            } else {
-                let mut paragraphs = segments_to_paragraphs(page_segments, heading_map, &paragraph_gap_ys, witnesses);
-                let classification_hints = regular_layout_hints(hints);
-                super::layout_classify::annotate_layout_classes(&mut paragraphs, &classification_hints, 0.5, 0.2);
-                paragraphs
-            }
-        } else {
-            segments_to_paragraphs(page_segments, heading_map, &paragraph_gap_ys, witnesses)
-        };
-        #[cfg(not(feature = "layout-detection"))]
+
         let mut paragraphs = segments_to_paragraphs(page_segments, heading_map, &paragraph_gap_ys, witnesses);
         tracing::debug!(
             page = i,
             paragraphs = paragraphs.len(),
             "heuristic paragraphs classified"
         );
-        #[cfg(not(feature = "layout-detection"))]
+
         if let Some(ref hints) = page_hints {
             let classification_hints = regular_layout_hints(hints);
             super::layout_classify::apply_layout_overrides(
@@ -980,9 +938,7 @@ fn is_preserved_table_page_annotation(paragraph: &PdfParagraph) -> bool {
                     | super::types::LayoutHintClass::ListItem
                     | super::types::LayoutHintClass::Code
                     | super::types::LayoutHintClass::Formula
-                    | super::types::LayoutHintClass::DocumentIndex
                     | super::types::LayoutHintClass::Form
-                    | super::types::LayoutHintClass::KeyValueRegion
             )
         )
     {
@@ -1158,7 +1114,7 @@ pub(super) enum DetachedMarkerFrame {
     /// whole native structure-tree path. `-D warnings` on the narrow `pdf` leg
     /// turns that into a hard error, so silence it exactly there rather than
     /// splitting the enum. ~keep
-    #[cfg_attr(not(any(feature = "ocr", feature = "ocr-pipeline")), allow(dead_code))]
+    #[cfg_attr(not(feature = "ocr-pipeline"), allow(dead_code))]
     OcrOnPage(u32),
 }
 
@@ -1478,185 +1434,6 @@ fn order_rotated_segment_group(mut segments: Vec<SegmentData>) -> Vec<SegmentDat
     visual_lines.into_iter().flatten().collect()
 }
 
-#[cfg(feature = "layout-detection")]
-fn wrapper_ownership_by_hint(
-    hints: &[LayoutHint],
-    validations: &[super::regions::layout_validation::RegionValidation],
-) -> Vec<bool> {
-    hints
-        .iter()
-        .enumerate()
-        .map(|(index, hint)| {
-            !is_wrapper_layout_hint(hint)
-                || !matches!(
-                    validations.get(index),
-                    Some(super::regions::layout_validation::RegionValidation::Empty)
-                )
-        })
-        .collect()
-}
-
-#[cfg(feature = "layout-detection")]
-struct LayoutParagraphContext<'a> {
-    heading_map: &'a [(f32, Option<u8>)],
-    paragraph_gap_ys: &'a [f32],
-    doc_body_font_size: Option<f32>,
-    include_headers: bool,
-    include_footers: bool,
-    include_footnotes: bool,
-    page_width_pts: Option<f32>,
-    apply_layout_overrides: bool,
-    witnesses: &'a TextRepairWitnesses,
-}
-
-#[cfg(feature = "layout-detection")]
-struct NativeLayoutProjection {
-    groups: Vec<crate::extractors::pdf::reading_order::LayoutSegmentGroup>,
-    group_bounds: Vec<Option<(f32, f32, f32, f32)>>,
-    classification_hints: Vec<LayoutHint>,
-}
-
-#[cfg(feature = "layout-detection")]
-fn process_layout_segment_groups(
-    segments: Vec<SegmentData>,
-    hints: &[LayoutHint],
-    wrapper_ownership: &[bool],
-    context: LayoutParagraphContext<'_>,
-) -> Vec<PdfParagraph> {
-    let no_reorder = super::layout_debug::layout_debug_flags().no_reorder;
-    let groups = crate::extractors::pdf::reading_order::plan_segment_groups_by_layout(
-        &segments,
-        hints,
-        wrapper_ownership,
-        no_reorder,
-        context.page_width_pts,
-    );
-    if matches!(groups.as_slice(), [group] if group.hint_indices.is_empty() && group.region_path.is_none()) {
-        return segments_to_paragraphs(
-            segments,
-            context.heading_map,
-            context.paragraph_gap_ys,
-            context.witnesses,
-        );
-    }
-    if !context.apply_layout_overrides {
-        let group_bounds = layout_group_bounds(&groups, &segments);
-        let mut paragraphs = segments_to_paragraphs(
-            segments,
-            context.heading_map,
-            context.paragraph_gap_ys,
-            context.witnesses,
-        );
-        assign_native_paragraph_layout(&mut paragraphs, &groups, &group_bounds);
-        let classification_hints = regular_layout_hints(hints);
-        super::layout_classify::annotate_layout_classes(&mut paragraphs, &classification_hints, 0.5, 0.2);
-        return paragraphs;
-    }
-    let mut slots = segments.into_iter().map(Some).collect::<Vec<_>>();
-    let mut paragraphs = Vec::new();
-
-    for group in groups {
-        let region_path = group.region_path;
-        let group_segments = group
-            .segment_indices
-            .into_iter()
-            .filter_map(|index| slots.get_mut(index).and_then(Option::take))
-            .collect::<Vec<_>>();
-        if group_segments.is_empty() {
-            continue;
-        }
-        let gap_ys = compute_paragraph_gap_ys(&group_segments);
-        let mut group_paragraphs =
-            segments_to_paragraphs(group_segments, context.heading_map, &gap_ys, context.witnesses);
-        let group_hints = group
-            .hint_indices
-            .into_iter()
-            .filter_map(|index| hints.get(index).cloned())
-            .collect::<Vec<_>>();
-        if context.apply_layout_overrides {
-            super::layout_classify::apply_layout_overrides(
-                &mut group_paragraphs,
-                &group_hints,
-                0.5,
-                0.2,
-                context.doc_body_font_size,
-            );
-            un_mark_layout_furniture_per_config(
-                &mut group_paragraphs,
-                context.include_headers,
-                context.include_footers,
-                context.include_footnotes,
-            );
-        } else {
-            super::layout_classify::annotate_layout_classes(&mut group_paragraphs, &group_hints, 0.5, 0.2);
-        }
-        for paragraph in &mut group_paragraphs {
-            paragraph.layout_region_path = region_path;
-        }
-        paragraphs.extend(group_paragraphs);
-    }
-
-    let leftovers = slots.into_iter().flatten().collect::<Vec<_>>();
-    if !leftovers.is_empty() {
-        tracing::warn!(
-            segments = leftovers.len(),
-            "layout region plan omitted segments; appending an unsorted fallback group"
-        );
-        let gap_ys = compute_paragraph_gap_ys(&leftovers);
-        paragraphs.extend(segments_to_paragraphs(
-            leftovers,
-            context.heading_map,
-            &gap_ys,
-            context.witnesses,
-        ));
-    }
-    paragraphs
-}
-
-#[cfg(feature = "layout-detection")]
-fn assign_native_paragraph_layout(
-    paragraphs: &mut Vec<PdfParagraph>,
-    groups: &[crate::extractors::pdf::reading_order::LayoutSegmentGroup],
-    group_bounds: &[Option<(f32, f32, f32, f32)>],
-) {
-    for paragraph in paragraphs {
-        let group_rank = paragraph_geometry_bbox(paragraph).and_then(|paragraph_bbox| {
-            groups
-                .iter()
-                .enumerate()
-                .filter_map(|(group_index, _)| {
-                    let overlap = group_bounds
-                        .get(group_index)
-                        .and_then(|bounds| *bounds)
-                        .map_or(0.0, |bounds| rectangle_overlap_area(paragraph_bbox, bounds));
-                    (overlap > 0.0).then_some((group_index, overlap))
-                })
-                .max_by(|left, right| left.1.total_cmp(&right.1).then_with(|| right.0.cmp(&left.0)))
-                .map(|(group_index, _)| group_index)
-        });
-        let Some(group_index) = group_rank else {
-            continue;
-        };
-        let Some(mut path) = groups[group_index].region_path else {
-            continue;
-        };
-        let original_root_id = path.root.id;
-        let root_order = groups
-            .iter()
-            .position(|group| {
-                group
-                    .region_path
-                    .is_some_and(|candidate| candidate.root.id == original_root_id)
-            })
-            .unwrap_or(group_index);
-        path.root.id = root_order;
-        if let Some(child) = &mut path.child {
-            child.id = group_index;
-        }
-        paragraph.layout_region_path = Some(path);
-    }
-}
-
 fn reorder_pages_by_layout_region(pages: &mut [Vec<PdfParagraph>]) {
     for page in pages {
         page.sort_by_key(|paragraph| {
@@ -1689,42 +1466,6 @@ fn paragraph_geometry_bbox(paragraph: &PdfParagraph) -> Option<(f32, f32, f32, f
             .max((segment.y + segment.height).max(segment.baseline_y + segment.height));
     }
     Some(bounds)
-}
-
-#[cfg(feature = "layout-detection")]
-fn layout_group_bounds(
-    groups: &[crate::extractors::pdf::reading_order::LayoutSegmentGroup],
-    segments: &[SegmentData],
-) -> Vec<Option<(f32, f32, f32, f32)>> {
-    groups
-        .iter()
-        .map(|group| {
-            let mut group_segments = group.segment_indices.iter().filter_map(|index| segments.get(*index));
-            let first = group_segments.next()?;
-            let mut bounds = (
-                first.x,
-                first.y.min(first.baseline_y),
-                first.x + first.width,
-                (first.y + first.height).max(first.baseline_y + first.height),
-            );
-            for segment in group_segments {
-                bounds.0 = bounds.0.min(segment.x);
-                bounds.1 = bounds.1.min(segment.y.min(segment.baseline_y));
-                bounds.2 = bounds.2.max(segment.x + segment.width);
-                bounds.3 = bounds
-                    .3
-                    .max((segment.y + segment.height).max(segment.baseline_y + segment.height));
-            }
-            Some(bounds)
-        })
-        .collect()
-}
-
-#[cfg(feature = "layout-detection")]
-fn rectangle_overlap_area(left: (f32, f32, f32, f32), right: (f32, f32, f32, f32)) -> f32 {
-    let width = left.2.min(right.2) - left.0.max(right.0);
-    let height = left.3.min(right.3) - left.1.max(right.1);
-    width.max(0.0) * height.max(0.0)
 }
 
 /// Multiple of the median line height a whitespace band must exceed to count
@@ -3055,21 +2796,11 @@ fn reconstruct_pdf_lines(segments: &[&SegmentData]) -> Vec<super::types::PdfLine
             segments.sort_by(|a, b| a.upright_advance_extent().0.total_cmp(&b.upright_advance_extent().0));
         }
 
-        let dominant_font_size = segments.iter().map(|s| s.font_size).fold(0.0, |a, b| {
-            if a > 0.0 && b > a / 2.0 && b < a * 2.0 {
-                (a + b) / 2.0
-            } else {
-                a.max(b)
-            }
-        });
-        let is_bold = segments.iter().filter(|s| s.is_bold).count() > segments.len() / 2;
         let is_monospace = segments.iter().all(|s| s.is_monospace);
         super::types::PdfLine {
             native_scripts: Vec::new(),
             segments,
             baseline_y,
-            dominant_font_size,
-            is_bold,
             is_monospace,
         }
     }
@@ -3551,113 +3282,22 @@ pub(crate) struct SegmentStructureConfig<'a> {
     pub layout_hints: Option<&'a [Vec<LayoutHint>]>,
     pub allow_single_column: bool,
     pub cancel_token: Option<&'a crate::cancellation::CancellationToken>,
-    #[cfg(feature = "layout-detection")]
-    pub layout_images: Option<&'a [image::RgbImage]>,
-    #[cfg(feature = "layout-detection")]
-    pub layout_results: Option<&'a [super::types::PageLayoutResult]>,
-    #[cfg(feature = "layout-detection")]
-    pub table_model: crate::core::config::layout::TableModel,
-    #[cfg(feature = "layout-detection")]
-    pub table_overlap_preference: crate::core::config::layout::TableOverlapPreference,
-    #[cfg(feature = "layout-detection")]
-    pub acceleration: Option<&'a crate::core::config::acceleration::AccelerationConfig>,
-    #[cfg(feature = "layout-detection")]
-    pub session_thread_budget: usize,
 }
 
-#[cfg(feature = "layout-detection")]
-fn slanet_variant_for_table_model(table_model: crate::core::config::layout::TableModel) -> Option<&'static str> {
-    use crate::core::config::layout::TableModel;
-
-    match table_model {
-        TableModel::SlanetWired | TableModel::SlanetAuto => Some("slanet_wired"),
-        TableModel::SlanetWireless => Some("slanet_wireless"),
-        TableModel::SlanetPlus => Some("slanet_plus"),
-        TableModel::Tatr | TableModel::Disabled => None,
-    }
-}
-
-#[cfg(feature = "layout-detection")]
-fn is_table_model_available(
-    table_model: crate::core::config::layout::TableModel,
-    acceleration: Option<&crate::core::config::acceleration::AccelerationConfig>,
-    session_thread_budget: usize,
-) -> bool {
-    use crate::core::config::layout::TableModel;
-
-    match table_model {
-        TableModel::Tatr => crate::layout::is_tatr_available(acceleration, session_thread_budget),
-        TableModel::SlanetWired | TableModel::SlanetWireless | TableModel::SlanetPlus | TableModel::SlanetAuto => {
-            slanet_variant_for_table_model(table_model)
-                .is_some_and(|variant| crate::layout::is_slanet_available(variant, acceleration, session_thread_budget))
-        }
-        TableModel::Disabled => false,
-    }
-}
-
-#[cfg(feature = "layout-detection")]
-fn table_model_load_failed_warning(model_name: &str) -> crate::types::ProcessingWarning {
-    crate::types::ProcessingWarning {
-        source: std::borrow::Cow::Borrowed("pdf_tables"),
-        message: std::borrow::Cow::Owned(format!(
-            "layout detection found table regions but the {model_name} table model could not be loaded for a \
-             page; its tables were read from the page text"
-        )),
-    }
-}
-
-/// The table model loaders; a parameter so tests can simulate a missing model without loading one.
-#[cfg(feature = "layout-detection")]
-#[derive(Clone, Copy)]
-struct TableModelLoaders {
-    available: fn(
-        crate::core::config::layout::TableModel,
-        Option<&crate::core::config::acceleration::AccelerationConfig>,
-        usize,
-    ) -> bool,
-    tatr: fn(Option<&crate::core::config::acceleration::AccelerationConfig>, usize) -> Option<crate::layout::TatrLease>,
-    slanet: fn(
-        &str,
-        Option<&crate::core::config::acceleration::AccelerationConfig>,
-        usize,
-    ) -> Option<crate::layout::SlanetLease>,
-}
-
-#[cfg(feature = "layout-detection")]
-const TABLE_MODEL_LOADERS: TableModelLoaders = TableModelLoaders {
-    available: is_table_model_available,
-    tatr: crate::layout::take_or_create_tatr,
-    slanet: crate::layout::take_or_create_slanet,
-};
-
-#[cfg(any(test, feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(any(test, feature = "ocr-pipeline"))]
 pub(crate) fn extract_document_structure_from_segments(
     all_page_segments: Vec<Vec<SegmentData>>,
     config: SegmentStructureConfig<'_>,
 ) -> Result<crate::types::internal::InternalDocument> {
-    build_document_structure(
-        all_page_segments,
-        config,
-        #[cfg(feature = "layout-detection")]
-        TABLE_MODEL_LOADERS,
-    )
+    build_document_structure(all_page_segments, config)
 }
 
-#[cfg(any(test, feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(any(test, feature = "ocr-pipeline"))]
 fn build_document_structure(
     all_page_segments: Vec<Vec<SegmentData>>,
     config: SegmentStructureConfig<'_>,
-    #[cfg(feature = "layout-detection")] loaders: TableModelLoaders,
 ) -> Result<crate::types::internal::InternalDocument> {
-    build_document_structure_with_native(
-        all_page_segments,
-        None,
-        &[],
-        0,
-        config,
-        #[cfg(feature = "layout-detection")]
-        loaders,
-    )
+    build_document_structure_with_native(all_page_segments, None, &[], 0, config)
 }
 
 pub(crate) fn extract_document_structure_from_native_pages(
@@ -3667,15 +3307,7 @@ pub(crate) fn extract_document_structure_from_native_pages(
     config: SegmentStructureConfig<'_>,
 ) -> Result<crate::types::internal::InternalDocument> {
     let segments = native_pages.iter().map(|page| page.segments.clone()).collect();
-    build_document_structure_with_native(
-        segments,
-        Some(native_pages),
-        table_sources,
-        ruled_table_count,
-        config,
-        #[cfg(feature = "layout-detection")]
-        TABLE_MODEL_LOADERS,
-    )
+    build_document_structure_with_native(segments, Some(native_pages), table_sources, ruled_table_count, config)
 }
 
 fn build_document_structure_with_native(
@@ -3684,7 +3316,6 @@ fn build_document_structure_with_native(
     table_sources: &[&crate::pdf::native::table::source_members::TableSources],
     ruled_table_count: usize,
     config: SegmentStructureConfig<'_>,
-    #[cfg(feature = "layout-detection")] loaders: TableModelLoaders,
 ) -> Result<crate::types::internal::InternalDocument> {
     let SegmentStructureConfig {
         k_clusters,
@@ -3703,18 +3334,6 @@ fn build_document_structure_with_native(
         layout_hints,
         allow_single_column,
         cancel_token,
-        #[cfg(feature = "layout-detection")]
-        layout_images,
-        #[cfg(feature = "layout-detection")]
-        layout_results,
-        #[cfg(feature = "layout-detection")]
-        table_model,
-        #[cfg(feature = "layout-detection")]
-        table_overlap_preference,
-        #[cfg(feature = "layout-detection")]
-        acceleration,
-        #[cfg(feature = "layout-detection")]
-        session_thread_budget,
     } = config;
     let page_count = all_page_segments.len();
     tracing::debug!(
@@ -3758,10 +3377,6 @@ fn build_document_structure_with_native(
         .collect();
 
     let mut layout_tables: Vec<crate::types::Table> = Vec::new();
-    #[cfg(feature = "layout-detection")]
-    let mut table_grid_sidecars = Vec::new();
-    #[cfg(feature = "layout-detection")]
-    let mut table_model_warning = None;
     if let Some(hints_pages) = layout_hints {
         struct TablePageData {
             page_idx: usize,
@@ -3793,12 +3408,7 @@ fn build_document_structure_with_native(
                 .filter(|h| h.class_name == super::types::LayoutHintClass::Table)
                 .collect();
             let has_table_hint = !ml_table_hints.is_empty();
-            #[cfg(feature = "layout-detection")]
-            let page_height = layout_results
-                .and_then(|results| results.get(page_idx))
-                .map(|pr| pr.page_height_pts)
-                .unwrap_or(page_heights[page_idx]);
-            #[cfg(not(feature = "layout-detection"))]
+
             let page_height = page_heights[page_idx];
             let words = crate::pdf::table_reconstruct::segments_to_words(&all_page_segments[page_idx], page_height);
             if words.is_empty() {
@@ -3838,192 +3448,6 @@ fn build_document_structure_with_native(
             }
         }
 
-        #[cfg(feature = "layout-detection")]
-        {
-            use crate::core::config::layout::TableModel;
-
-            let use_model_inference = table_model != TableModel::Disabled;
-
-            let slanet_variant = slanet_variant_for_table_model(table_model);
-            let is_auto = table_model == TableModel::SlanetAuto;
-
-            let model_name = match table_model {
-                TableModel::Tatr => "TATR",
-                TableModel::SlanetWired | TableModel::SlanetWireless | TableModel::SlanetPlus => "SLANeXT",
-                TableModel::SlanetAuto => "SLANeXT (auto)",
-                TableModel::Disabled => "disabled",
-            };
-
-            let has_table_model = if use_model_inference {
-                let available = (loaders.available)(table_model, acceleration, session_thread_budget);
-
-                if !available && !table_pages.is_empty() {
-                    table_model_warning =
-                        Some(crate::layout::table_model_unavailable_warning("pdf_tables", model_name));
-                }
-                available
-            } else {
-                false
-            };
-            let heuristic_tables = |tp: &TablePageData| {
-                super::regions::extract_tables_from_layout_hints(
-                    &tp.words,
-                    &hints_pages[tp.page_idx],
-                    tp.page_idx,
-                    tp.page_height,
-                    0.5,
-                    allow_single_column,
-                    false,
-                )
-            };
-
-            if has_table_model {
-                if let (Some(images @ [_, ..]), Some(results @ [_, ..])) = (layout_images, layout_results) {
-                    #[cfg(not(target_arch = "wasm32"))]
-                    let recognized_tables: Vec<super::table_grid::RecognizedNativeTables> = table_pages
-                        .iter()
-                        .map(|tp| {
-                            if let Some(variant) = slanet_variant {
-                                let Some(mut slanet) = (loaders.slanet)(variant, acceleration, session_thread_budget)
-                                else {
-                                    tracing::warn!("SLANeXT model unavailable in worker thread");
-                                    table_model_warning
-                                        .get_or_insert_with(|| table_model_load_failed_warning(model_name));
-                                    return heuristic_tables(tp).into();
-                                };
-
-                                if let (Some(page_image), Some(page_result)) =
-                                    (images.get(tp.page_idx), results.get(tp.page_idx))
-                                {
-                                    let hints = &hints_pages[tp.page_idx];
-                                    let mut classifier_pair = if is_auto {
-                                        match (
-                                            crate::layout::take_or_create_table_classifier(
-                                                acceleration,
-                                                session_thread_budget,
-                                            ),
-                                            crate::layout::take_or_create_slanet(
-                                                "slanet_wireless",
-                                                acceleration,
-                                                session_thread_budget,
-                                            ),
-                                        ) {
-                                            (Some(classifier), Some(alternate)) => Some((classifier, alternate)),
-                                            _ => None,
-                                        }
-                                    } else {
-                                        None
-                                    };
-                                    let classifier_arg = classifier_pair
-                                        .as_mut()
-                                        .map(|(classifier, alternate)| (&mut ***classifier, &mut ***alternate));
-                                    let slanet_tables = super::regions::recognize_tables_slanet(
-                                        page_image,
-                                        hints,
-                                        &tp.words,
-                                        page_result,
-                                        tp.page_height,
-                                        tp.page_idx,
-                                        &mut slanet,
-                                        classifier_arg,
-                                    );
-                                    if !slanet_tables.is_empty() {
-                                        return slanet_tables.into();
-                                    }
-                                }
-
-                                heuristic_tables(tp).into()
-                            } else {
-                                let Some(mut tatr) = (loaders.tatr)(acceleration, session_thread_budget) else {
-                                    tracing::warn!("TATR model unavailable in worker thread");
-                                    table_model_warning
-                                        .get_or_insert_with(|| table_model_load_failed_warning(model_name));
-                                    return heuristic_tables(tp).into();
-                                };
-
-                                if let (Some(page_image), Some(page_result)) =
-                                    (images.get(tp.page_idx), results.get(tp.page_idx))
-                                {
-                                    let hints = &hints_pages[tp.page_idx];
-                                    let tatr_tables = super::regions::recognize_tables_for_native_page(
-                                        page_image,
-                                        hints,
-                                        &tp.words,
-                                        page_result,
-                                        tp.page_height,
-                                        super::regions::NativeTatrRecognitionOptions {
-                                            page_index: tp.page_idx,
-                                            allow_single_column,
-                                        },
-                                        &mut tatr,
-                                    );
-                                    if !tatr_tables.tables.is_empty() {
-                                        return tatr_tables;
-                                    }
-                                }
-
-                                heuristic_tables(tp).into()
-                            }
-                        })
-                        .collect();
-                    #[cfg(target_arch = "wasm32")]
-                    let recognized_tables: Vec<super::table_grid::RecognizedNativeTables> = table_pages
-                        .iter()
-                        .map(|tp| {
-                            if let (Some(page_image), Some(page_result)) =
-                                (images.get(tp.page_idx), results.get(tp.page_idx))
-                            {
-                                let hints = &hints_pages[tp.page_idx];
-                                let Some(mut tatr) = (loaders.tatr)(acceleration, session_thread_budget) else {
-                                    table_model_warning.get_or_insert_with(|| table_model_load_failed_warning("TATR"));
-                                    return heuristic_tables(tp).into();
-                                };
-                                let tatr_tables = super::regions::recognize_tables_for_native_page(
-                                    page_image,
-                                    hints,
-                                    &tp.words,
-                                    page_result,
-                                    tp.page_height,
-                                    super::regions::NativeTatrRecognitionOptions {
-                                        page_index: tp.page_idx,
-                                        allow_single_column,
-                                    },
-                                    &mut tatr,
-                                );
-                                if !tatr_tables.tables.is_empty() {
-                                    return tatr_tables;
-                                }
-                                heuristic_tables(tp).into()
-                            } else {
-                                Default::default()
-                            }
-                        })
-                        .collect();
-                    for recognized in recognized_tables {
-                        layout_tables.extend(recognized.tables);
-                        table_grid_sidecars.extend(recognized.grids);
-                    }
-                } else {
-                    for tp in &table_pages {
-                        if cancel_token.is_some_and(|t| t.is_cancelled()) {
-                            tracing::debug!("native structure pipeline: cancelled during heuristic table extraction");
-                            break;
-                        }
-                        layout_tables.extend(heuristic_tables(tp));
-                    }
-                }
-            } else {
-                for tp in &table_pages {
-                    if cancel_token.is_some_and(|t| t.is_cancelled()) {
-                        tracing::debug!("native structure pipeline: cancelled during heuristic table extraction");
-                        break;
-                    }
-                    layout_tables.extend(heuristic_tables(tp));
-                }
-            }
-        }
-
-        #[cfg(not(feature = "layout-detection"))]
         for tp in &table_pages {
             if cancel_token.is_some_and(|t| t.is_cancelled()) {
                 tracing::debug!("native structure pipeline: cancelled during heuristic table extraction");
@@ -4080,9 +3504,6 @@ fn build_document_structure_with_native(
         "native layout table extraction complete"
     );
 
-    #[cfg(feature = "layout-detection")]
-    let overlap_preference = table_overlap_preference;
-    #[cfg(not(feature = "layout-detection"))]
     let overlap_preference = crate::core::config::layout::TableOverlapPreference::Content;
     let stitched_native_tables = stitch_fragmented_tables(tables.to_vec(), &all_page_segments, ruled_table_count);
     let emitted_tables = prepare_emitted_tables(
@@ -4102,71 +3523,6 @@ fn build_document_structure_with_native(
         "native table bbox suppression map built"
     );
 
-    #[cfg(feature = "layout-detection")]
-    let validations_by_page: ahash::AHashMap<usize, Vec<super::regions::layout_validation::RegionValidation>> = {
-        let mut map = ahash::AHashMap::new();
-        if let (Some(images), Some(results), Some(hints_pages)) = (layout_images, layout_results, layout_hints) {
-            for page_idx in 0..page_count {
-                if let (Some(img), Some(res), Some(hints)) =
-                    (images.get(page_idx), results.get(page_idx), hints_pages.get(page_idx))
-                {
-                    let validations = super::regions::layout_validation::validate_page_regions(img, hints, res);
-                    if validations.contains(&super::regions::layout_validation::RegionValidation::Empty) {
-                        tracing::debug!(
-                            page = page_idx,
-                            empty_count = validations
-                                .iter()
-                                .filter(|v| **v == super::regions::layout_validation::RegionValidation::Empty)
-                                .count(),
-                            "native layout validation: found empty regions"
-                        );
-                    }
-                    map.insert(page_idx, validations);
-                }
-            }
-        }
-        map
-    };
-    #[cfg(feature = "layout-detection")]
-    let effective_layout_hints = layout_hints;
-    #[cfg(feature = "layout-detection")]
-    let native_layout_projections: Vec<Option<NativeLayoutProjection>> = (0..page_count)
-        .map(|page_index| {
-            let hints = effective_layout_hints.and_then(|pages| pages.get(page_index))?;
-            let validations = validations_by_page
-                .get(&page_index)
-                .map(Vec::as_slice)
-                .unwrap_or_default();
-            let wrapper_ownership = wrapper_ownership_by_hint(hints, validations);
-            if !crate::extractors::pdf::reading_order::has_eligible_layout_hints(hints, &wrapper_ownership) {
-                return None;
-            }
-
-            let table_bboxes = extracted_table_bboxes_by_page
-                .get(&page_index)
-                .map(Vec::as_slice)
-                .unwrap_or_default();
-            let projected_segments =
-                filter_segments_by_table_bboxes(all_page_segments[page_index].clone(), table_bboxes);
-            let no_reorder = super::layout_debug::layout_debug_flags().no_reorder;
-            let page_width_pts = layout_results
-                .and_then(|results| results.get(page_index))
-                .map(|result| result.page_width_pts);
-            let groups = crate::extractors::pdf::reading_order::plan_segment_groups_by_layout(
-                &projected_segments,
-                hints,
-                &wrapper_ownership,
-                no_reorder,
-                page_width_pts,
-            );
-            let group_bounds = layout_group_bounds(&groups, &projected_segments);
-            Some(NativeLayoutProjection {
-                groups,
-                group_bounds,
-                classification_hints: regular_layout_hints(hints),
-            })
-        })
-        .collect();
     let witnesses = TextRepairWitnesses {
         hyphens: collect_hyphen_witnesses(&all_page_segments),
         words: collect_word_witnesses(&all_page_segments),
@@ -4186,12 +3542,6 @@ fn build_document_structure_with_native(
                 table_bboxes: extracted_table_bboxes_by_page.get(&i).cloned().unwrap_or_default(),
                 preserve_native_semantics: true,
                 use_layout_reading_order: false,
-                #[cfg(feature = "layout-detection")]
-                hint_validations: validations_by_page.get(&i).cloned().unwrap_or_default(),
-                #[cfg(feature = "layout-detection")]
-                page_width_pts: layout_results
-                    .and_then(|results| results.get(i))
-                    .map(|result| result.page_width_pts),
                 needs_classify: false,
                 paragraph_gap_ys,
                 include_headers,
@@ -4269,14 +3619,6 @@ fn build_document_structure_with_native(
     }
     compact_final_heading_hierarchy(&mut all_page_paragraphs);
     promote_repeated_body_size_bold_headings(&mut all_page_paragraphs, doc_body_font_size);
-    #[cfg(feature = "layout-detection")]
-    for (page, projection) in all_page_paragraphs.iter_mut().zip(native_layout_projections) {
-        let Some(projection) = projection else {
-            continue;
-        };
-        assign_native_paragraph_layout(page, &projection.groups, &projection.group_bounds);
-        super::layout_classify::annotate_layout_classes(page, &projection.classification_hints, 0.5, 0.2);
-    }
     // Spill cleanup runs after deferred annotation so layout-only captions,
     // footnotes, and furniture retain their semantic provenance.
     suppress_table_dominant_paragraph_spill(&mut all_page_paragraphs, &emitted_tables);
@@ -4321,15 +3663,6 @@ fn build_document_structure_with_native(
         effective_image_positions,
         &witnesses.hyphens,
     );
-    #[cfg(feature = "layout-detection")]
-    {
-        super::table_grid::attach_table_grids(&mut doc, &table_grid_sidecars).map_err(|error| {
-            crate::pdf::error::PdfError::ExtractionFailed(format!(
-                "Failed to retain recognized table geometry: {error}"
-            ))
-        })?;
-        doc.processing_warnings.extend(table_model_warning);
-    }
 
     for elem in &mut doc.elements {
         let retain_furniture = match elem.layer {
@@ -7015,18 +6348,6 @@ fn running_margin_key(paragraph: &PdfParagraph, height: f32, hints: Option<&[Lay
 }
 
 fn has_deferred_layout_class(paragraph: &PdfParagraph, hints: Option<&[LayoutHint]>) -> bool {
-    #[cfg(feature = "layout-detection")]
-    {
-        let Some(hints) = hints.filter(|hints| !hints.is_empty()) else {
-            return false;
-        };
-        let hints = regular_layout_hints(hints);
-        let mut probe = paragraph.clone();
-        // ~keep Model annotation is deferred until after semantic refinement; consult the same matcher before any removal.
-        super::layout_classify::annotate_layout_classes(std::slice::from_mut(&mut probe), &hints, 0.5, 0.2);
-        probe.layout_class.is_some()
-    }
-    #[cfg(not(feature = "layout-detection"))]
     {
         let _ = (paragraph, hints);
         false
@@ -7118,7 +6439,7 @@ fn document_content_width(all_pages: &[Vec<PdfParagraph>]) -> f32 {
 /// No table data is available here, so same-page table-backed duplicates are
 /// preserved. Consecutive rendering artifacts still require coincident valid
 /// geometry; unpositioned OCR text is never collapsed by that pass. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn strip_repeating_text_from_pages(pages: &mut [Vec<PdfParagraph>], page_heights: &[f32]) {
     mark_cross_page_repeating_text(pages, page_heights);
     mark_cross_page_repeating_short_text(pages);
@@ -7715,7 +7036,6 @@ fn outline_layout_allows_heading(paragraph: &PdfParagraph) -> bool {
         None | Some(super::types::LayoutHintClass::Title)
             | Some(super::types::LayoutHintClass::SectionHeader)
             | Some(super::types::LayoutHintClass::Text)
-            | Some(super::types::LayoutHintClass::Other)
     )
 }
 

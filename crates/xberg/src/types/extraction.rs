@@ -14,7 +14,6 @@ use super::tables::Table;
 
 /// How the extracted text was produced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ExtractionMethod {
     /// Text extracted directly from the document's native format (no OCR).
@@ -63,7 +62,7 @@ impl ExtractionMethod {
 /// tree); it does not require opting into per-page content. `pages` is `0` for
 /// inputs that are not page-addressable (e.g. plain text).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct DocumentCounts {
     /// Total pages in the source document (`0` when not page-addressable).
     pub pages: usize,
@@ -79,8 +78,7 @@ pub struct DocumentCounts {
 /// Populated by the language-detection processor alongside `detected_languages`, with one
 /// entry per language, in the same order as `detected_languages`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+
 pub struct LanguageConfidence {
     /// ISO 639-3 language code, matching the corresponding entry in `detected_languages`.
     pub language: String,
@@ -116,8 +114,7 @@ pub struct LanguageConfidence {
 /// whole document fails, it adds one warning and one record for each page that has no native
 /// text. Repeated failures on one page make one record.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "alef-meta", alef(since = "1.3.7"))]
+
 pub struct OcrPageFailure {
     /// One-based page number in the source document.
     pub page: u32,
@@ -132,13 +129,11 @@ pub struct OcrPageFailure {
 /// `extract` and `extract_batch` return an `ExtractionResult` envelope whose
 /// `results` field contains these per-document payloads.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "api", schema(no_recursion))]
+
 pub struct ExtractedDocument {
     /// Plain-text representation of the extracted document content.
     pub content: String,
     /// MIME type of the source document (e.g. `"application/pdf"`).
-    #[cfg_attr(feature = "api", schema(value_type = String))]
     pub mime_type: Cow<'static, str>,
     /// Document-level metadata (author, title, dates, format-specific fields).
     pub metadata: Metadata,
@@ -148,7 +143,6 @@ pub struct ExtractedDocument {
     /// OCR-only extraction, or mixed native/OCR output.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub extraction_method: Option<ExtractionMethod>,
     /// Tables extracted from the document, each with structured cell data.
     pub tables: Vec<Table>,
@@ -171,7 +165,6 @@ pub struct ExtractedDocument {
     /// the same conditions as `detected_languages`: detection disabled, empty input
     /// text, or no language met the configured `min_confidence`.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub detected_language_confidences: Option<Vec<LanguageConfidence>>,
 
     /// Text chunks when chunking is enabled.
@@ -225,7 +218,6 @@ pub struct ExtractedDocument {
     // branch. `nullable = false` is the documented opt-out and does not add the field to
     // `required`. Every omission-only optional reference in this crate carries it (GH#1841);
     // the four that genuinely serialise `null` deliberately do not. ~keep
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub djot_content: Option<DjotContent>,
 
     /// OCR elements with full spatial and confidence metadata.
@@ -258,7 +250,6 @@ pub struct ExtractedDocument {
     /// Independent of `result_format` — can be combined with Unified or ElementBased.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub document: Option<DocumentStructure>,
 
     /// Extracted keywords when keyword extraction is enabled.
@@ -356,7 +347,7 @@ pub struct ExtractedDocument {
     /// Stored as an opaque JSON value so that all language bindings (Go, Java,
     /// C#, …) can deserialize it as a raw JSON object rather than a typed struct.
     /// The underlying type is `tree_sitter_language_pack::ProcessResult`.
-    #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+    #[cfg(feature = "tree-sitter-types")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub code_intelligence: Option<serde_json::Value>,
 
@@ -386,7 +377,6 @@ pub struct ExtractedDocument {
     /// liter-llm-driven abstractive backend.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub summary: Option<super::summary::DocumentSummary>,
 
     /// Confidence score computed by the heuristics pipeline.
@@ -400,7 +390,6 @@ pub struct ExtractedDocument {
     #[cfg(feature = "heuristics")]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub extraction_confidence: Option<crate::heuristics::confidence::ExtractionConfidence>,
 
     /// Translation of `content` produced by the translation post-processor.
@@ -408,7 +397,6 @@ pub struct ExtractedDocument {
     /// `None` when translation is not configured.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub translation: Option<super::translation::Translation>,
 
     /// Per-page classifications produced by the page-classification post-processor.
@@ -426,7 +414,6 @@ pub struct ExtractedDocument {
     /// was replaced. `None` when redaction is not configured.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub redaction_report: Option<super::redaction::RedactionReport>,
 
     /// Mathematical formulas recognized in the document.
@@ -452,7 +439,6 @@ pub struct ExtractedDocument {
     /// no page failed.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.3.7"))]
     pub ocr_page_failures: Option<Vec<OcrPageFailure>>,
 
     /// Pre-rendered content in the requested output format.
@@ -470,7 +456,6 @@ pub struct ExtractedDocument {
     /// (see `core::pipeline::discard_diverged_formatted_content`). It is hidden from the
     /// language bindings, which only ever observe the post-pipeline document.
     #[serde(skip)]
-    #[cfg_attr(alef, alef(skip))]
     pub formatted_content: Option<String>,
 
     /// Structured hOCR document for the OCR+layout pipeline.
@@ -479,12 +464,8 @@ pub struct ExtractedDocument {
     /// paragraph structure with bounding boxes and confidence scores. The layout
     /// classification step enriches these elements before final rendering.
     #[serde(skip)]
-    #[allow(dead_code)]
-    #[cfg_attr(alef, alef(skip))]
     pub(crate) ocr_internal_document: Option<super::internal::InternalDocument>,
     #[serde(skip)]
-    #[allow(dead_code)]
-    #[cfg_attr(alef, alef(skip))]
     pub(crate) raw_ocr_source_frame: Option<super::formats::RawOcrSourceFrame>,
 
     /// The original `InternalDocument` from the extractor, preserved before derivation.
@@ -499,8 +480,6 @@ pub struct ExtractedDocument {
     /// `None` for extraction paths that do not go through the async/sync pipeline
     /// (e.g., direct `ExtractedDocument::from_ocr` construction).
     #[serde(skip)]
-    #[allow(dead_code)]
-    #[cfg_attr(alef, alef(skip))]
     pub(crate) internal_document: Option<super::internal::InternalDocument>,
 }
 
@@ -509,7 +488,7 @@ pub struct ExtractedDocument {
 /// When archives (ZIP, TAR, 7Z, GZIP) are extracted with recursive extraction
 /// enabled, each processable file produces its own full `ExtractedDocument`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ArchiveEntry {
     /// Archive-relative file path (e.g. "folder/document.pdf").
     pub path: String,
@@ -525,14 +504,12 @@ pub struct ArchiveEntry {
 /// but may indicate degraded or incomplete results. Inspect these independently
 /// from `ExtractedDocument::quality_score`, which assesses retained text only.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ProcessingWarning {
     /// The pipeline stage or feature that produced this warning
     /// (e.g., "embedding", "chunking", "language_detection", "output_format").
-    #[cfg_attr(feature = "api", schema(value_type = String))]
     pub source: Cow<'static, str>,
     /// Human-readable description of what went wrong.
-    #[cfg_attr(feature = "api", schema(value_type = String))]
     pub message: Cow<'static, str>,
 }
 
@@ -542,7 +519,7 @@ pub struct ProcessingWarning {
 /// are used. Multiple entries may be present when multiple LLM calls occur
 /// within one extraction (e.g. VLM OCR + structured extraction).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct LlmUsage {
     /// The LLM model identifier (e.g. "openai/gpt-4o", "anthropic/claude-sonnet-4-20250514").
     pub model: String,
@@ -572,7 +549,6 @@ pub struct LlmUsage {
 /// Defaults to `Unknown` when no rule matches.
 /// Designed to be extended in future versions without breaking changes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ChunkType {
     /// Section heading or document title.
@@ -616,7 +592,7 @@ pub enum ChunkType {
 /// contains the text content, optional embedding vector (if embedding generation
 /// is configured), and metadata about its position in the document.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct Chunk {
     /// The text content of this chunk.
     pub content: String,
@@ -648,8 +624,6 @@ pub struct Chunk {
     /// feature combination, including the crate's default features.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub sparse_embedding: Option<crate::SparseEmbedding>,
 
     /// Optional ColBERT-style multi-vector (late-interaction) embedding for this chunk.
@@ -662,8 +636,6 @@ pub struct Chunk {
     /// `sparse_embedding` uses [`crate::SparseEmbedding`] — see that field's docs.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub late_interaction: Option<crate::MultiVectorEmbedding>,
 
     /// Metadata about this chunk's position and properties.
@@ -674,7 +646,7 @@ pub struct Chunk {
 ///
 /// Contains the heading hierarchy from document root to this chunk's section.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct HeadingContext {
     /// The heading hierarchy from document root to this chunk's section.
     /// Index 0 is the outermost (h1), last element is the most specific.
@@ -683,7 +655,7 @@ pub struct HeadingContext {
 
 /// A single heading in the hierarchy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct HeadingLevel {
     /// Heading depth (1 = h1, 2 = h2, etc.)
     pub level: u8,
@@ -693,7 +665,7 @@ pub struct HeadingLevel {
 
 /// Metadata about a chunk's position in the original document.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ChunkMetadata {
     /// Byte offset where this chunk starts in the original text (UTF-8 valid boundary).
     pub byte_start: usize,
@@ -731,7 +703,6 @@ pub struct ChunkMetadata {
     /// Only populated when `ChunkerType::Markdown` is used.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub heading_context: Option<HeadingContext>,
 
     /// Flattened heading trail from document root to this chunk's section.
@@ -788,20 +759,18 @@ pub struct ChunkMetadata {
 ///
 /// See [`ChunkMetadata::page_spans`] (#1295) for population semantics.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct PageSpan {
     /// Page number (1-indexed).
     pub page: u32,
 
     /// Bounding box on this page, if known.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub bbox: Option<BoundingBox>,
 }
 
 /// Heuristic classification of what an image likely depicts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ImageKind {
     /// Photographic image (natural scene, photograph)
@@ -836,16 +805,14 @@ pub enum ImageKind {
 /// Raw bytes allow cross-language compatibility - users can convert to
 /// PIL.Image (Python), Sharp (Node.js), or other formats as needed.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ExtractedImage {
     /// Raw image data (PNG, JPEG, WebP, etc. bytes).
     /// Uses `bytes::Bytes` for cheap cloning of large buffers.
-    #[cfg_attr(feature = "api", schema(value_type = Vec<u8>, format = "binary", required = false))]
     pub data: Bytes,
 
     /// Image format (e.g., "jpeg", "png", "webp")
     /// Uses Cow<'static, str> to avoid allocation for static literals.
-    #[cfg_attr(feature = "api", schema(value_type = String))]
     pub format: Cow<'static, str>,
 
     /// Zero-indexed position of this image in the document/page
@@ -884,14 +851,12 @@ pub struct ExtractedImage {
     /// When OCR is performed on this image, the result is embedded here
     /// rather than in a separate collection, making the relationship explicit.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(value_type = Option<ExtractedDocument>, nullable = false))]
     pub ocr_result: Option<Box<ExtractedDocument>>,
 
     /// Bounding box of the image on the page (PDF coordinates: x0=left, y0=bottom, x1=right, y1=top).
     /// Only populated for PDF-extracted images when position data is available from the PDF extractor.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub bounding_box: Option<BoundingBox>,
 
     /// Original source path of the image within the document archive (e.g., "media/image1.png" in DOCX).
@@ -903,7 +868,6 @@ pub struct ExtractedImage {
     /// Heuristic classification of what this image likely depicts.
     /// `None` if classification was disabled or inconclusive.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub image_kind: Option<ImageKind>,
 
     /// Confidence score for `image_kind`, in the range 0.0 to 1.0.
@@ -944,7 +908,6 @@ pub struct ExtractedImage {
 /// HTML, etc.). `ResultFormat` controls the *shape* of the result: a unified content
 /// blob vs. an element-based decomposition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ResultFormat {
     /// Unified format with all content in `content` field
@@ -958,7 +921,6 @@ pub enum ResultFormat {
 /// Categorizes text content into semantic units for downstream processing.
 /// Supports the element types commonly found in Unstructured documents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ElementType {
     /// Document title
@@ -988,7 +950,7 @@ pub enum ElementType {
 }
 /// Bounding box coordinates for element positioning.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct BoundingBox {
     /// Left x-coordinate
     pub x0: f64,
@@ -1002,7 +964,7 @@ pub struct BoundingBox {
 
 /// Metadata for a semantic element.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ElementMetadata {
     /// Page number (1-indexed)
     pub page_number: Option<u32>,
@@ -1021,7 +983,7 @@ pub struct ElementMetadata {
 /// Represents a logical unit of content with semantic classification,
 /// unique identifier, and metadata for tracking origin and position.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct Element {
     /// Deterministic element identifier. Empty only when deserializing legacy payloads
     /// that predate this field's wire representation.
@@ -1037,7 +999,7 @@ pub struct Element {
 
 impl ExtractedDocument {
     /// Convert from an OCR result.
-    #[cfg_attr(alef, alef(skip))]
+
     pub fn from_ocr(ocr: super::formats::OcrExtractionResult) -> Self {
         Self {
             content: ocr.content,

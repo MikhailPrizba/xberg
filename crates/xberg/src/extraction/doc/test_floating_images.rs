@@ -542,36 +542,6 @@ async fn should_count_every_floating_doc_picture_copy_against_the_content_budget
     }
 }
 
-#[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-#[tokio::test]
-async fn should_ocr_floating_doc_picture_in_anchor_order() {
-    let png = include_bytes!("test_images/marker.png");
-    let bytes = FloatingDoc {
-        images: vec![png.to_vec()],
-        ..FloatingDoc::new("BEFORE\r\x08\rAFTER\r")
-    }
-    .build();
-    let config: ExtractionConfig = serde_json::from_value(serde_json::json!({
-        "use_cache": false, "ocr_embedded_images": true,
-        "ocr": {"backend": "tesseract", "language": "eng", "tesseract_config": {
-            "language": "eng", "use_cache": false, "output_format": "text"
-        }}
-    }))
-    .expect("OCR configuration");
-    let output = crate::extract(
-        crate::ExtractInput::from_bytes(bytes, "application/msword", None),
-        &config,
-    )
-    .await
-    .expect("public DOC extraction");
-    assert_eq!(output.errors.len(), 0, "{:?}", output.errors);
-    let content = &output.results[0].content;
-    let before = content.find("BEFORE").expect("native before");
-    let marker = content.find("DOC IMAGE MARKER ALPHA BRAVO").expect("OCR marker");
-    let after = content.find("AFTER").expect("native after");
-    assert!(before < marker && marker < after);
-}
-
 #[tokio::test]
 async fn should_warn_about_unresolved_floating_doc_shapes_only_when_requested() {
     let (bytes, _) = picture_doc("BEFORE\r\x08\rAFTER\r", false);

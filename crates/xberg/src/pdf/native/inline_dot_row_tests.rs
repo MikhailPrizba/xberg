@@ -78,18 +78,6 @@ fn document(mut spans: Vec<TextSpan>) -> InternalDocument {
             layout_hints: None,
             allow_single_column: true,
             cancel_token: None,
-            #[cfg(feature = "layout-detection")]
-            layout_images: None,
-            #[cfg(feature = "layout-detection")]
-            layout_results: None,
-            #[cfg(feature = "layout-detection")]
-            table_model: crate::core::config::layout::TableModel::Disabled,
-            #[cfg(feature = "layout-detection")]
-            table_overlap_preference: Default::default(),
-            #[cfg(feature = "layout-detection")]
-            acceleration: None,
-            #[cfg(feature = "layout-detection")]
-            session_thread_budget: 1,
         },
     )
     .unwrap()

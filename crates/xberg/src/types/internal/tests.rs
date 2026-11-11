@@ -54,7 +54,7 @@ fn public_attributes_preserve_explicit_empty_map() {
     assert_eq!(element.public_attributes(), Some(std::collections::HashMap::new()));
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 #[test]
 fn public_attributes_hide_internal_image_ocr_suppression() {
     let mut element = InternalElement::text(ElementKind::Image { image_index: 0 }, "", 0);
@@ -62,22 +62,6 @@ fn public_attributes_hide_internal_image_ocr_suppression() {
 
     assert!(element.public_attributes().is_none());
     assert!(!element.should_render_image_ocr());
-}
-
-#[cfg(all(any(feature = "pdf", feature = "office"), feature = "ocr", feature = "tokio-runtime"))]
-#[test]
-fn an_image_ocr_text_anchor_is_an_empty_paragraph_with_a_hidden_attribute() {
-    let anchor = InternalElement::image_ocr_text_anchor(3, Some(2));
-
-    assert_eq!(anchor.kind, ElementKind::Paragraph);
-    assert_eq!(anchor.text, "");
-    assert_eq!(anchor.page, Some(2));
-    assert_eq!(anchor.image_ocr_text_anchor_index(), Some(3));
-    assert!(anchor.public_attributes().is_none());
-    assert_eq!(
-        InternalElement::text(ElementKind::Paragraph, "", 0).image_ocr_text_anchor_index(),
-        None
-    );
 }
 
 /// #### FAILS against unfixed code
@@ -163,7 +147,7 @@ fn measured_font_size_returns_none_for_unparseable_stored_value() {
     assert_eq!(element.measured_font_size(), None);
 }
 
-#[cfg(any(feature = "ocr", feature = "pdf", paddle_ocr, feature = "xml", feature = "office"))]
+#[cfg(any(feature = "pdf", feature = "xml", feature = "office"))]
 #[test]
 fn test_internal_element_builder_pattern() {
     let elem = InternalElement::text(ElementKind::Heading { level: 2 }, "Methods", 1)

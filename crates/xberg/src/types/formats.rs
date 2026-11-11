@@ -174,27 +174,6 @@ impl<'de> Deserialize<'de> for PresentationHyperlink {
     }
 }
 
-#[cfg(feature = "api")]
-impl utoipa::PartialSchema for PresentationHyperlink {
-    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
-        use utoipa::openapi::schema::{Object, ObjectBuilder, SchemaType, Type};
-
-        let nullable_string = ObjectBuilder::new()
-            .schema_type(SchemaType::from_iter([Type::String, Type::Null]))
-            .build();
-
-        ObjectBuilder::new()
-            .property("url", Object::with_type(Type::String))
-            .required("url")
-            .property("label", nullable_string)
-            .required("label")
-            .into()
-    }
-}
-
-#[cfg(feature = "api")]
-impl utoipa::ToSchema for PresentationHyperlink {}
-
 impl From<(String, Option<String>)> for PresentationHyperlink {
     fn from((url, label): (String, Option<String>)) -> Self {
         Self { url, label }
@@ -307,7 +286,7 @@ pub struct EmailAttachment {
 
 /// Source raster for raw OCR performed after the native workspace downscale.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[cfg_attr(alef, alef(skip))]
+
 pub(crate) struct RawOcrSourceFrame {
     pub(crate) dimensions: (u32, u32),
 }
@@ -330,17 +309,6 @@ pub struct OcrExtractionResult {
     /// Available when TSV output is requested or table detection is enabled.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ocr_elements: Option<Vec<super::OcrElement>>,
-    /// Structured document produced from hOCR parsing.
-    /// Carries paragraph structure, bounding boxes, and confidence scores
-    /// that the flattened `content` string discards.
-    #[serde(skip)]
-    #[allow(dead_code)]
-    #[cfg_attr(alef, alef(skip))]
-    pub(crate) internal_document: Option<super::internal::InternalDocument>,
-    #[serde(skip)]
-    #[cfg_attr(not(feature = "ocr"), allow(dead_code))]
-    #[cfg_attr(alef, alef(skip))]
-    pub(crate) raw_ocr_source_frame: Option<RawOcrSourceFrame>,
 }
 
 impl OcrExtractionResult {
@@ -359,8 +327,6 @@ impl OcrExtractionResult {
             metadata,
             tables,
             ocr_elements,
-            internal_document: None,
-            raw_ocr_source_frame: None,
         }
     }
 }
@@ -401,7 +367,6 @@ pub struct OcrTableBoundingBox {
 /// text recognition quality. Different preprocessing strategies work better
 /// for different document types.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct ImagePreprocessingConfig {
     /// Target DPI for the image (300 is standard, 600 for small text).
@@ -494,7 +459,6 @@ impl Default for ImagePreprocessingConfig {
 /// `tesseract_config` is set) uses the other. When changing a default here, also update
 /// `ocr::types::TesseractConfig::default`, and vice versa.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct TesseractConfig {
     /// Language code(s) for OCR recognition. For Tesseract, languages are joined with "+".
@@ -555,7 +519,6 @@ pub struct TesseractConfig {
     /// improve quality for scanned documents or low-quality images.
     #[serde(skip_serializing_if = "Option::is_none")]
     // A bare `default` suppresses the `null` the container's serde default would advertise. ~keep
-    #[cfg_attr(feature = "api", schema(nullable = false, default))]
     pub preprocessing: Option<ImagePreprocessingConfig>,
 
     /// Enable automatic table detection and reconstruction
@@ -675,23 +638,6 @@ impl<'de> Deserialize<'de> for PixelDimensions {
     }
 }
 
-#[cfg(feature = "api")]
-impl utoipa::PartialSchema for PixelDimensions {
-    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
-        use utoipa::openapi::schema::{Object, ObjectBuilder, Type};
-
-        ObjectBuilder::new()
-            .property("width", Object::with_type(Type::Integer))
-            .required("width")
-            .property("height", Object::with_type(Type::Integer))
-            .required("height")
-            .into()
-    }
-}
-
-#[cfg(feature = "api")]
-impl utoipa::ToSchema for PixelDimensions {}
-
 impl From<(usize, usize)> for PixelDimensions {
     fn from((width, height): (usize, usize)) -> Self {
         Self { width, height }
@@ -732,23 +678,6 @@ impl<'de> Deserialize<'de> for ImageDpi {
     }
 }
 
-#[cfg(feature = "api")]
-impl utoipa::PartialSchema for ImageDpi {
-    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
-        use utoipa::openapi::schema::{Object, ObjectBuilder, Type};
-
-        ObjectBuilder::new()
-            .property("horizontal", Object::with_type(Type::Number))
-            .required("horizontal")
-            .property("vertical", Object::with_type(Type::Number))
-            .required("vertical")
-            .into()
-    }
-}
-
-#[cfg(feature = "api")]
-impl utoipa::ToSchema for ImageDpi {}
-
 impl From<(f64, f64)> for ImageDpi {
     fn from((horizontal, vertical): (f64, f64)) -> Self {
         Self { horizontal, vertical }
@@ -762,7 +691,7 @@ impl From<ImageDpi> for (f64, f64) {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ImagePreprocessingMetadata {
     /// Original image dimensions in pixels.
     pub original_dimensions: PixelDimensions,
@@ -789,7 +718,7 @@ pub struct ImagePreprocessingMetadata {
     /// Error message if resize failed
     pub resize_error: Option<String>,
 }
-#[cfg_attr(alef, alef(skip))]
+
 /// Image extraction DPI configuration (internal use).
 ///
 /// **Note:** This is an internal type used for image preprocessing.

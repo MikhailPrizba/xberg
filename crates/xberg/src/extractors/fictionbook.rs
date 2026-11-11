@@ -34,7 +34,7 @@ const FICTIONBOOK_WARNING_SOURCE: &str = "fictionbook";
 /// FictionBook document extractor.
 ///
 /// Supports FictionBook 2.0 format with proper section hierarchy and inline formatting.
-#[cfg_attr(alef, alef(skip))]
+
 pub struct FictionBookExtractor;
 
 impl Default for FictionBookExtractor {

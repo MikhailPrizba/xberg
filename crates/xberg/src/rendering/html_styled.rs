@@ -141,7 +141,7 @@ p .kb-code { background: var(--kb-code-bg); color: var(--kb-code-color); padding
 /// Implements the [`crate::plugins::Renderer`] trait; registered as `"html"` when the
 /// `html` feature is active. Configuration is baked in at
 /// construction time — no per-render allocation for CSS resolution.
-#[cfg_attr(alef, alef(skip))]
+
 pub struct StyledHtmlRenderer {
     config: Arc<HtmlOutputConfig>,
     /// Resolved CSS: theme + css_file + inline css, concatenated once.

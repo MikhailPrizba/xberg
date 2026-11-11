@@ -72,7 +72,7 @@ pub async fn redact(result: &mut ExtractedDocument, config: &RedactionConfig) ->
 /// The payload is parsed in Rust so vendor aliases and nested fields remain intact across language bindings.
 /// `offset_encoding` defaults to `unicode_code_points` and `max_findings` defaults to 10,000 when omitted.
 /// Unknown encodings return a validation error.
-#[cfg_attr(feature = "alef-meta", alef(since = "1.3.1"))]
+
 pub async fn redact_external(
     document: ExtractedDocument,
     config: RedactionConfig,
@@ -190,7 +190,7 @@ pub(crate) async fn redact_with_external_findings(
 /// never touches disk here; encrypt it with
 /// [`super::rehydration::encrypt_map`] and persistence stays with the caller.
 #[cfg(feature = "redaction-rehydrate")]
-#[cfg_attr(alef, alef(skip))]
+
 pub async fn redact_capturing_rehydration_map(
     result: &mut ExtractedDocument,
     config: &RedactionConfig,
@@ -216,7 +216,7 @@ pub async fn redact_capturing_rehydration_map(
 /// own model — pass it here and skip the second inference pass. Entities of a
 /// category the pattern engine already covers (email, phone, URL) are ignored:
 /// the regex engine is the more reliable detector for those.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn redact_with_entities(
     result: &mut ExtractedDocument,
     config: &RedactionConfig,
@@ -271,14 +271,6 @@ async fn redact_counted(
     let mut all_external_terms = configured.terms;
     all_external_terms.extend_from_slice(external.terms);
 
-    #[cfg(feature = "ner")]
-    let entities: Vec<Entity> = match (include_configured_sources, &config.ner) {
-        (true, Some(ner_config)) => {
-            collect_ner_entities(&result.content, ner_config, &active_categories(config)).await?
-        }
-        _ => Vec::new(),
-    };
-    #[cfg(not(feature = "ner"))]
     let entities: Vec<Entity> = Vec::new();
 
     redact_pass(
@@ -963,7 +955,7 @@ impl<'a> RedactionPass<'a> {
         if let Some(structured) = doc.structured_output.as_mut() {
             self.redact_json_value(structured);
         }
-        #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+        #[cfg(feature = "tree-sitter-types")]
         if let Some(code) = doc.code_intelligence.as_mut() {
             self.redact_json_value(code);
         }
@@ -1319,7 +1311,7 @@ impl<'a> RedactionPass<'a> {
             FormatMetadata::Html(html) => {
                 self.redact_html_metadata_fields(html);
             }
-            #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+            #[cfg(feature = "tree-sitter-types")]
             FormatMetadata::Code(code) => {
                 for chunk in code.chunks.iter_mut() {
                     self.redact_in_place(&mut chunk.text);
@@ -1418,12 +1410,12 @@ impl<'a> RedactionPass<'a> {
 
     /// Rewrite a code-format data-tree node (JSON/YAML/TOML/XML/CSV structural
     /// tree) and its children, bounded by [`MAX_BLOCK_NESTING_DEPTH`].
-    #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+    #[cfg(feature = "tree-sitter-types")]
     fn redact_code_data_node(&mut self, node: &mut crate::types::metadata::CodeDataNode) {
         self.redact_code_data_node_at_depth(node, 0);
     }
 
-    #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+    #[cfg(feature = "tree-sitter-types")]
     fn redact_code_data_node_at_depth(&mut self, node: &mut crate::types::metadata::CodeDataNode, depth: usize) {
         self.redact_optional(&mut node.value);
         if depth >= MAX_BLOCK_NESTING_DEPTH {
@@ -1756,83 +1748,6 @@ fn dedupe_overlaps(mut matches: Vec<PatternMatch>) -> Vec<PatternMatch> {
         kept.push(m);
     }
     kept
-}
-
-/// Detect entities in `text` with the configured NER backend.
-///
-/// Custom labels alone are enough to justify the call: a caller can ask for
-/// `custom_labels` without asking for PERSON / ORGANIZATION / LOCATION, and
-/// skipping the backend in that case meant custom labels were never redacted
-/// (xberg-io/xberg#203).
-#[cfg(feature = "ner")]
-async fn collect_ner_entities(
-    text: &str,
-    ner_config: &crate::core::config::ner::NerConfig,
-    active: &HashSet<PiiCategory>,
-) -> Result<Vec<Entity>> {
-    let want_person = active.contains(&PiiCategory::Person);
-    let want_organization = active.contains(&PiiCategory::Organization);
-    let want_location = active.contains(&PiiCategory::Location);
-    let want_custom = ner_config.custom_labels.iter().any(|label| !label.trim().is_empty());
-    if !(want_person || want_organization || want_location || want_custom) {
-        return Ok(Vec::new());
-    }
-
-    let mut categories: Vec<EntityCategory> = Vec::new();
-    if want_person {
-        categories.push(EntityCategory::Person);
-    }
-    if want_organization {
-        categories.push(EntityCategory::Organization);
-    }
-    if want_location {
-        categories.push(EntityCategory::Location);
-    }
-
-    let backend = make_ner_backend(ner_config)?;
-    backend
-        .detect_with_custom(text, &categories, &ner_config.custom_labels)
-        .await
-}
-
-#[cfg(feature = "ner")]
-fn make_ner_backend(
-    config: &crate::core::config::ner::NerConfig,
-) -> Result<std::sync::Arc<dyn crate::text::ner::NerBackend>> {
-    use crate::core::config::ner::NerBackendKind;
-
-    match config.backend {
-        NerBackendKind::Onnx => {
-            #[cfg(feature = "ner-onnx")]
-            {
-                Ok(crate::text::ner::gline::get_or_init_backend_blocking(
-                    config.model.as_deref(),
-                )?)
-            }
-            #[cfg(not(feature = "ner-onnx"))]
-            {
-                Err(crate::XbergError::MissingDependency(
-                    "ner-onnx feature is not enabled — rebuild xberg with --features ner-onnx".to_string(),
-                ))
-            }
-        }
-        NerBackendKind::Llm => {
-            #[cfg(all(feature = "ner-llm", not(all(target_os = "android", target_arch = "x86_64"))))]
-            {
-                let llm = config.llm.clone().ok_or_else(|| {
-                    crate::XbergError::validation("Llm NER backend selected but NerConfig.llm is None".to_string())
-                })?;
-                let backend = crate::text::ner::llm::LlmBackend::new(llm);
-                Ok(std::sync::Arc::new(backend))
-            }
-            #[cfg(not(all(feature = "ner-llm", not(all(target_os = "android", target_arch = "x86_64")))))]
-            {
-                Err(crate::XbergError::MissingDependency(
-                    "ner-llm feature is not enabled — rebuild xberg with --features ner-llm".to_string(),
-                ))
-            }
-        }
-    }
 }
 
 #[cfg(test)]

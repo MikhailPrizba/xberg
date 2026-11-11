@@ -5,15 +5,11 @@
 
 use std::fmt::Write;
 
-#[cfg(feature = "chunking-tokenizers")]
-use crate::chunking::text_splitter::ChunkCapacity;
 use crate::chunking::text_splitter::{ChunkConfig, ChunkSizer, MarkdownSplitter, TextSplitter};
 use crate::error::Result;
 use crate::types::{HeadingContext, PageBoundary};
 
 use super::boundaries::PageIndex;
-#[cfg(feature = "chunking-tokenizers")]
-use super::builder::TokenizerBackendSizer;
 use super::builder::{build_chunk_config, build_chunks, resolve_token_counter};
 use super::classifier::classify_chunk;
 use super::config::{ChunkerType, ChunkingConfig, ChunkingResult, TableChunkingMode};
@@ -53,7 +49,7 @@ use super::validation::validate_utf8_boundaries;
 /// # Ok(())
 /// # }
 /// ```
-#[cfg_attr(alef, alef(skip))]
+
 pub fn chunk_text(
     text: &str,
     config: &ChunkingConfig,
@@ -140,38 +136,6 @@ pub(crate) fn chunk_text_with_heading_source(
 
 fn split_text_by_sizing<'a>(text: &'a str, config: &ChunkingConfig) -> Result<Vec<&'a str>> {
     Ok(match &config.sizing {
-        #[cfg(feature = "chunking-tokenizers")]
-        crate::core::config::ChunkSizing::Tokenizer { model, .. } => {
-            let registered = crate::plugins::registry::get_tokenizer_backend_registry()
-                .read()
-                .lookup(model);
-            if let Some(backend) = registered {
-                let chunk_config = ChunkConfig::new(ChunkCapacity::new(config.max_characters))
-                    .with_sizer(TokenizerBackendSizer(backend))
-                    .with_overlap(config.overlap)
-                    .map(|c| c.with_trim(config.trim))
-                    .map_err(|e| crate::XbergError::validation(format!("Invalid chunking configuration: {}", e)))?;
-                split_with_config(text, &config.chunker_type, chunk_config)
-            } else {
-                let tokenizer = super::tokenizer_cache::get_or_init_tokenizer(model).map_err(|e| match e {
-                    crate::XbergError::Validation { message, source } => crate::XbergError::Validation {
-                        message: format!(
-                            "{message}. No tokenizer backend is registered under '{model}' either; \
-                             use a HuggingFace model id, or register your own tokenizer with \
-                             register_tokenizer_backend."
-                        ),
-                        source,
-                    },
-                    other => other,
-                })?;
-                let chunk_config = ChunkConfig::new(ChunkCapacity::new(config.max_characters))
-                    .with_sizer((*tokenizer).clone())
-                    .with_overlap(config.overlap)
-                    .map(|c| c.with_trim(config.trim))
-                    .map_err(|e| crate::XbergError::validation(format!("Invalid chunking configuration: {}", e)))?;
-                split_with_config(text, &config.chunker_type, chunk_config)
-            }
-        }
         _ => {
             let chunk_config = build_chunk_config(config.max_characters, config.overlap, config.trim)?;
             split_with_config(text, &config.chunker_type, chunk_config)
@@ -218,7 +182,7 @@ fn split_text_by_sizing<'a>(text: &'a str, config: &ChunkingConfig) -> Result<Ve
 /// let rendered = render_heading_breadcrumb("## Setup\n\nInstall the dependencies.", &context);
 /// assert_eq!(rendered, "# Guide > ## Setup\n\nInstall the dependencies.");
 /// ```
-#[cfg_attr(alef, alef(skip))]
+
 pub fn render_heading_breadcrumb(content: &str, context: &HeadingContext) -> String {
     let mut new_content = String::with_capacity(content.len() + 64);
     for (i, h) in context.headings.iter().enumerate() {

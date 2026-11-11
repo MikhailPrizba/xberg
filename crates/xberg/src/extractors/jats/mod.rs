@@ -533,7 +533,7 @@ fn build_jats_internal_document(content: &str, budget: &mut SecurityBudget) -> c
 ///
 /// Supports JATS (Journal Article Tag Suite) XML documents in various versions,
 /// handling both the full article structure and minimal JATS subsets.
-#[cfg_attr(alef, alef(skip))]
+
 pub struct JatsExtractor;
 
 impl Default for JatsExtractor {
@@ -569,16 +569,6 @@ impl Plugin for JatsExtractor {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl InternalDocumentExtractor for JatsExtractor {
-    #[cfg_attr(
-        feature = "otel",
-        tracing::instrument(
-            skip(self, content, config),
-            fields(
-                extractor.name = self.name(),
-                content.size_bytes = content.len(),
-            )
-        )
-    )]
     async fn extract_content(
         &self,
         content: &[u8],
@@ -735,15 +725,7 @@ impl InternalDocumentExtractor for JatsExtractor {
     }
 
     #[cfg(feature = "tokio-runtime")]
-    #[cfg_attr(
-        feature = "otel",
-        tracing::instrument(
-            skip(self, path, config),
-            fields(
-                extractor.name = self.name(),
-            )
-        )
-    )]
+
     async fn extract_path(&self, path: &Path, mime_type: &str, config: &ExtractionConfig) -> Result<InternalDocument> {
         let bytes = crate::core::io::read_file_async(path).await?;
         self.extract_content(&bytes, mime_type, config).await

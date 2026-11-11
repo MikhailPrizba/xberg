@@ -1,12 +1,6 @@
 // Inference capabilities are intentionally absent from the compact fork.
 fn main() {
     println!("cargo::rustc-check-cfg=cfg(coverage)");
-    println!("cargo::rustc-check-cfg=cfg(inference_ort)");
-    println!("cargo::rustc-check-cfg=cfg(onnx_retrieval)");
-    println!("cargo::rustc-check-cfg=cfg(auto_rotate)");
-    println!("cargo::rustc-check-cfg=cfg(sceptre_ocr)");
-    println!("cargo::rustc-check-cfg=cfg(layout_detection)");
-    println!("cargo::rustc-check-cfg=cfg(paddle_ocr)");
     if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
         emit_rerun_directives(&manifest_dir);
     }

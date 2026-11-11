@@ -15,8 +15,6 @@ use itertools::Itertools;
 use thiserror::Error;
 
 mod characters;
-#[cfg(feature = "chunking-tokenizers")]
-mod huggingface;
 
 use super::trim::Trim;
 pub use characters::Characters;
@@ -304,22 +302,6 @@ where
         }
     }
 
-    /// Set a custom chunk sizer to use for determining the size of each chunk
-    ///
-    /// ```text
-    /// let config = ChunkConfig::new(512).with_sizer(Characters);
-    /// ```
-    #[cfg(feature = "chunking-tokenizers")]
-    #[must_use]
-    pub fn with_sizer<S: ChunkSizer>(self, sizer: S) -> ChunkConfig<S> {
-        ChunkConfig {
-            capacity: self.capacity,
-            overlap: self.overlap,
-            sizer,
-            trim: self.trim,
-        }
-    }
-
     /// Specify whether chunks should have whitespace trimmed from the
     /// beginning and end or not.
     ///
@@ -428,8 +410,6 @@ where
 mod tests {
     // Both `RefCell` uses sit behind `chunking-tokenizers`; without the same gate the import
     // is unused in any build without that feature, which `-D warnings` turns into an error.
-    #[cfg(feature = "chunking-tokenizers")]
-    use std::cell::RefCell;
     use std::sync::atomic::{self, AtomicUsize};
 
     use super::super::trim::Trim;
@@ -577,24 +557,6 @@ mod tests {
         assert!(!config.trim);
     }
 
-    #[cfg(feature = "chunking-tokenizers")]
-    #[test]
-    fn new_sizer() {
-        #[derive(Debug, PartialEq)]
-        struct BasicSizer;
-
-        impl ChunkSizer for BasicSizer {
-            fn size(&self, _chunk: &str) -> usize {
-                unimplemented!()
-            }
-        }
-
-        let config = ChunkConfig::new(10).with_sizer(BasicSizer);
-        assert_eq!(config.capacity, 10.into());
-        assert_eq!(config.sizer, BasicSizer);
-        assert!(config.trim);
-    }
-
     #[test]
     fn chunk_capacity_max_and_desired_equal() {
         let capacity = ChunkCapacity::new(10);
@@ -645,64 +607,5 @@ mod tests {
             err.to_string(),
             "The overlap is larger than or equal to the desired chunk capacity"
         );
-    }
-
-    #[cfg(feature = "chunking-tokenizers")]
-    #[test]
-    fn chunk_size_reference() {
-        let config = ChunkConfig::new(1).with_sizer(&Characters);
-        config.sizer.size("chunk");
-    }
-
-    #[cfg(feature = "chunking-tokenizers")]
-    #[test]
-    fn chunk_size_cow() {
-        let sizer: Cow<'_, Characters> = Cow::Owned(Characters);
-        let config = ChunkConfig::new(1).with_sizer(sizer);
-        config.sizer.size("chunk");
-
-        let sizer = Cow::Borrowed(&Characters);
-        let config = ChunkConfig::new(1).with_sizer(sizer);
-        config.sizer.size("chunk");
-    }
-
-    #[cfg(feature = "chunking-tokenizers")]
-    #[test]
-    fn chunk_size_arc() {
-        let sizer = Arc::new(Characters);
-        let config = ChunkConfig::new(1).with_sizer(sizer);
-        config.sizer.size("chunk");
-    }
-
-    #[cfg(feature = "chunking-tokenizers")]
-    #[test]
-    fn chunk_size_ref() {
-        let sizer = RefCell::new(Characters);
-        let config = ChunkConfig::new(1).with_sizer(sizer.borrow());
-        config.sizer.size("chunk");
-    }
-
-    #[cfg(feature = "chunking-tokenizers")]
-    #[test]
-    fn chunk_size_ref_mut() {
-        let sizer = RefCell::new(Characters);
-        let config = ChunkConfig::new(1).with_sizer(sizer.borrow_mut());
-        config.sizer.size("chunk");
-    }
-
-    #[cfg(feature = "chunking-tokenizers")]
-    #[test]
-    fn chunk_size_box() {
-        let sizer = Box::new(Characters);
-        let config = ChunkConfig::new(1).with_sizer(sizer);
-        config.sizer.size("chunk");
-    }
-
-    #[cfg(feature = "chunking-tokenizers")]
-    #[test]
-    fn chunk_size_rc() {
-        let sizer = Rc::new(Characters);
-        let config = ChunkConfig::new(1).with_sizer(sizer);
-        config.sizer.size("chunk");
     }
 }

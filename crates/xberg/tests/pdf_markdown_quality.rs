@@ -29,20 +29,6 @@ fn extract_markdown(pdf_path: &std::path::Path) -> String {
         .content
 }
 
-#[cfg(feature = "layout-detection")]
-fn extract_markdown_with_layout(pdf_path: &std::path::Path) -> String {
-    use xberg::core::config::layout::LayoutDetectionConfig;
-
-    let config = ExtractionConfig {
-        output_format: OutputFormat::Markdown,
-        layout: Some(LayoutDetectionConfig::default()),
-        ..Default::default()
-    };
-    extract_uri_document_blocking(pdf_path, None, &config)
-        .expect("layout extraction should succeed")
-        .content
-}
-
 /// Count structural elements in markdown content.
 fn count_headings(md: &str) -> usize {
     md.lines().filter(|l| l.starts_with('#')).count()
@@ -104,51 +90,6 @@ fn test_baseline_produces_structural_markdown() {
             count_table_rows(&content),
             count_list_items(&content),
             has_code_blocks(&content),
-        );
-    }
-}
-
-#[cfg(feature = "layout-detection")]
-#[test]
-fn test_layout_does_not_regress_text_content() {
-    if !test_documents_available() {
-        println!("Skipping: test_documents not available");
-        return;
-    }
-
-    for &(name, pdf_rel) in MARKDOWN_GT_DOCS {
-        let pdf_path = get_test_file_path(pdf_rel);
-        if !pdf_path.exists() {
-            println!("Skipping {}: file not found", name);
-            continue;
-        }
-
-        let baseline = extract_markdown(&pdf_path);
-        let layout = extract_markdown_with_layout(&pdf_path);
-
-        let baseline_len = baseline.len();
-        let layout_len = layout.len();
-
-        assert!(
-            layout_len as f64 >= baseline_len as f64 * 0.8,
-            "{}: layout content ({} chars) is significantly shorter than baseline ({} chars)",
-            name,
-            layout_len,
-            baseline_len,
-        );
-
-        assert!(
-            count_headings(&layout) > 0,
-            "{}: layout extraction lost all headings",
-            name
-        );
-
-        println!(
-            "{}: baseline={} chars, layout={} chars, layout headings={}",
-            name,
-            baseline_len,
-            layout_len,
-            count_headings(&layout),
         );
     }
 }

@@ -42,7 +42,7 @@ pub use core_properties::CoreProperties;
 pub use custom_properties::CustomProperties;
 pub use odt_properties::OdtProperties;
 
-#[cfg(any(feature = "excel", feature = "excel-wasm"))]
+#[cfg(feature = "excel")]
 pub(crate) use app_properties::extract_xlsx_app_properties;
 pub(crate) use app_properties::{extract_docx_app_properties, extract_pptx_app_properties};
 pub(crate) use core_properties::extract_core_properties;

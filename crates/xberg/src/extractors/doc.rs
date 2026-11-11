@@ -22,7 +22,7 @@ use table::PendingTable;
 use ahash::AHashMap;
 use async_trait::async_trait;
 use std::borrow::Cow;
-#[cfg_attr(alef, alef(skip))]
+
 /// Native DOC extractor using OLE/CFB parsing.
 ///
 /// This extractor handles Word 97-2003 binary (.doc) files without

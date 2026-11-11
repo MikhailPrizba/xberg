@@ -63,7 +63,7 @@ impl ProcessorCache {
 pub(super) static PROCESSOR_CACHE: LazyLock<RwLock<Option<ProcessorCache>>> = LazyLock::new(|| RwLock::new(None));
 
 /// Clear the processor cache (primarily for testing when registry changes).
-#[cfg_attr(alef, alef(skip))]
+
 pub fn clear_processor_cache() -> Result<()> {
     let mut cache = PROCESSOR_CACHE.write();
     *cache = None;

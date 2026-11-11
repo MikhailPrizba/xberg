@@ -52,7 +52,7 @@ const ADMONITION_LABELS: [&str; 5] = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CA
 /// Produces headings, lists, code blocks, tables, admonitions and quotes from AsciiDoc
 /// source, together with `TextMetadata` carrying the document's headers, links and code
 /// blocks.
-#[cfg_attr(alef, alef(skip))]
+
 pub struct AsciiDocExtractor;
 
 impl AsciiDocExtractor {

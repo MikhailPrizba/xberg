@@ -15,10 +15,6 @@ use crate::core::config::extraction::ImageOutputFormat;
 #[cfg(feature = "svg")]
 use crate::core::config::extraction::SvgOptions;
 use crate::error::XbergError;
-#[cfg(feature = "heic")]
-use crate::extraction::image_decode::{
-    ImageDecodeBudget, copy_decoded_rows, decoded_byte_count, image_dimension_error,
-};
 use crate::extraction::image_decode::{
     decode_standard_image_with_format_and_security_limits, decode_standard_image_with_security_limits,
     validate_dynamic_image_additional_live_bytes,
@@ -51,14 +47,6 @@ pub(crate) enum EncodeWarning {
         /// Underlying error message from the encoder.
         message: String,
     },
-    /// The encoder for the target format is not available at runtime.
-    #[cfg(feature = "heic")]
-    EncoderUnavailable {
-        /// Name of the target format.
-        target_format: &'static str,
-        /// Details about why the encoder is unavailable.
-        message: String,
-    },
     /// The requested conversion direction is not supported (e.g. raster → SVG).
     ///
     /// The image bytes are left untouched.  This is a non-fatal warning: the
@@ -88,10 +76,6 @@ impl std::fmt::Display for EncodeWarning {
             }
             EncodeWarning::EncodeFailed { target_format, message } => {
                 write!(f, "failed to encode image as {target_format}: {message}")
-            }
-            #[cfg(feature = "heic")]
-            EncodeWarning::EncoderUnavailable { target_format, message } => {
-                write!(f, "encoder for {target_format} is unavailable: {message}")
             }
             #[cfg(feature = "svg")]
             EncodeWarning::UnsupportedDirection { from_format, to_format } => {
@@ -207,14 +191,7 @@ fn target_matches_format(target: ImageOutputFormat, format: &str) -> bool {
         ImageOutputFormat::Png => format.eq_ignore_ascii_case("png"),
         ImageOutputFormat::Jpeg { .. } => format.eq_ignore_ascii_case("jpeg") || format.eq_ignore_ascii_case("jpg"),
         ImageOutputFormat::Webp { .. } => format.eq_ignore_ascii_case("webp"),
-        #[cfg(feature = "heic")]
-        ImageOutputFormat::Heif { .. } => {
-            format.eq_ignore_ascii_case("heif")
-                || format.eq_ignore_ascii_case("heic")
-                || format.eq_ignore_ascii_case("HEIF")
-                || format.eq_ignore_ascii_case("HEIC")
-        }
-        #[cfg(not(feature = "heic"))]
+
         ImageOutputFormat::Heif { .. } => false,
         #[cfg(feature = "svg")]
         ImageOutputFormat::Svg => false,
@@ -379,12 +356,6 @@ fn rasterize_svg(
 fn decode_source(image: &ExtractedImage, limits: &SecurityLimits) -> Result<DynamicImage, EncodeWarning> {
     let format_lc = image.format.to_ascii_lowercase();
 
-    #[cfg(feature = "heic")]
-    if matches!(format_lc.as_str(), "heic" | "heif") {
-        return decode_heic(&image.data, &format_lc, limits);
-    }
-
-    #[cfg(not(feature = "heic"))]
     if matches!(format_lc.as_str(), "heic" | "heif") {
         return Err(EncodeWarning::Undecodable {
             source_format: image.format.to_string(),
@@ -423,116 +394,6 @@ fn decode_source(image: &ExtractedImage, limits: &SecurityLimits) -> Result<Dyna
     }
 }
 
-#[cfg(feature = "heic")]
-const HEIF_DECODE_BUFFER_COUNT: u64 = 2;
-
-#[cfg(feature = "heic")]
-fn validate_heic_decode_budget(
-    width: u32,
-    height: u32,
-    source_format: &str,
-    encoded_source_bytes: usize,
-    limits: &SecurityLimits,
-) -> Result<(), EncodeWarning> {
-    let rgba_bytes = decoded_byte_count(width, height, u64::from(image::ColorType::Rgba8.bytes_per_pixel()))
-        .and_then(|bytes| {
-            bytes
-                .checked_mul(HEIF_DECODE_BUFFER_COUNT)
-                .and_then(|peak| peak.checked_add(u64::try_from(encoded_source_bytes).unwrap_or(u64::MAX)))
-                .ok_or_else(|| image_dimension_error(width, height, u64::MAX, u64::MAX))
-        })
-        .and_then(|peak| ImageDecodeBudget::from_security_limits(limits).validate(width, height, peak));
-    rgba_bytes.map_err(|error| EncodeWarning::DecodeFailed {
-        source_format: source_format.to_string(),
-        message: error.to_string(),
-    })
-}
-
-#[cfg(feature = "heic")]
-fn validate_heic_encoded_input_budget(
-    encoded_source_bytes: usize,
-    source_format: &str,
-    limits: &SecurityLimits,
-) -> Result<(), EncodeWarning> {
-    ImageDecodeBudget::from_security_limits(limits)
-        .validate(1, 1, u64::try_from(encoded_source_bytes).unwrap_or(u64::MAX))
-        .map_err(|error| EncodeWarning::DecodeFailed {
-            source_format: source_format.to_string(),
-            message: error.to_string(),
-        })
-}
-
-/// Decode a HEIC/HEIF image via `xberg-libheif` into a [`DynamicImage`].
-///
-/// The decoded output is always RGBA8 so that the subsequent encode step has a
-/// uniform input regardless of the source chroma.
-#[cfg(feature = "heic")]
-fn decode_heic(data: &[u8], source_format: &str, limits: &SecurityLimits) -> Result<DynamicImage, EncodeWarning> {
-    use xberg_libheif::{ColorSpace, HeifContext, LibHeif, RgbChroma};
-
-    validate_heic_encoded_input_budget(data.len(), source_format, limits)?;
-    let context = HeifContext::read_from_bytes(data).map_err(|err| EncodeWarning::DecodeFailed {
-        source_format: source_format.to_string(),
-        message: format!("{err:?}"),
-    })?;
-
-    let handle = context
-        .primary_image_handle()
-        .map_err(|err| EncodeWarning::DecodeFailed {
-            source_format: source_format.to_string(),
-            message: format!("{err:?}"),
-        })?;
-
-    let width = handle.width();
-    let height = handle.height();
-    validate_heic_decode_budget(width, height, source_format, data.len(), limits)?;
-
-    let lib = LibHeif::new();
-    let heif_img = lib
-        .decode(&handle, ColorSpace::Rgb(RgbChroma::Rgba), None)
-        .map_err(|err| EncodeWarning::DecodeFailed {
-            source_format: source_format.to_string(),
-            message: format!("{err:?}"),
-        })?;
-
-    let planes = heif_img.planes();
-    let plane = planes.interleaved.as_ref().ok_or_else(|| EncodeWarning::DecodeFailed {
-        source_format: source_format.to_string(),
-        message: "HEIF image has no interleaved plane".to_string(),
-    })?;
-
-    let decoded_width = heif_img.width();
-    let decoded_height = heif_img.height();
-    if decoded_width != width || decoded_height != height {
-        return Err(EncodeWarning::DecodeFailed {
-            source_format: source_format.to_string(),
-            message: format!(
-                "HEIF decoded dimensions {decoded_width}x{decoded_height} do not match declared dimensions {width}x{height}"
-            ),
-        });
-    }
-
-    let rgba_bytes = copy_decoded_rows(
-        plane.data,
-        plane.stride,
-        width,
-        height,
-        u64::from(image::ColorType::Rgba8.bytes_per_pixel()),
-    )
-    .map_err(|error| EncodeWarning::DecodeFailed {
-        source_format: source_format.to_string(),
-        message: error.to_string(),
-    })?;
-
-    let rgba_img =
-        image::RgbaImage::from_raw(width, height, rgba_bytes).ok_or_else(|| EncodeWarning::DecodeFailed {
-            source_format: source_format.to_string(),
-            message: format!("RGBA buffer does not fit {width}×{height} image"),
-        })?;
-
-    Ok(DynamicImage::ImageRgba8(rgba_img))
-}
-
 /// Encode `img` into `target` format and return the raw bytes plus the canonical
 /// format name string.
 ///
@@ -555,13 +416,7 @@ fn encode_to_target(img: &DynamicImage, target: ImageOutputFormat) -> Result<(Ve
             let bytes = encode_webp_lossless(img)?;
             Ok((bytes, "webp"))
         }
-        #[cfg(feature = "heic")]
-        ImageOutputFormat::Heif { quality } => {
-            let clamped = clamp_quality(quality, "heif");
-            let bytes = encode_heif(img, clamped)?;
-            Ok((bytes, "heif"))
-        }
-        #[cfg(not(feature = "heic"))]
+
         ImageOutputFormat::Heif { quality: _ } => Err(EncodeWarning::EncodeFailed {
             target_format: "heif",
             message: "heic feature is not enabled in this build".to_string(),
@@ -633,77 +488,6 @@ fn encode_webp_lossless(img: &DynamicImage) -> Result<Vec<u8>, EncodeWarning> {
             message: err.to_string(),
         })?;
     Ok(buf)
-}
-
-/// Encode `img` as HEIF/HEVC using `xberg-libheif`.
-///
-/// The pixel data is first converted to RGBA8 (via `DynamicImage::to_rgba8`)
-/// and then written into a libheif interleaved plane before encoding.
-#[cfg(feature = "heic")]
-fn encode_heif(img: &DynamicImage, quality: u8) -> Result<Vec<u8>, EncodeWarning> {
-    use xberg_libheif::{
-        Channel, ColorSpace, CompressionFormat, EncoderQuality, HeifContext, Image, LibHeif, RgbChroma,
-    };
-
-    let rgba = img.to_rgba8();
-    let (width, height) = rgba.dimensions();
-
-    let mut context = HeifContext::new().map_err(|err| EncodeWarning::EncoderUnavailable {
-        target_format: "heif",
-        message: format!("HeifContext::new failed: {err:?}"),
-    })?;
-
-    let mut heif_img =
-        Image::new(width, height, ColorSpace::Rgb(RgbChroma::Rgba)).map_err(|err| EncodeWarning::EncodeFailed {
-            target_format: "heif",
-            message: format!("Image::new failed: {err:?}"),
-        })?;
-
-    heif_img
-        .create_plane(Channel::Interleaved, width, height, 8)
-        .map_err(|err| EncodeWarning::EncodeFailed {
-            target_format: "heif",
-            message: format!("create_plane failed: {err:?}"),
-        })?;
-
-    {
-        let mut planes = heif_img.planes_mut();
-        let plane = planes.interleaved.as_mut().ok_or(EncodeWarning::EncodeFailed {
-            target_format: "heif",
-            message: "interleaved plane missing after create_plane".to_string(),
-        })?;
-        let row_size = (width as usize) * 4;
-        for (dst_row, src_row) in plane.data.chunks_mut(plane.stride).zip(rgba.chunks_exact(row_size)) {
-            dst_row[..row_size].copy_from_slice(src_row);
-        }
-    }
-
-    let lib = LibHeif::new();
-    let mut encoder =
-        lib.encoder_for_format(CompressionFormat::Hevc)
-            .map_err(|err| EncodeWarning::EncoderUnavailable {
-                target_format: "heif",
-                message: format!("no HEVC encoder available: {err:?}"),
-            })?;
-
-    encoder
-        .set_quality(EncoderQuality::Lossy(quality))
-        .map_err(|err| EncodeWarning::EncodeFailed {
-            target_format: "heif",
-            message: format!("set_quality failed: {err:?}"),
-        })?;
-
-    context
-        .encode_image(&heif_img, &mut encoder, None)
-        .map_err(|err| EncodeWarning::EncodeFailed {
-            target_format: "heif",
-            message: format!("encode_image failed: {err:?}"),
-        })?;
-
-    context.write_to_bytes().map_err(|err| EncodeWarning::EncodeFailed {
-        target_format: "heif",
-        message: format!("write_to_bytes failed: {err:?}"),
-    })
 }
 
 #[cfg(test)]

@@ -36,7 +36,7 @@ pub(crate) const CHUNK_SIZE: usize = 200;
 // ~keep: the only consumer is `extractors::pdf::ocr::plausibility`, whose module is gated on
 // `pdf` + (`ocr` | `ocr-pipeline`); under CI's `ocr,auto-rotate-tract` leg `language-detection`
 // is on but `pdf` is off, so an ungated seam is dead code and fails `-D warnings`.
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct ChunkReliability {
     /// Total chunks evaluated.
@@ -50,7 +50,7 @@ pub(crate) struct ChunkReliability {
     pub(crate) confidence_sum: f64,
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 impl ChunkReliability {
     /// Fraction of chunks whatlang classified as reliable, in `[0.0, 1.0]`. `0.0` when no
     /// chunks were evaluated.
@@ -81,7 +81,7 @@ impl ChunkReliability {
 /// counts as confidence `0.0` and not reliable, rather than being skipped: skipping it would
 /// undercount `chunks` and let a page of entirely unclassifiable text score an artificially
 /// high `reliable_ratio` off a near-empty denominator. ~keep
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(crate) fn chunk_reliability(chunks: &[&str]) -> ChunkReliability {
     let mut reliable_chunks = 0usize;
     let mut confidence_sum = 0.0f64;

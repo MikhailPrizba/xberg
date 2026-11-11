@@ -60,7 +60,7 @@ pub struct StructuredDataResult {
 }
 
 /// Configuration options for JSON extraction behaviour.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonExtractionConfig {
     /// When `true`, a JSON schema summary is generated and stored in metadata.

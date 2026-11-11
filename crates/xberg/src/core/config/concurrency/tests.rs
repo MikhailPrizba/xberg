@@ -25,33 +25,6 @@ fn sysctl_hw_memsize_reads_plausible_physical_memory_in_process() {
     assert!(available > 0);
 }
 
-#[cfg(feature = "captioning")]
-#[test]
-fn llm_concurrency_overrides_general_thread_budget() {
-    let llm = crate::core::config::LlmConfig {
-        max_concurrency: Some(3),
-        ..Default::default()
-    };
-    let general = ConcurrencyConfig {
-        max_threads: Some(12),
-        max_concurrent_ocr: None,
-    };
-
-    assert_eq!(resolve_llm_concurrency(&llm, Some(&general)), 3);
-}
-
-#[cfg(feature = "captioning")]
-#[test]
-fn llm_concurrency_falls_back_to_general_thread_budget() {
-    let llm = crate::core::config::LlmConfig::default();
-    let general = ConcurrencyConfig {
-        max_threads: Some(5),
-        max_concurrent_ocr: None,
-    };
-
-    assert_eq!(resolve_llm_concurrency(&llm, Some(&general)), 5);
-}
-
 /// A tracing `Layer` that records the level of every emitted event.
 #[derive(Clone, Default)]
 struct EventCapture {
@@ -269,62 +242,6 @@ fn test_batch_plan_without_layout_uses_available_budget() {
 }
 
 #[test]
-#[cfg(all(not(target_arch = "wasm32"), layout_detection))]
-fn test_layout_batch_plan_table() {
-    for budget in [1, 2, 4, 8] {
-        let config = ConcurrencyConfig {
-            max_threads: Some(budget),
-            max_concurrent_ocr: None,
-        };
-        assert_eq!(
-            resolve_batch_execution_plan(Some(&config), LayoutBatchWorkload::All, 16, None),
-            BatchExecutionPlan {
-                workers: 1,
-                thread_budget: budget,
-            }
-        );
-    }
-}
-
-#[test]
-#[cfg(all(not(target_arch = "wasm32"), layout_detection))]
-fn test_mixed_layout_batch_preserves_two_worker_cap() {
-    for (budget, workers, thread_budget) in [(1, 1, 1), (2, 2, 1), (4, 2, 2), (8, 2, 4)] {
-        let config = ConcurrencyConfig {
-            max_threads: Some(budget),
-            max_concurrent_ocr: None,
-        };
-        assert_eq!(
-            resolve_batch_execution_plan(Some(&config), LayoutBatchWorkload::Mixed, 16, None),
-            BatchExecutionPlan { workers, thread_budget }
-        );
-    }
-}
-
-#[test]
-#[cfg(all(not(target_arch = "wasm32"), layout_detection))]
-fn test_layout_batch_plan_respects_input_and_explicit_limits() {
-    let config = ConcurrencyConfig {
-        max_threads: Some(8),
-        max_concurrent_ocr: None,
-    };
-    assert_eq!(
-        resolve_batch_execution_plan(Some(&config), LayoutBatchWorkload::All, 1, Some(8)),
-        BatchExecutionPlan {
-            workers: 1,
-            thread_budget: 8,
-        }
-    );
-    assert_eq!(
-        resolve_batch_execution_plan(Some(&config), LayoutBatchWorkload::All, 8, Some(1)),
-        BatchExecutionPlan {
-            workers: 1,
-            thread_budget: 8,
-        }
-    );
-}
-
-#[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn test_non_layout_batch_plan_divides_budget_at_explicit_worker_limit() {
     let config = ConcurrencyConfig {
@@ -372,13 +289,6 @@ fn test_batch_plan_never_exceeds_total_budget() {
             [None, Some(0), Some(1), Some(3), Some(16)].map(move |max_concurrent| (input_count, max_concurrent))
         });
         for (input_count, max_concurrent) in cases {
-            #[cfg(layout_detection)]
-            let layout_workloads = [
-                LayoutBatchWorkload::None,
-                LayoutBatchWorkload::Mixed,
-                LayoutBatchWorkload::All,
-            ];
-            #[cfg(not(layout_detection))]
             let layout_workloads = [LayoutBatchWorkload::None];
             for layout_workload in layout_workloads {
                 let plan = resolve_batch_execution_plan(Some(&config), layout_workload, input_count, max_concurrent);

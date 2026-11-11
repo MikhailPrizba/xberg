@@ -1,7 +1,7 @@
 use std::fmt;
 
 /// OCR-specific errors (pure Rust, no PyO3).
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone)]
 pub enum OcrError {
     /// Tesseract failed to initialize with the given configuration.

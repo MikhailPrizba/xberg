@@ -9,7 +9,7 @@ use std::sync::Arc;
 /// Registry for validator plugins.
 ///
 /// Manages validators with priority-based execution order.
-#[cfg_attr(alef, alef(skip))]
+
 pub struct ValidatorRegistry {
     validators: BTreeMap<i32, IndexMap<String, Arc<dyn Validator>>>,
     generation: u64,

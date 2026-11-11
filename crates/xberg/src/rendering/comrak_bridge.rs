@@ -951,10 +951,7 @@ fn build_table<'a>(
     Some(table_node)
 }
 
-#[cfg(any(
-    feature = "pdf",
-    all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm"))
-))]
+#[cfg(feature = "pdf")]
 fn build_retained_grid_html<'a>(
     arena: &'a comrak::Arena<'a>,
     table: &crate::types::Table,
@@ -992,10 +989,7 @@ fn build_retained_grid_html<'a>(
     ))
 }
 
-#[cfg(any(
-    feature = "pdf",
-    all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm"))
-))]
+#[cfg(feature = "pdf")]
 fn validated_grid_occupancy(table: &crate::types::Table, grid: &crate::types::TableGrid) -> Option<Vec<Vec<bool>>> {
     if grid.rows == 0 || grid.cols == 0 {
         return None;
@@ -1021,10 +1015,7 @@ fn validated_grid_occupancy(table: &crate::types::Table, grid: &crate::types::Ta
     Some(occupied)
 }
 
-#[cfg(any(
-    feature = "pdf",
-    all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm"))
-))]
+#[cfg(feature = "pdf")]
 fn append_grid_html_cell<'a>(
     arena: &'a comrak::Arena<'a>,
     cell: &crate::types::GridCell,
@@ -1374,10 +1365,7 @@ fn build_comrak_ast_with_table_mode<'a>(
                         anchor.append(mk_text(arena, &format!("[TABLE:{table_id}]")));
                         parent.append(anchor);
                     }
-                    #[cfg(any(
-                        feature = "pdf",
-                        all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm"))
-                    ))]
+                    #[cfg(feature = "pdf")]
                     if table_mode == TableRenderMode::Html
                         && let Some(table_node) = build_retained_grid_html(arena, table, elem_attributes)
                     {

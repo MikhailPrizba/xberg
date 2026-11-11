@@ -9,7 +9,7 @@ pub use html_to_markdown_rs::{
 };
 
 /// Result of HTML extraction with optional images and warnings.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HtmlExtractionResult {
     /// Extracted content as Markdown.
@@ -21,7 +21,7 @@ pub struct HtmlExtractionResult {
 }
 
 /// Extracted inline image with metadata.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtractedInlineImage {
     /// Raw image bytes (shared via `Bytes` for cheap cloning).

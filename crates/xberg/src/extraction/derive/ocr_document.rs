@@ -96,12 +96,6 @@ fn validate_metadata(
             metadata.json_values(element.backend_metadata.values())?;
         }
     }
-    #[cfg(feature = "tree-sitter")]
-    if let Some(crate::types::FormatMetadata::Code(code)) = result.metadata.format.as_ref()
-        && let Some(data) = code.data.as_ref()
-    {
-        metadata.enqueue(MetadataNode::Code(data), 1)?;
-    }
     metadata.validate()?;
     Ok(())
 }
@@ -232,10 +226,6 @@ fn validate_payload_fields(result: &ExtractedDocument) -> crate::Result<()> {
             "unsupported derived OCR output or document-level annotations",
         ));
     }
-    #[cfg(feature = "tree-sitter")]
-    if result.code_intelligence.is_some() {
-        return Err(invalid_document("unsupported derived OCR code intelligence"));
-    }
     #[cfg(any(feature = "keywords-yake", feature = "keywords-rake"))]
     if result.extracted_keywords.is_some() {
         return Err(invalid_document("unsupported derived OCR keywords"));
@@ -274,8 +264,6 @@ fn has_enrichment_outputs(result: &ExtractedDocument) -> bool {
 
 enum MetadataNode<'a> {
     Json(&'a serde_json::Value),
-    #[cfg(feature = "tree-sitter")]
-    Code(&'a crate::types::metadata::CodeDataNode),
 }
 
 /// ~keep One contribution-wide budget covers structural work, OCR elements and every
@@ -337,56 +325,8 @@ impl<'a> MetadataTraversal<'a> {
                     }
                 }
                 MetadataNode::Json(_) => {}
-                #[cfg(feature = "tree-sitter")]
-                MetadataNode::Code(node) => {
-                    for child in &node.children {
-                        self.enqueue(MetadataNode::Code(child), child_depth)?;
-                    }
-                }
             }
         }
         Ok(())
-    }
-}
-
-#[cfg(all(test, feature = "tree-sitter"))]
-mod recursive_metadata_tests {
-    use super::*;
-
-    #[test]
-    fn recursive_metadata_code_shallow_is_preserved_at_adoption() {
-        let mut result = ExtractedDocument {
-            content: "Text".into(),
-            document: Some(
-                serde_json::from_value(
-                    serde_json::json!({"nodes": [{"content": {"node_type": "paragraph", "text": "Text"}}]}),
-                )
-                .unwrap(),
-            ),
-            ..Default::default()
-        };
-        result.metadata.format = Some(crate::types::FormatMetadata::Code(
-            crate::types::metadata::CodeMetadata {
-                chunks: vec![],
-                data: Some(crate::types::metadata::CodeDataNode {
-                    kind: crate::types::metadata::CodeDataNodeKind::Sequence,
-                    key: None,
-                    value: Some("leaf".into()),
-                    attributes: vec![],
-                    children: vec![],
-                    byte_start: 0,
-                    byte_end: 1,
-                }),
-            },
-        ));
-        let before = serde_json::to_value(&result.metadata.format).unwrap();
-        let limits = SecurityLimits {
-            max_nesting_depth: 1,
-            max_iterations: 2,
-            ..Default::default()
-        };
-        adopt_public_ocr_document(&mut result, &limits).unwrap();
-        assert_eq!(serde_json::to_value(&result.metadata.format).unwrap(), before);
-        assert!(result.ocr_internal_document.is_some());
     }
 }

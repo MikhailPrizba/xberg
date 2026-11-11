@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// are translated in place inside `ExtractedDocument::chunks[*].content` rather
 /// than duplicated here.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct Translation {
     /// BCP-47 language tag the translation was produced into (e.g. `"de"`, `"fr-CA"`).
     pub target_lang: String,

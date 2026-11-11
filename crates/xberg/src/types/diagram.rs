@@ -12,7 +12,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Node outline, mapped onto the Graphviz `shape` attribute.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DiagramShape {
@@ -39,7 +39,7 @@ impl DiagramShape {
 }
 
 /// A diagram node: one closed outline plus the text drawn inside it.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DiagramNode {
     /// Stable identifier, `n0`, `n1`, … assigned in reading order.
@@ -67,7 +67,7 @@ pub struct DiagramNode {
 }
 
 /// A diagram edge: one open connector joining two nodes.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DiagramEdge {
     /// Index into [`DiagramGraph::nodes`] of the connector's start.
@@ -94,7 +94,7 @@ pub struct DiagramEdge {
 }
 
 /// A graph recovered from one vector diagram.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct DiagramGraph {
     /// Diagram name, taken from the source's own title where it has one.

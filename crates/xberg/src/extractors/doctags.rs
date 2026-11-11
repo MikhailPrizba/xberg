@@ -12,7 +12,7 @@ use async_trait::async_trait;
 /// Extractor for Docling DocTags documents.
 ///
 /// Register this Rust-only extractor through the document-extractor registry.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Default)]
 pub struct DocTagsExtractor;
 

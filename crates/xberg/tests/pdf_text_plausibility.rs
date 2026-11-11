@@ -7,7 +7,7 @@
 //! and returns rather than failing the run.
 
 #![allow(clippy::print_stdout, clippy::print_stderr, clippy::dbg_macro)] // ~keep: test/bench binaries print by design; org logging policy exempts tests
-#![cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#![cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 
 use std::path::{Path, PathBuf};
 

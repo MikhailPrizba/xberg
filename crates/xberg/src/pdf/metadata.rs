@@ -13,7 +13,7 @@ use crate::types::PageStructure;
 /// `Metadata` structure. Common fields like title, authors, keywords, and dates
 /// are at the `Metadata` level.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct PdfMetadata {
     /// PDF version (e.g., "1.7", "2.0")
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -98,7 +98,7 @@ pub struct PdfMetadata {
 ///
 /// Combines common document fields (title, authors, dates) with PDF-specific
 /// metadata and optional page structure information.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PdfExtractionMetadata {
     /// Document title
@@ -136,11 +136,11 @@ pub struct PdfExtractionMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page_structure: Option<PageStructure>,
 }
-#[cfg_attr(alef, alef(skip))]
+
 /// Common PDF metadata fields extracted from the document info dictionary.
 ///
 /// Used as an intermediate type during extraction before building `PdfExtractionMetadata`.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default)]
 pub struct CommonPdfMetadata {
     /// Document title from the PDF Info dictionary.

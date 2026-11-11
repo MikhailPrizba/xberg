@@ -15,7 +15,7 @@ const TEXT_WARNING_SOURCE: &str = "text";
 /// Plain text extractor.
 ///
 /// Extracts content from plain text files (.txt).
-#[cfg_attr(alef, alef(skip))]
+
 pub struct PlainTextExtractor;
 
 impl PlainTextExtractor {
@@ -85,13 +85,6 @@ impl Plugin for PlainTextExtractor {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl InternalDocumentExtractor for PlainTextExtractor {
-    #[cfg_attr(feature = "otel", tracing::instrument(
-        skip(self, content, _config),
-        fields(
-            extractor.name = self.name(),
-            content.size_bytes = content.len(),
-        )
-    ))]
     async fn extract_content(
         &self,
         content: &[u8],
@@ -162,11 +155,7 @@ impl InternalDocumentExtractor for PlainTextExtractor {
     /// DokuWiki were dropped from the format catalogue entirely rather than advertised
     /// with no implementation behind them.
     fn supported_mime_types(&self) -> &[&str] {
-        &[
-            "text/plain",
-            #[cfg(not(feature = "tree-sitter"))]
-            crate::core::mime::SOURCE_CODE_MIME_TYPE,
-        ]
+        &["text/plain", crate::core::mime::SOURCE_CODE_MIME_TYPE]
     }
 
     fn priority(&self) -> i32 {
@@ -258,11 +247,7 @@ mod tests {
         assert_eq!(extractor.version(), env!("CARGO_PKG_VERSION"));
         assert_eq!(
             extractor.supported_mime_types(),
-            &[
-                "text/plain",
-                #[cfg(not(feature = "tree-sitter"))]
-                crate::core::mime::SOURCE_CODE_MIME_TYPE,
-            ]
+            &["text/plain", crate::core::mime::SOURCE_CODE_MIME_TYPE,]
         );
         assert_eq!(extractor.priority(), 50);
     }

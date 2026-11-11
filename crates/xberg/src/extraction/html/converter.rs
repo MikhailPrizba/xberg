@@ -84,7 +84,7 @@ pub(crate) fn resolve_conversion_options(
 /// # Returns
 ///
 /// A markdown or djot string, or an error if conversion fails
-#[cfg_attr(alef, alef(skip))]
+
 pub fn convert_html_to_markdown(
     html: &str,
     options: Option<ConversionOptions>,
@@ -248,41 +248,6 @@ pub(crate) fn extract_html_inline_images(html: &str, options: Option<ConversionO
     let result = convert_html(html, Some(opts))
         .map_err(|e| XbergError::parsing(format!("HTML image extraction failed: {}", e)))?;
     Ok(result.images)
-}
-
-/// Extract only the `<head>` / `<meta>` metadata from an HTML document.
-///
-/// ~keep The crawl and scrape paths hand `extract_bytes` crawlberg's pre-rendered markdown
-/// rather than the page HTML, so the HTML extractor never runs and `metadata.format` stays
-/// `None` even though the result is restamped `text/html` (GH CI E2E `test_metadata_access`).
-/// Recovering the metadata needs its own parse, so this one turns off document structure,
-/// inline images and preprocessing: it pays a metadata pass, not a second full conversion.
-#[cfg(feature = "url-ingestion")]
-pub(crate) fn extract_html_metadata_only(html: &str) -> Option<HtmlMetadata> {
-    check_wasm_size_limit(html).ok()?;
-
-    #[cfg(not(target_arch = "wasm32"))]
-    if html_requires_large_stack(html.len()) {
-        let html_owned = html.to_string();
-        return run_on_dedicated_stack(move || Ok(metadata_pass(&html_owned)))
-            .ok()
-            .flatten();
-    }
-
-    metadata_pass(html)
-}
-
-#[cfg(feature = "url-ingestion")]
-fn metadata_pass(html: &str) -> Option<HtmlMetadata> {
-    let options = ConversionOptions {
-        extract_metadata: true,
-        include_document_structure: false,
-        extract_images: false,
-        ..Default::default()
-    };
-    let result = convert_html(html, Some(options)).ok()?;
-    let metadata = HtmlMetadata::from(result.metadata);
-    if metadata.is_empty() { None } else { Some(metadata) }
 }
 
 #[cfg(test)]

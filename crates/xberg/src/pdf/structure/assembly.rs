@@ -2047,8 +2047,6 @@ mod tests {
                 ..plain_segment(text)
             }],
             baseline_y,
-            dominant_font_size: 12.0,
-            is_bold: false,
             is_monospace: false,
         }];
         let word_count = PdfParagraph::compute_word_count("", &lines);
@@ -3293,8 +3291,6 @@ mod tests {
             native_scripts: Vec::new(),
             segments: vec![bold_segment("• Bold item")],
             baseline_y: 700.0,
-            dominant_font_size: 12.0,
-            is_bold: true,
             is_monospace: false,
         }];
         let word_count = PdfParagraph::compute_word_count("", &lines);
@@ -3369,8 +3365,6 @@ mod tests {
             native_scripts: Vec::new(),
             segments: vec![plain_segment("I."), plain_segment("Split body")],
             baseline_y: 700.0,
-            dominant_font_size: 12.0,
-            is_bold: false,
             is_monospace: false,
         }];
         let mut paragraph = make_paragraph("", None);
@@ -3402,8 +3396,6 @@ mod tests {
             native_scripts: Vec::new(),
             segments,
             baseline_y: 700.0,
-            dominant_font_size: 12.0,
-            is_bold: false,
             is_monospace: false,
         };
 
@@ -3490,8 +3482,6 @@ mod tests {
             native_scripts: Vec::new(),
             segments,
             baseline_y: 700.0,
-            dominant_font_size: 12.0,
-            is_bold: false,
             is_monospace: false,
         };
 
@@ -3568,8 +3558,6 @@ mod tests {
                     assigned_role: None,
                 }],
                 baseline_y: 700.0,
-                dominant_font_size: 24.0,
-                is_bold: false,
                 is_monospace: false,
             })
             .collect::<Vec<_>>();
@@ -3678,8 +3666,6 @@ mod tests {
             native_scripts: Vec::new(),
             segments,
             baseline_y: 700.0,
-            dominant_font_size: 12.0,
-            is_bold: false,
             is_monospace: false,
         };
         let mut para = make_paragraph("", None);
@@ -3702,8 +3688,6 @@ mod tests {
             native_scripts: Vec::new(),
             segments,
             baseline_y: 700.0,
-            dominant_font_size: 12.0,
-            is_bold: false,
             is_monospace: false,
         };
         let mut para = make_paragraph("", None);
@@ -3732,8 +3716,6 @@ mod tests {
                     ..plain_segment(trailing)
                 }],
                 baseline_y: 700.0,
-                dominant_font_size: 12.0,
-                is_bold: false,
                 is_monospace: false,
             };
             let second = PdfLine {
@@ -3743,8 +3725,6 @@ mod tests {
                     ..plain_segment(leading)
                 }],
                 baseline_y: 685.0,
-                dominant_font_size: 12.0,
-                is_bold: false,
                 is_monospace: false,
             };
             let mut para = make_paragraph("", None);
@@ -3766,8 +3746,6 @@ mod tests {
                 ..plain_segment("adjuvant Mon-")
             }],
             baseline_y: 700.0,
-            dominant_font_size: 12.0,
-            is_bold: false,
             is_monospace: false,
         };
         let second = PdfLine {
@@ -3777,8 +3755,6 @@ mod tests {
                 ..plain_segment("tanide was used")
             }],
             baseline_y: 685.0,
-            dominant_font_size: 12.0,
-            is_bold: false,
             is_monospace: false,
         };
         let mut para = make_paragraph("", None);
@@ -3797,8 +3773,6 @@ mod tests {
             native_scripts: Vec::new(),
             segments,
             baseline_y: 700.0,
-            dominant_font_size: 12.0,
-            is_bold: false,
             is_monospace: false,
         };
         let mut para = make_paragraph("", None);
@@ -3827,8 +3801,6 @@ mod tests {
                 ..plain_segment("Zie de installatie-")
             }],
             baseline_y: 700.0,
-            dominant_font_size: 12.0,
-            is_bold: false,
             is_monospace: false,
         };
         let line2 = PdfLine {
@@ -3838,8 +3810,6 @@ mod tests {
                 ..plain_segment("handleiding voor details")
             }],
             baseline_y: 686.0,
-            dominant_font_size: 12.0,
-            is_bold: false,
             is_monospace: false,
         };
         let mut para = make_paragraph("", None);

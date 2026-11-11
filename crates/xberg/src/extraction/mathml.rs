@@ -31,7 +31,6 @@ const TEX_ANNOTATION_ENCODINGS: &[&str] = &["application/x-tex", "text/x-tex", "
 /// children are rendered in sequence with no LaTeX markup of their own.
 const TRANSPARENT_ELEMENTS: &[&str] = &["math", "mrow", "mstyle", "mpadded", "merror"];
 
-#[cfg_attr(alef, alef(skip))]
 #[derive(Debug, Clone)]
 enum MmlNode {
     /// LaTeX taken verbatim from a TeX `annotation`.

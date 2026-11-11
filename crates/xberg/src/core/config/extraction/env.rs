@@ -79,10 +79,6 @@ impl ExtractionConfig {
         self.apply_env_chunk_size_overrides()?;
         self.apply_env_chunk_overlap_overrides()?;
         self.apply_env_output_overrides()?;
-        #[cfg(feature = "chunking-tokenizers")]
-        self.apply_env_tokenizer_overrides()?;
-        #[cfg(feature = "layout-detection")]
-        self.apply_env_layout_overrides()?;
         self.apply_env_parse_flags_overrides()?;
         self.apply_env_structured_model_overrides()?;
         self.apply_env_structured_credentials_overrides()?;
@@ -229,48 +225,6 @@ impl ExtractionConfig {
                 message: format!("Invalid value for XBERG_OUTPUT_FORMAT: {}", e),
                 source: None,
             })?;
-        }
-        Ok(())
-    }
-
-    #[cfg(feature = "chunking-tokenizers")]
-    fn apply_env_tokenizer_overrides(&mut self) -> Result<()> {
-        if let Ok(model) = std::env::var("XBERG_CHUNKING_TOKENIZER") {
-            if model.is_empty() {
-                return Err(XbergError::Validation {
-                    message: "XBERG_CHUNKING_TOKENIZER must not be empty".to_string(),
-                    source: None,
-                });
-            }
-
-            if self.chunking.is_none() {
-                self.chunking = Some(ChunkingConfig::default());
-            }
-
-            if let Some(ref mut chunking) = self.chunking {
-                chunking.sizing = crate::core::config::processing::ChunkSizing::Tokenizer { model, cache_dir: None };
-            }
-        }
-        Ok(())
-    }
-
-    #[cfg(feature = "layout-detection")]
-    fn apply_env_layout_overrides(&mut self) -> Result<()> {
-        if let Ok(preset) = std::env::var("XBERG_LAYOUT_PRESET") {
-            let lower = preset.to_lowercase();
-            if !["fast", "accurate", "yolo", "rtdetr", "rt-detr"].contains(&lower.as_str()) {
-                return Err(XbergError::Validation {
-                    message: format!(
-                        "Invalid value for XBERG_LAYOUT_PRESET: '{}'. Valid presets: fast, accurate",
-                        preset
-                    ),
-                    source: None,
-                });
-            }
-            if self.layout.is_none() {
-                self.layout = Some(super::super::layout::LayoutDetectionConfig::default());
-            }
-            let _ = lower;
         }
         Ok(())
     }

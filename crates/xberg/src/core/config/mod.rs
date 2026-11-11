@@ -10,7 +10,6 @@ pub mod classification;
 pub mod concurrency;
 pub mod content_filter;
 pub mod csv;
-pub(crate) mod download_progress;
 pub mod email;
 pub mod extraction;
 pub mod formats;
@@ -27,22 +26,18 @@ pub mod page;
 pub mod pdf;
 pub mod processing;
 pub mod redaction;
-#[cfg(any(feature = "api", feature = "mcp"))]
-pub(crate) mod request_security;
 pub mod reranker;
 pub mod sparse_embedding;
 pub mod summarization;
 pub mod transcription;
 pub mod translation;
-#[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+#[cfg(feature = "tree-sitter-types")]
 pub mod tree_sitter;
 
 pub use acceleration::{AccelerationConfig, ExecutionProviderType};
 pub use concurrency::ConcurrencyConfig;
 pub use content_filter::ContentFilterConfig;
 pub use csv::CsvConfig;
-#[allow(unused_imports)]
-pub(crate) use download_progress::DownloadProgress;
 pub use email::EmailConfig;
 pub use extraction::{
     ExtractInput, ExtractInputKind, ExtractInputWithOptions, ExtractionConfig, ExtractionErrorItem, ExtractionResult,
@@ -66,7 +61,7 @@ pub use ocr::{
 };
 // Crate-internal only: the best-effort pipeline selection policy is derived from `OcrConfig`
 // and threaded through OCR internals, deliberately not part of the public/binding-facing API (#1341).
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(crate) use ocr::OcrPipelineSelection;
 pub use page::PageConfig;
 #[cfg(feature = "pdf")]
@@ -77,7 +72,7 @@ pub use processing::{
 };
 pub use reranker::{RerankerConfig, RerankerHead, RerankerModelType};
 pub use sparse_embedding::{SparseEmbeddingConfig, SparseEmbeddingModelType};
-#[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+#[cfg(feature = "tree-sitter-types")]
 pub use tree_sitter::{CodeContentMode, TreeSitterConfig, TreeSitterProcessConfig};
 
 pub use captioning::{CaptionAltTextMode, CaptioningConfig};

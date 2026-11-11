@@ -22,7 +22,7 @@ use std::io::Cursor;
 pub(super) const PPT_WARNING_SOURCE: &str = "ppt";
 
 /// Result of PPT text extraction.
-#[cfg_attr(alef, alef(skip))]
+
 pub struct PptExtractionResult {
     /// Full document text: every slide's text joined by double newlines,
     /// kept for diagnostics/plain-text consumers. Slide *structure* (numbers,
@@ -56,7 +56,7 @@ pub struct PptExtractionResult {
 
 /// One slide's text, numbered by its position in the deck's own persist
 /// order rather than by the position of a text block in a joined string.
-#[cfg_attr(alef, alef(skip))]
+
 pub struct PptSlideText {
     /// 1-based slide number, as encountered in persist order.
     pub number: u32,
@@ -80,7 +80,7 @@ pub struct PptSlideText {
 }
 
 /// Metadata extracted from PPT files.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Default)]
 pub struct PptMetadata {
     /// Presentation title from the OLE summary information.

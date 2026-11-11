@@ -10,19 +10,11 @@
 /// (the same defect class `pdf::native::images::PAGE_CALL_THREAD_NAMES` fixed against
 /// #1732, and `core/config/concurrency.rs` against #215). See
 /// `parallel_render_dispatches_across_more_than_one_thread` in `ocr/tests.rs`. ~keep
-#[cfg(all(test, any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(test, feature = "ocr-pipeline", feature = "pdf"))]
 pub(in super::super) static RENDER_CALL_THREAD_NAMES: std::sync::OnceLock<
     std::sync::Mutex<std::collections::HashSet<String>>,
 > = std::sync::OnceLock::new();
-#[cfg(all(test, feature = "ocr", feature = "pdf"))]
-pub(in super::super) fn clear_render_call_thread_ids() {
-    RENDER_CALL_THREAD_NAMES
-        .get_or_init(|| std::sync::Mutex::new(std::collections::HashSet::new()))
-        .lock()
-        .unwrap()
-        .clear();
-}
-#[cfg(all(test, any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(test, feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn record_render_thread() {
     let current = std::thread::current();
     let name = current.name().unwrap_or("<unnamed>").to_owned();

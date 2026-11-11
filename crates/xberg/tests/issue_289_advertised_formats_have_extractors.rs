@@ -61,12 +61,6 @@ use std::fs;
 use std::path::Path;
 
 use xberg::core::mime::detect_mime_type;
-#[cfg(feature = "full")]
-use xberg::core::mime::validate_mime_type;
-#[cfg(feature = "full")]
-use xberg::extractors::ensure_initialized;
-#[cfg(feature = "full")]
-use xberg::plugins::registry::get_document_extractor_registry;
 
 /// Opening line of the catalogue table in `core/mime.rs`.
 const FORMATS_TABLE_HEADER: &str = "static FORMATS: &[FormatEntry] = &[";
@@ -266,53 +260,6 @@ static FORMATS: &[FormatEntry] = &[
             "text/vnd.graphviz",
             "text/x-plantuml",
         ]
-    );
-}
-
-/// Every canonical MIME and alias in the catalogue must resolve to the same extractor.
-///
-/// A failure names every offending format, not just the first, so a feature-list regression that
-/// drops several extractors at once is diagnosable in one run.
-#[cfg(feature = "full")]
-#[test]
-fn every_catalogued_format_resolves_to_a_registered_extractor() {
-    ensure_initialized().expect("built-in extractor registration should succeed");
-
-    let source = mime_source();
-    let catalogue = parse_catalogue(&source);
-    let registry = get_document_extractor_registry();
-    let registry_guard = registry.read();
-
-    let mut unextractable = Vec::new();
-    for entry in &catalogue {
-        let canonical = match registry_guard.get(&entry.mime_type) {
-            Ok(extractor) => extractor,
-            Err(_) => {
-                unextractable.push(format!("{} (.{})", entry.mime_type, entry.extensions.join(", .")));
-                continue;
-            }
-        };
-        for alias in &entry.aliases {
-            match validate_mime_type(alias).and_then(|mime| registry_guard.get(&mime)) {
-                Ok(extractor) if extractor.name() == canonical.name() => {}
-                Ok(extractor) => unextractable.push(format!(
-                    "{alias} routes to {}, not canonical extractor {}",
-                    extractor.name(),
-                    canonical.name()
-                )),
-                Err(_) => unextractable.push(format!("{alias} (alias of {})", entry.mime_type)),
-            }
-        }
-    }
-    unextractable.sort();
-
-    assert!(
-        unextractable.is_empty(),
-        "core/mime.rs advertises {} format(s) with no registered extractor in this build, so \
-         extract() rejects them as UnsupportedFormat while the catalogue claims support \
-         (issue #289 / GH#1387):\n  {}",
-        unextractable.len(),
-        unextractable.join("\n  ")
     );
 }
 

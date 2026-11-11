@@ -18,7 +18,7 @@ use crate::text::redaction::engine::{redact_with_external_findings, redact_with_
 use crate::types::ExtractedDocument;
 
 /// Redaction post-processor.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct RedactionProcessor;
 
@@ -149,7 +149,7 @@ impl PostProcessor for RedactionProcessor {
 }
 
 /// Register the redaction post-processor with the global registry.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn register() -> Result<()> {
     crate::plugins::processor::register_redaction_processor()
 }

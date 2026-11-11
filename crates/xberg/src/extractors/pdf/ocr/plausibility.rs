@@ -8,7 +8,7 @@
 //! cannot see this failure mode even in principle, because the failure is in *which* letters
 //! were chosen, not in their shapes. This module adds a content-plausibility signal instead:
 //! does the decoded text actually read as a real, detectable language.
-#![cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#![cfg(feature = "ocr-pipeline")]
 
 use crate::core::config::OcrQualityThresholds;
 use crate::types::PageBoundary;

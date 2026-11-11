@@ -424,7 +424,3 @@ mod tests {
         assert!(dpi < 600, "auto_adjust_dpi must reduce, not raise, an oversized target");
     }
 }
-
-#[cfg(all(test, feature = "pdf", feature = "ocr"))]
-#[path = "dpi/preprocessing_density_tests.rs"]
-mod preprocessing_density_tests;

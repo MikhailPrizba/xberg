@@ -31,12 +31,6 @@ pub(crate) struct LayoutDebugFlags {
     /// column-aligned text on pages where the ML detector emitted no Table region.
     /// Exists to A/B the geometric fallback (xberg-io/xberg#1316) against the corpus.
     pub(crate) no_geometric_tables: bool,
-    /// `XBERG_LAYOUT_NO_REORDER`: suppress reading-order reordering by layout.
-    /// Its only reader lives in `reorder_segments_by_layout`, which is gated on
-    /// `feature = "layout-detection"`; without that feature (wasm-target, android-target,
-    /// Swift's feature set) the field is never read, so allow dead_code there.
-    #[cfg_attr(not(feature = "layout-detection"), allow(dead_code))]
-    pub(crate) no_reorder: bool,
     /// `XBERG_LAYOUT_LOG_OVERRIDES`: emit a per-override attribution line.
     pub(crate) log_overrides: bool,
 }
@@ -57,7 +51,6 @@ pub(crate) fn layout_debug_flags() -> LayoutDebugFlags {
         no_promote: env_is_set("XBERG_LAYOUT_NO_PROMOTE"),
         no_layout_tables: env_is_set("XBERG_LAYOUT_NO_LAYOUT_TABLES"),
         no_geometric_tables: env_is_set("XBERG_LAYOUT_NO_GEOMETRIC_TABLES"),
-        no_reorder: env_is_set("XBERG_LAYOUT_NO_REORDER"),
         log_overrides: env_is_set("XBERG_LAYOUT_LOG_OVERRIDES"),
     })
 }

@@ -9,7 +9,7 @@ use std::sync::Arc;
 ///
 /// This wraps an `Arc<String>` and provides convenient access to the string content.
 /// Multiple calls with the same string content will share the same `Arc`, reducing memory usage.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Clone)]
 pub struct InternedString(pub(super) Arc<String>);
 

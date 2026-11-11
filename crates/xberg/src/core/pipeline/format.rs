@@ -27,7 +27,7 @@ use std::borrow::Cow;
 ///
 /// * `result` - The extraction result to modify
 /// * `output_format` - The desired output format
-#[cfg_attr(alef, alef(skip))]
+
 pub fn apply_output_format(result: ExtractedDocument, output_format: OutputFormat) -> ExtractedDocument {
     let mut result = result;
 

@@ -1,55 +1,27 @@
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 mod composition;
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) use composition::{can_project_stored_jpeg_page, recover_page_text_from_bounded_image_xobjects};
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 use super::pipeline::XObjectRecoveryContext;
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) type EncodedPage = (usize, std::sync::Arc<Vec<u8>>, u32, u32);
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) type FullPdfRenderState = (std::sync::Arc<xberg_native_pdf::PdfDocument>, usize, Vec<u32>);
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 type RenderedPages = Vec<(usize, image::DynamicImage)>;
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 type PageRenderFailures = Vec<(usize, crate::XbergError)>;
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 mod raster_dpi;
-#[cfg(all(test, feature = "ocr", feature = "pdf", feature = "tokio-runtime"))]
-#[path = "retained_read_metadata_tests.rs"]
-mod retained_read_metadata_tests;
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) use raster_dpi::PageRasterDpis;
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 use raster_dpi::{partition_page_render_outcomes, partition_raster_dpis};
-/// Render only specific PDF pages to images for OCR processing.
-///
-/// `page_indices` are 0-indexed. Only the requested pages are rendered,
-/// returned as `(page_index, image)` pairs.
-// Gated to `ocr` rather than `any(ocr, ocr-pipeline)` to match its only
-// callers in the `#[cfg(all(test, feature = "ocr"))]` test module. ~keep
-#[cfg(all(test, feature = "ocr", feature = "pdf"))]
-pub(crate) fn render_selected_pages_for_ocr(
-    content: &[u8],
-    page_indices: &[usize],
-) -> crate::Result<Vec<(usize, image::DynamicImage)>> {
-    let (doc, page_count, page_rotations) = open_pdf_for_page_ocr(content)?;
-    let valid_indices = valid_page_indices(page_indices, page_count);
-    let (pages, failures) = render_selected_pages_from_document(
-        &doc,
-        &page_rotations,
-        &valid_indices,
-        &crate::extractors::security::SecurityLimits::default(),
-        None,
-    );
-    if let Some((_, error)) = failures.into_iter().next() {
-        return Err(error);
-    }
-    Ok(pages)
-}
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn open_pdf_for_page_ocr(content: &[u8]) -> crate::Result<(xberg_native_pdf::PdfDocument, usize, Vec<u32>)> {
     let doc = xberg_native_pdf::PdfDocument::from_bytes(content.to_vec()).map_err(|e| crate::XbergError::Parsing {
         message: format!("Failed to open PDF for rendering: {}", e),
@@ -72,7 +44,7 @@ pub(super) fn open_pdf_for_page_ocr(content: &[u8]) -> crate::Result<(xberg_nati
 /// logic on top of it that has no bearing on this file, and this needs only the
 /// two-line MediaBox read to convert OCR pixel bboxes back into the PDF page's own
 /// coordinate space (#1423).
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn page_dimensions_pt(doc: &xberg_native_pdf::PdfDocument, page_index: usize) -> (f32, f32) {
     doc.get_page_media_box(page_index)
         .map(|(llx, lly, urx, ury)| ((urx - llx).abs(), (ury - lly).abs()))
@@ -85,7 +57,7 @@ pub(super) fn page_dimensions_pt(doc: &xberg_native_pdf::PdfDocument, page_index
 /// One open serves both hints `ocr_config_with_page_rotation_hint` takes: the rotation and the
 /// `source_dpi` the raster width implies (#1753). An unreadable document yields the same
 /// hint-free result the route had before, not an error: neither hint is load-bearing. ~keep
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) struct PreRenderedPageGeometry {
     /// One `/Rotate` value per page, zero-filled for a document that would not open.
     pub(super) rotations: Vec<u32>,
@@ -95,7 +67,7 @@ pub(super) struct PreRenderedPageGeometry {
     pub(super) dimensions_pt: Vec<(f32, f32)>,
 }
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn pre_rendered_page_geometry(content: &[u8], page_count: usize) -> PreRenderedPageGeometry {
     match xberg_native_pdf::PdfDocument::from_bytes(content.to_vec()) {
         Ok(doc) => PreRenderedPageGeometry {
@@ -123,7 +95,7 @@ pub(super) fn pre_rendered_page_geometry(content: &[u8], page_count: usize) -> P
 /// 90/270-rotated page, or a crop — disagrees on a non-square page and gets no hint at all,
 /// which leaves it on the preprocessor's 72-DPI assumption rather than a confidently wrong
 /// number. ~keep
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn pre_rendered_page_source_dpi(
     page_dimensions_pt: (f32, f32),
     rendered_width_px: u32,
@@ -147,12 +119,12 @@ pub(super) fn pre_rendered_page_source_dpi(
     Some(width_dpi)
 }
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn open_pdf_for_full_ocr(content: &[u8]) -> crate::Result<FullPdfRenderState> {
     let (document, count, rotations) = open_pdf_for_full_ocr_unshared(content)?;
     Ok((std::sync::Arc::new(document), count, rotations))
 }
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 fn open_pdf_for_full_ocr_unshared(content: &[u8]) -> crate::Result<(xberg_native_pdf::PdfDocument, usize, Vec<u32>)> {
     let doc = xberg_native_pdf::PdfDocument::from_bytes(content.to_vec()).map_err(|e| crate::XbergError::Parsing {
         message: format!("Failed to open PDF for OCR streaming: {:?}", e),
@@ -169,19 +141,19 @@ fn open_pdf_for_full_ocr_unshared(content: &[u8]) -> crate::Result<(xberg_native
 ///
 /// Mid-gray, matching the `< 128` threshold the render-path glyph-ink assertions use
 /// (`crate::pdf::render`'s `dark_pixels_in_cell`).
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) const INK_LUMA_THRESHOLD: u8 = 128;
 /// Sample every Nth pixel on both axes when probing a page raster for ink.
 ///
 /// A blank-substituted page raster is uniformly white, so any subsample detects it;
 /// 4 keeps the probe at 1/16 of the pixels (≈131k samples for a 150-DPI Letter page).
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) const INK_PROBE_STRIDE: u32 = 4;
 /// Fraction of sampled pixels that must be ink for the raster to count as non-blank.
 ///
 /// 0.01% of a 150-DPI Letter page's subsample is ~13 pixels — below a single glyph's
 /// ink, but far above the zero a blank-substituted raster yields.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) const INK_BLANK_MAX_DARK_RATIO: f64 = 0.0001;
 /// Longest OCR text (in non-whitespace characters) that still justifies paying for an
 /// ink probe of the page raster.
@@ -191,11 +163,11 @@ pub(super) const INK_BLANK_MAX_DARK_RATIO: f64 = 0.0001;
 /// 3-character floor reads as content. Such answers are a sentence or two; a page that
 /// was genuinely transcribed runs far longer. Gating on length keeps the PNG decode off
 /// the hot path for real pages.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) const MAX_INK_PROBE_TEXT_CHARS: usize = 200;
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) use crate::image::dpi::{OCR_PNG_ENCODE_BYTES_PER_PIXEL, OCR_PNG_ENCODE_FIXED_BYTES};
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn validate_png_encode_batch_peak<'a>(
     images: impl IntoIterator<Item = &'a image::DynamicImage>,
     parallel: bool,
@@ -259,7 +231,7 @@ pub(super) fn validate_png_encode_batch_peak<'a>(
 /// concurrency adds on top -- callers whose encode step runs pages in parallel already bound
 /// that width separately (by memory, by the thread budget), and this only ever guards the
 /// per-page ceiling `max_content_size` actually documents. ~keep
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn validate_png_encode_pages_individually<'a>(
     images: impl IntoIterator<Item = &'a image::DynamicImage>,
     security_limits: &crate::extractors::security::SecurityLimits,
@@ -270,16 +242,16 @@ pub(super) fn validate_png_encode_pages_individually<'a>(
     Ok(())
 }
 
-#[cfg(all(test, any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(test, feature = "ocr-pipeline", feature = "pdf"))]
 mod png_encode_peak_tests;
 /// #1577: `render_full_pdf_ocr_batch` / `render_selected_pages_from_document` must render at
 /// the DPI `ImageExtractionConfig` requests, not the historical literal 150.
-#[cfg(all(test, any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(test, feature = "ocr-pipeline", feature = "pdf"))]
 mod render_dpi_tests;
-#[cfg(all(test, any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(test, feature = "ocr-pipeline", feature = "pdf"))]
 mod rgb_retention_tests;
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn clone_rgb_for_png_encode(
     image: &image::DynamicImage,
     security_limits: &crate::extractors::security::SecurityLimits,
@@ -304,7 +276,7 @@ pub(super) fn clone_rgb_for_png_encode(
 /// evidence of blankness, and the caller must not escalate on a guess.
 ///
 /// [`is_page_text_blank`]: crate::extraction::blank_detection::is_page_text_blank
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn page_raster_is_blank(
     png_bytes: &[u8],
     security_limits: &crate::extractors::security::SecurityLimits,
@@ -343,8 +315,8 @@ pub(super) fn page_raster_is_blank(
 /// never pays for a PNG decode.
 ///
 /// [`is_page_text_blank`]: crate::extraction::blank_detection::is_page_text_blank
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) struct XObjectFallbackTrigger {
     pub(super) needs_fallback: bool,
     /// Whether the page raster itself came back blank -- the only evidence that the rasterizer
@@ -354,7 +326,7 @@ pub(super) struct XObjectFallbackTrigger {
     pub(super) draw_failed: bool,
 }
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn page_needs_xobject_fallback(
     ocr_text: &str,
     page_png: &[u8],
@@ -375,7 +347,7 @@ pub(super) fn page_needs_xobject_fallback(
     }
 }
 /// What one page's image-XObject OCR recovery attempt produced.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 #[derive(Debug)]
 pub(super) struct XObjectRecoveryOutcome {
     /// Concatenated OCR text of every embedded image that yielded any; empty when none did.
@@ -402,7 +374,7 @@ pub(super) struct XObjectRecoveryOutcome {
     /// Noise warnings of the reads kept or dropped by the per-image verdict.
     pub(super) warnings: Vec<crate::types::ProcessingWarning>,
 }
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) async fn recover_image_xobjects(
     backend: &std::sync::Arc<dyn crate::plugins::OcrBackend>,
     fallback_images: &[crate::pdf::native::images::PageFallbackImage],
@@ -470,7 +442,7 @@ pub(super) async fn recover_image_xobjects(
 }
 /// What one embedded image's accepted read adds to the page, held until the page's small reads are
 /// judged together.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 struct CollectedRead {
     text: String,
     /// `None` when the read has no table, so its text outside tables is `text`.
@@ -488,7 +460,7 @@ struct CollectedRead {
 /// images whose preparation left them possibly illegible, and the others. Several small reads of
 /// garbage cross the word minimum together. If the pool is rejected, only members that meet the
 /// fragmentation threshold themselves are dropped. A singleton keeps its original verdict.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 fn reject_pooled_noise(
     reads: Vec<CollectedRead>,
     page_idx: usize,
@@ -561,7 +533,7 @@ fn reject_pooled_noise(
         .filter(|_| !rejected.next().unwrap_or(false))
         .collect()
 }
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 fn account_xobject_structured_output(
     result: &crate::types::ExtractedDocument,
     budget: &mut crate::extractors::security::SecurityBudget,
@@ -594,7 +566,7 @@ fn account_xobject_structured_output(
     Ok(())
 }
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 fn account_xobject_preprocessing(
     metadata: Option<&crate::types::ImagePreprocessingMetadata>,
     growth: &mut crate::extractors::security::StringGrowthValidator,
@@ -607,7 +579,7 @@ fn account_xobject_preprocessing(
     }
     Ok(())
 }
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 async fn collect_xobject_recovery_result(
     backend: &std::sync::Arc<dyn crate::plugins::OcrBackend>,
     fallback: &crate::pdf::native::images::PageFallbackImage,
@@ -659,7 +631,7 @@ async fn collect_xobject_recovery_result(
     )))
 }
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 fn judge_xobject_read(
     result: &crate::types::ExtractedDocument,
     used_proven_source_dpi: bool,
@@ -692,7 +664,7 @@ fn judge_xobject_read(
         })
 }
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 fn into_collected_xobject_read(
     result: crate::types::ExtractedDocument,
     judged: Option<(String, Option<bool>)>,
@@ -734,21 +706,21 @@ fn into_collected_xobject_read(
 /// at 72 dpi and came back illegible; #2832's sheet is read at 120 dpi (a plain 0.4 downscale, not
 /// clamped) and stays legible. 100 sits between them. On the non-budget route `final_dpi` is the
 /// planned DPI and goes stale after a clamp, so the floor alone cannot stand in for the clamp flag.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) const MIN_LEGIBLE_PROVEN_DPI: i32 = 100;
 
 /// Whether the glyphs of a read may be illegible because of how the image was prepared: a
 /// dimension clamp, a shrink that left the effective resolution below [`MIN_LEGIBLE_PROVEN_DPI`],
 /// or no record of what was done. An unshrunk image keeps its own resolution, and a plain downscale
 /// at or above the floor is not suspect.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn read_may_be_illegible(metadata: Option<&crate::types::ImagePreprocessingMetadata>) -> bool {
     metadata.is_none_or(|metadata| {
         // `final_dpi` is stale after a clamp on the non-budget route, so the clamp is judged on its own. ~keep
         metadata.dimension_clamped || (metadata.scale_factor < 1.0 && metadata.final_dpi < MIN_LEGIBLE_PROVEN_DPI)
     })
 }
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 fn append_xobject_text(
     page_text: &mut String,
     image_text: &str,
@@ -773,48 +745,11 @@ fn append_xobject_text(
 /// because the standalone-image route prints no separate table. The PDF page prints the retry's
 /// tables itself, so its paragraphs come from this text; built from `content`, they would print
 /// each table twice. ~keep
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 fn xobject_text_outside_tables(result: &crate::types::ExtractedDocument) -> std::borrow::Cow<'_, str> {
-    #[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
-    if !result.tables.is_empty()
-        && let Some(document) = result.ocr_internal_document.as_ref()
-    {
-        return std::borrow::Cow::Owned(ocr_document_text(document));
-    }
     std::borrow::Cow::Borrowed(&result.content)
 }
-/// The text elements of an OCR page document as flat text: lines of one block on consecutive
-/// lines, blocks apart by a blank line, the grouping the PDF paragraph builder merges on. ~keep
-// ~keep hOCR, PaddleOCR, and Sceptre all emit this internal key, while the hOCR parser module is
-// ~keep unavailable to the `ocr-wasm` feature that also compiles this renderer.
-#[cfg(all(any(feature = "ocr", feature = "ocr-wasm"), feature = "pdf"))]
-const OCR_BLOCK_ID_ATTRIBUTE: &str = "hocr_block_id";
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-wasm"), feature = "pdf"))]
-fn ocr_document_text(document: &crate::types::internal::InternalDocument) -> String {
-    let mut text = String::new();
-    let mut previous_block: Option<&str> = None;
-    for element in &document.elements {
-        if matches!(element.kind, crate::types::internal::ElementKind::PageBreak) || element.text.trim().is_empty() {
-            continue;
-        }
-        let block = element
-            .attributes
-            .as_ref()
-            .and_then(|attributes| attributes.get(OCR_BLOCK_ID_ATTRIBUTE))
-            .map(String::as_str);
-        if !text.is_empty() {
-            text.push_str(if block.is_some() && block == previous_block {
-                "\n"
-            } else {
-                "\n\n"
-            });
-        }
-        text.push_str(&element.text);
-        previous_block = block;
-    }
-    text
-}
 /// OCR a page's embedded image XObjects directly, bypassing the whole-page rasterizer.
 ///
 /// Used when the page render came back blank (see [`page_needs_xobject_fallback`]) but the
@@ -834,7 +769,7 @@ fn ocr_document_text(document: &crate::types::internal::InternalDocument) -> Str
 /// `description`. This reuses the existing `source_path` convention (DOCX/ODT record
 /// `media/imageN.png` there) rather than adding a field to `ExtractedImage`, which would
 /// require regenerating every language binding.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) async fn recover_page_text_from_image_xobjects(
     backend: &std::sync::Arc<dyn crate::plugins::OcrBackend>,
     render_doc: &xberg_native_pdf::PdfDocument,
@@ -894,7 +829,7 @@ pub(super) async fn recover_page_text_from_image_xobjects(
 /// the page's XObject table, so it gets its own handle rather than perturbing those
 /// lookups. Opening is deferred until a page actually comes back blank, so the common
 /// case pays nothing.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn fallback_render_document<'a>(
     memo: &'a mut Option<Option<xberg_native_pdf::PdfDocument>>,
     content: Option<&[u8]>,
@@ -923,7 +858,7 @@ pub(super) fn fallback_render_document<'a>(
 /// Falls back to the same lazily-opened, memoized handle the XObject recovery fallback uses
 /// just below in `extract_with_ocr_for_page`, for the same reason: nothing here needs anything
 /// `lazy_pdf_render_state` is indexed for beyond the page's own raster geometry. ~keep
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn whole_page_raster_for_ocr_page(
     lazy_pdf_render_state: Option<&FullPdfRenderState>,
     fallback_pdf_state: &mut Option<Option<xberg_native_pdf::PdfDocument>>,
@@ -943,7 +878,7 @@ pub(super) fn whole_page_raster_for_ocr_page(
 /// map, because such a page is vector text that block mode keeps on its rows (#1896). A scan
 /// with an unmapped text layer is still a scan: block mode loses the table reconstruction the
 /// scan's own segmentation mode gives it, so such a page keeps that mode.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn single_block_for_ocr_page(
     single_block_pages: Option<&std::collections::HashSet<u32>>,
     page_number: usize,
@@ -960,7 +895,7 @@ pub(super) fn single_block_for_ocr_page(
 
 /// The document the page-classification helpers above read: the render state when it is open,
 /// else the lazily opened fallback handle.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 fn ocr_page_document<'a>(
     lazy_pdf_render_state: Option<&'a FullPdfRenderState>,
     fallback_pdf_state: &'a mut Option<Option<xberg_native_pdf::PdfDocument>>,
@@ -971,7 +906,7 @@ fn ocr_page_document<'a>(
         None => fallback_render_document(fallback_pdf_state, content),
     }
 }
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 #[cfg(test)]
 fn render_one_full_pdf_ocr_page(
     doc: &xberg_native_pdf::PdfDocument,
@@ -984,16 +919,16 @@ fn render_one_full_pdf_ocr_page(
         .map(|(page, _)| page)
 }
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 mod error_source;
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 mod source_dpi;
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) use error_source::SourceImageBudgetExceeded;
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 use error_source::render_error_source;
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 fn render_one_full_pdf_ocr_page_with_dpi(
     doc: &xberg_native_pdf::PdfDocument,
     page_rotations: &[u32],
@@ -1040,7 +975,7 @@ fn render_one_full_pdf_ocr_page_with_dpi(
 /// `concurrency.max_threads`, leaving rasterization a floor no thread count could lower on this
 /// route even after #1666 fixed the sibling (#1796). `.par_iter().map(...).collect()` preserves
 /// `page_range`'s order, matching the previous sequential loop's output order exactly. ~keep
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 #[cfg(test)]
 pub(super) fn render_full_pdf_ocr_batch(
     doc: &xberg_native_pdf::PdfDocument,
@@ -1053,7 +988,7 @@ pub(super) fn render_full_pdf_ocr_batch(
         .map(|(pages, _)| pages)
 }
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn render_full_pdf_ocr_batch_with_dpi(
     doc: &xberg_native_pdf::PdfDocument,
     page_rotations: &[u32],
@@ -1098,7 +1033,7 @@ pub(super) fn render_full_pdf_ocr_batch_with_dpi(
     }
 }
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn valid_page_indices(page_indices: &[usize], page_count: usize) -> Vec<usize> {
     page_indices
         .iter()
@@ -1122,7 +1057,7 @@ pub(super) fn valid_page_indices(page_indices: &[usize], page_count: usize) -> V
 /// Render one page: the per-page body `render_selected_pages_from_document` runs, either in
 /// parallel across the thread pool or sequentially on `wasm32` (which has no OS threads for
 /// rayon's work-stealing pool to use).
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 fn render_one_selected_page(
     doc: &xberg_native_pdf::PdfDocument,
     page_rotations: &[u32],
@@ -1176,7 +1111,7 @@ fn render_one_selected_page(
 /// recognition and encode stages, leaving rasterization as a floor no thread count could lower
 /// (issue #1666). `.par_iter().map(...).collect()` preserves `page_indices`' order, matching
 /// the previous sequential loop's output order exactly.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 #[cfg(test)]
 pub(super) fn render_selected_pages_from_document(
     doc: &xberg_native_pdf::PdfDocument,
@@ -1190,7 +1125,7 @@ pub(super) fn render_selected_pages_from_document(
     (pages, failures)
 }
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn render_selected_pages_with_dpi(
     doc: &xberg_native_pdf::PdfDocument,
     page_rotations: &[u32],
@@ -1238,7 +1173,7 @@ pub(super) fn render_selected_pages_with_dpi(
     }
 }
 
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn share_rendered_page_images(
     page_images: Vec<(usize, image::DynamicImage)>,
 ) -> Vec<(usize, std::sync::Arc<image::DynamicImage>)> {
@@ -1249,11 +1184,5 @@ pub(super) fn share_rendered_page_images(
 }
 #[cfg(test)]
 mod thread_probe;
-#[cfg(all(test, feature = "ocr", feature = "pdf"))]
-mod xobject_text_tests;
-#[cfg(all(test, feature = "ocr", feature = "pdf"))]
-pub(super) use thread_probe::RENDER_CALL_THREAD_NAMES;
-#[cfg(all(test, feature = "ocr", feature = "pdf"))]
-pub(super) use thread_probe::clear_render_call_thread_ids;
-#[cfg(all(test, any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(test, feature = "ocr-pipeline", feature = "pdf"))]
 use thread_probe::record_render_thread;

@@ -439,25 +439,6 @@ fn resolve_recognition_concurrency_with_guard(
     sessions
 }
 
-/// Recognition sessions this process allows, fixed when the pools were initialized.
-///
-/// [`init_thread_pools`] is the one writer, so the admission semaphore in the
-/// Tesseract backend and the handle pool behind it read a number no later
-/// extraction can move. Reading never writes: an accessor that latched on first
-/// read would install the automatic limit for whichever caller ran before
-/// initialization and leave the configured value unreachable, which is the same
-/// silently-ignored setting this change exists to remove. Before initialization
-/// it resolves to the automatic limit, exactly as `active_thread_budget` does,
-/// and the zero the static starts at is the "not initialized yet" sentinel
-/// rather than a session count. ~keep
-#[cfg(feature = "ocr")]
-pub(crate) fn recognition_concurrency() -> usize {
-    match ACTIVE_RECOGNITION_CONCURRENCY.load(Ordering::Relaxed) {
-        0 => resolve_recognition_concurrency(None),
-        sessions => sessions,
-    }
-}
-
 /// Resolve the effective thread budget from config or auto-detection.
 ///
 /// User-set `max_threads` takes priority. Otherwise auto-detects from
@@ -477,22 +458,6 @@ pub(crate) fn recognition_concurrency() -> usize {
 /// ```
 pub(crate) fn resolve_thread_budget(config: Option<&ConcurrencyConfig>) -> usize {
     resolve_thread_budget_inner(config, num_cpus::get(), cgroup_cpu_quota_cores())
-}
-
-/// Resolve the asynchronous request limit for a single LLM-backed feature.
-///
-/// An explicit per-LLM limit takes precedence over the general extraction
-/// thread budget. This keeps remote request fan-out independently tunable while
-/// preserving the historical behavior for configurations that do not opt in.
-#[cfg(feature = "captioning")]
-pub(crate) fn resolve_llm_concurrency(
-    llm_config: &crate::core::config::LlmConfig,
-    concurrency: Option<&ConcurrencyConfig>,
-) -> usize {
-    llm_config
-        .max_concurrency
-        .unwrap_or_else(|| resolve_thread_budget(concurrency))
-        .max(1)
 }
 
 /// Pure core of [`resolve_thread_budget`], parameterized on the host CPU
@@ -532,16 +497,7 @@ fn resolve_thread_budget_with_guard(
 }
 
 /// Internal worker/session allocation for one batch extraction.
-#[cfg(all(
-    not(target_arch = "wasm32"),
-    any(
-        test,
-        feature = "tokio-runtime",
-        feature = "late-interaction",
-        feature = "reranker",
-        feature = "sparse-embeddings"
-    )
-))]
+#[cfg(all(not(target_arch = "wasm32"), any(test, feature = "tokio-runtime")))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct BatchExecutionPlan {
     pub workers: usize,
@@ -549,26 +505,11 @@ pub(crate) struct BatchExecutionPlan {
 }
 
 /// How strongly a batch is known to exercise native layout inference.
-#[cfg(all(
-    not(target_arch = "wasm32"),
-    any(
-        test,
-        feature = "tokio-runtime",
-        feature = "late-interaction",
-        feature = "reranker",
-        feature = "sparse-embeddings"
-    )
-))]
+#[cfg(all(not(target_arch = "wasm32"), any(test, feature = "tokio-runtime")))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LayoutBatchWorkload {
     /// No input has layout inference configured.
     None,
-    /// Layout may run for only part of the batch or through a non-PDF path.
-    #[cfg(layout_detection)]
-    Mixed,
-    /// Every input is a PDF using layout inference for Markdown extraction.
-    #[cfg(layout_detection)]
-    All,
 }
 
 /// Allocate batch workers and per-worker model threads without oversubscription.
@@ -581,27 +522,13 @@ pub(crate) enum LayoutBatchWorkload {
 /// retain the previous two-worker cap, while non-layout batches use the normal
 /// worker ceiling. `max_concurrent` is always a ceiling and cannot expand
 /// execution beyond the total thread budget.
-#[cfg(all(
-    not(target_arch = "wasm32"),
-    any(
-        test,
-        feature = "tokio-runtime",
-        feature = "late-interaction",
-        feature = "reranker",
-        feature = "sparse-embeddings"
-    )
-))]
+#[cfg(all(not(target_arch = "wasm32"), any(test, feature = "tokio-runtime")))]
 pub(crate) fn resolve_batch_execution_plan(
     config: Option<&ConcurrencyConfig>,
     layout_workload: LayoutBatchWorkload,
     input_count: usize,
     max_concurrent: Option<usize>,
 ) -> BatchExecutionPlan {
-    #[cfg(layout_detection)]
-    const MAX_NATIVE_LAYOUT_BATCH_WORKERS: usize = 1;
-    #[cfg(layout_detection)]
-    const MAX_MIXED_LAYOUT_BATCH_WORKERS: usize = 2;
-
     let total_budget = resolve_thread_budget(config);
     let available_inputs = input_count.max(1);
     let worker_ceiling = max_concurrent
@@ -611,30 +538,12 @@ pub(crate) fn resolve_batch_execution_plan(
         .min(available_inputs);
     let workers = match layout_workload {
         LayoutBatchWorkload::None => worker_ceiling,
-        #[cfg(layout_detection)]
-        LayoutBatchWorkload::Mixed => worker_ceiling.min(MAX_MIXED_LAYOUT_BATCH_WORKERS),
-        #[cfg(layout_detection)]
-        LayoutBatchWorkload::All => worker_ceiling.min(MAX_NATIVE_LAYOUT_BATCH_WORKERS),
     }
     .max(1);
     let thread_budget = (total_budget / workers).max(1);
 
     debug_assert!(workers * thread_budget <= total_budget);
     BatchExecutionPlan { workers, thread_budget }
-}
-
-/// Resolve concurrency for model-level batches outside document extraction.
-#[cfg(all(
-    not(target_arch = "wasm32"),
-    any(feature = "late-interaction", feature = "reranker", feature = "sparse-embeddings")
-))]
-pub(crate) fn resolve_batch_concurrency(config: Option<&ConcurrencyConfig>, model_threads_active: bool) -> usize {
-    let budget = resolve_thread_budget(config);
-    if !model_threads_active {
-        return budget;
-    }
-    let cores = num_cpus::get().max(1);
-    (cores / budget).max(1).min(budget)
 }
 
 /// Guard for [`warn_recognition_limit_latched_once`], as [`DEFAULT_CAP_WARNED`].
@@ -784,18 +693,6 @@ fn init_thread_pools_with(
     let budget = resolve_thread_budget(config);
     limits.install(config, budget, build_pool);
     budget
-}
-
-/// Return the process thread budget selected when the shared pools were initialized.
-///
-/// Model backends with private pools use this value to obey the same extraction
-/// budget. Before initialization, this resolves to the standard automatic limit.
-#[cfg(any(sceptre_ocr, paddle_ocr))]
-pub(crate) fn active_thread_budget() -> usize {
-    match ACTIVE_THREAD_BUDGET.load(Ordering::Relaxed) {
-        0 => resolve_thread_budget(None),
-        budget => budget,
-    }
 }
 
 #[cfg(test)]

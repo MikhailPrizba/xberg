@@ -252,11 +252,5 @@ pub mod document_extractor {
     };
 }
 
-#[cfg(all(
-    feature = "tokio-runtime",
-    any(feature = "embeddings", feature = "static-embeddings")
-))]
-pub(crate) use registry::get_embedding_backend_registry;
-
-#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) use ocr::ensure_ocr_backends_initialized;

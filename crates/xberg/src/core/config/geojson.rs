@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 /// every coordinate in the extracted text and accept output proportional to the input.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-#[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+
 pub struct GeoJsonExtractionConfig {
     /// Include every coordinate in rendered content and `flattened_fields` metadata.
     ///

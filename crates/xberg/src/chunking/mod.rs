@@ -64,10 +64,7 @@ pub mod rag;
 mod section_spans;
 pub mod semantic;
 mod text_splitter;
-#[cfg(feature = "chunking-tokenizers")]
-mod tokenizer_cache;
 pub mod validation;
-pub(crate) mod vectors;
 mod yaml_section;
 
 pub(crate) use builder::heading_path_from_context;
@@ -81,7 +78,3 @@ pub(crate) use builder::resolve_token_counter;
 pub(crate) use core::chunk_text_with_heading_source;
 pub use processor::ChunkingProcessor;
 pub use rag::chunk_for_rag;
-#[cfg(feature = "chunking-tokenizers")]
-pub use tokenizer_cache::{
-    DEFAULT_COUNT_TOKENS_MODEL, TokenizerSource, count_tokens, preload_tokenizer, try_count_tokens,
-};

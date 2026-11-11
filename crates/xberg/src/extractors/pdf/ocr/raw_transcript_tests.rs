@@ -108,17 +108,7 @@ async fn should_preserve_raw_markdown_transcripts_while_rendering_the_legacy_tab
     let guard = BackendGuard(Some(BACKEND));
     let (config, pipeline) = pipeline_config();
     let images = [image::DynamicImage::new_rgb8(300, 120)];
-    let output = run_ocr_pipeline(
-        None,
-        Some(&images),
-        #[cfg(feature = "layout-detection")]
-        None,
-        &config,
-        &pipeline,
-        None,
-        None,
-    )
-    .await;
+    let output = run_ocr_pipeline(None, Some(&images), &config, &pipeline, None, None).await;
     guard.unregister();
     let (text, tables, _, document, _, page_texts, _, _, _, _) = output.expect("legacy stage accepted");
     assert_eq!(calls.load(Ordering::SeqCst), 1);

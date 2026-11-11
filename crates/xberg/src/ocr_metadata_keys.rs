@@ -13,7 +13,6 @@
 // No feature combination reads every key (builds without orientation correction
 // never touch the rotation keys, for instance), so an unreferenced constant here
 // is expected rather than dead. ~keep
-#![allow(dead_code)]
 
 /// Pixel width of the current OCR geometry frame, initially the backend's processed image.
 pub(crate) const OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY: &str = "ocr_processed_image_width";
@@ -21,8 +20,6 @@ pub(crate) const OCR_PROCESSED_IMAGE_WIDTH_METADATA_KEY: &str = "ocr_processed_i
 pub(crate) const OCR_PROCESSED_IMAGE_HEIGHT_METADATA_KEY: &str = "ocr_processed_image_height";
 /// Clockwise rotation, in degrees, that orientation detection reported for the page.
 pub(crate) const OCR_ORIENTATION_DEGREES_METADATA_KEY: &str = "orientation_degrees";
-/// Confidence of the orientation detection that produced the degrees value.
-pub(crate) const OCR_ORIENTATION_CONFIDENCE_METADATA_KEY: &str = "orientation_confidence";
 /// Set when the pipeline actually rotated the image before running OCR.
 pub(crate) const OCR_AUTO_ROTATED_METADATA_KEY: &str = "auto_rotated";
 /// Backend rotation has already been inverted on all returned geometry; orientation metadata retains its provenance.
@@ -33,7 +30,6 @@ pub(crate) const OCR_BACKEND_ROTATION_UNDONE_METADATA_KEY: &str = "ocr_backend_r
 /// as `0.0` ("every word is valid"). See `dictionary_invalid_word_ratio` in
 /// `ocr::processor::execution` and `is_dictionary_invalid_noise` in `extractors::pdf::ocr`.
 pub(crate) const OCR_TESSERACT_DICT_INVALID_WORD_RATIO_METADATA_KEY: &str = "tesseract_dict_invalid_word_ratio";
-pub(crate) const OCR_IMAGE_PREPROCESSING_METADATA_KEY: &str = "image_preprocessing";
 /// One JSON object per OCR page with public elements, each carrying `page_number`,
 /// processed-raster `width`/`height`, `unit`, and `origin` (GH#1645). The document-wide
 /// `OCR_PROCESSED_IMAGE_WIDTH/HEIGHT_METADATA_KEY` pair above cannot describe differently
@@ -41,9 +37,6 @@ pub(crate) const OCR_IMAGE_PREPROCESSING_METADATA_KEY: &str = "image_preprocessi
 /// array to an `OcrElement` through the element's own `page_number` instead.
 pub(crate) const OCR_PAGE_COORDINATE_FRAMES_METADATA_KEY: &str = "ocr_page_coordinate_frames";
 pub(crate) const OCR_PAGE_SEGMENTATION_MODES_METADATA_KEY: &str = "ocr_page_segmentation_modes";
-
-/// Set by recognition-orientation OCR when every text block reports the page rotated 180 degrees.
-pub(crate) const OCR_RECOGNITION_PAGE_DOWN_METADATA_KEY: &str = "ocr_recognition_page_down";
 
 /// Historical raster dimensions before source-strip recovery, in document page order.
 pub(crate) const OCR_SOURCE_STRIP_ORIGINAL_FRAMES_METADATA_KEY: &str = "ocr_source_strip_original_frames";

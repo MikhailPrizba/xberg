@@ -56,7 +56,7 @@ const RST_WARNING_SOURCE: &str = "rst";
 /// - Text content and inline formatting
 /// - Code blocks and directives
 /// - Tables and lists
-#[cfg_attr(alef, alef(skip))]
+
 #[cfg(feature = "office")]
 pub struct RstExtractor;
 
@@ -1779,16 +1779,6 @@ impl Plugin for RstExtractor {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl InternalDocumentExtractor for RstExtractor {
-    #[cfg_attr(
-        feature = "otel",
-        tracing::instrument(
-            skip(self, content, config),
-            fields(
-                extractor.name = self.name(),
-                content.size_bytes = content.len(),
-            )
-        )
-    )]
     async fn extract_content(
         &self,
         content: &[u8],

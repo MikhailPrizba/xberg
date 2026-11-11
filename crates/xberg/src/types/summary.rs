@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 /// Summary of an extracted document.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct DocumentSummary {
     /// Summary text (plain prose).
     pub text: String,
@@ -21,7 +21,6 @@ pub struct DocumentSummary {
 
 /// Summarisation strategy.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum SummaryStrategy {
     /// Pure-Rust extractive summary (TextRank over the chunk graph). Deterministic,

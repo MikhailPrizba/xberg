@@ -34,10 +34,6 @@ pub(crate) fn assign_hierarchy_to_pages(pages: &mut [PageContent], doc: &Interna
 
         // An OCR text anchor is an empty paragraph until the pipeline gives it the text of
         // its picture; it is no block of the page's native text. ~keep
-        #[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-        if element.image_ocr_text_anchor_index().is_some() {
-            continue;
-        }
 
         let level = match element.kind {
             ElementKind::Heading { level } => format!("h{}", level),

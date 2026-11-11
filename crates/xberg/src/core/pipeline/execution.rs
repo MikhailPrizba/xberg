@@ -9,10 +9,6 @@ use crate::types::{ExtractedDocument, ProcessingWarning};
 use crate::{Result, XbergError};
 use std::borrow::Cow;
 use std::sync::Arc;
-#[cfg(feature = "otel")]
-use std::time::Instant;
-#[cfg(feature = "otel")]
-use tracing::Instrument;
 
 type PostProcessorHandle = Arc<dyn crate::plugins::PostProcessor>;
 type ProcessorStage = (ProcessingStage, Arc<Vec<PostProcessorHandle>>);
@@ -61,32 +57,14 @@ pub(super) async fn execute_processor_stages<R: crate::extraction::derive::surfa
     _builtin_redaction: Option<&PostProcessorHandle>,
 ) -> Result<()> {
     for (_stage, processors_arc) in stages {
-        #[cfg(feature = "otel")]
-        let stage_name = match _stage {
-            ProcessingStage::Early => crate::telemetry::conventions::stages::POST_PROCESSING_EARLY,
-            ProcessingStage::Middle => crate::telemetry::conventions::stages::POST_PROCESSING_MIDDLE,
-            ProcessingStage::Late => crate::telemetry::conventions::stages::POST_PROCESSING_LATE,
-        };
-        #[cfg(feature = "otel")]
-        let stage_span = crate::telemetry::spans::pipeline_stage_span(stage_name);
-        #[cfg(feature = "otel")]
-        let stage_start = Instant::now();
-        #[cfg(feature = "otel")]
-        let _stage_guard = stage_span.enter();
-
         for processor in processors_arc.iter() {
             let processor_name = processor.name();
 
             let should_run = should_processor_run(pp_config, processor_name);
 
             if should_run && processor.should_process(result.document(), config) {
-                #[cfg(feature = "otel")]
-                let processor_span = crate::telemetry::spans::pipeline_processor_span(stage_name, processor_name);
-
                 let invocation = invoke_processor(result, config, processor, _builtin_redaction);
-                #[cfg(feature = "otel")]
-                let process_result = invocation.instrument(processor_span).await;
-                #[cfg(not(feature = "otel"))]
+
                 let process_result = invocation.await;
 
                 match process_result {
@@ -105,20 +83,6 @@ pub(super) async fn execute_processor_stages<R: crate::extraction::derive::surfa
                     }
                 }
             }
-        }
-
-        #[cfg(feature = "otel")]
-        {
-            let stage_ms = stage_start.elapsed().as_secs_f64() * 1000.0;
-            crate::telemetry::metrics::get_metrics().pipeline_duration_ms.record(
-                stage_ms,
-                &[opentelemetry::KeyValue::new(
-                    crate::telemetry::conventions::PIPELINE_STAGE,
-                    stage_name.to_string(),
-                )],
-            );
-            drop(_stage_guard);
-            drop(stage_span);
         }
     }
     Ok(())
@@ -169,18 +133,7 @@ pub(super) async fn execute_validators(result: &ExtractedDocument, config: &Extr
         Ok::<(), XbergError>(())
     };
 
-    #[cfg(feature = "otel")]
-    {
-        validate_all
-            .instrument(crate::telemetry::spans::pipeline_stage_span(
-                crate::telemetry::conventions::stages::VALIDATION,
-            ))
-            .await
-    }
-    #[cfg(not(feature = "otel"))]
-    {
-        validate_all.await
-    }
+    validate_all.await
 }
 
 #[cfg(all(test, feature = "redaction", feature = "tokio-runtime"))]

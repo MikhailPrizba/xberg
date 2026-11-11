@@ -118,22 +118,3 @@ fn repeated_roots_are_deduplicated_and_excess_distinct_roots_reject_retention() 
     assert!(!context.is_cacheable());
     assert_eq!(context.0.revisions.lock().unwrap().len(), MAX_MODEL_ROOTS);
 }
-
-#[cfg(all(feature = "ocr", unix))]
-#[tokio::test]
-async fn model_read_failure_invalidates_outer_operation_even_after_restoration() {
-    let root = tempfile::tempdir().unwrap();
-    let path = root.path().join("osd.traineddata");
-    std::fs::write(&path, b"one").unwrap();
-    scope(async {
-        osd_revision(root.path()).unwrap();
-        std::fs::remove_file(&path).unwrap();
-        std::os::unix::fs::symlink(&path, &path).unwrap();
-        assert!(osd_revision(root.path()).is_err());
-        std::fs::remove_file(&path).unwrap();
-        std::fs::write(&path, b"one").unwrap();
-        osd_revision(root.path()).unwrap();
-        assert!(!is_cacheable());
-    })
-    .await;
-}

@@ -117,7 +117,7 @@ pub enum FormatMetadata {
     /// map to live in. Wrapping a struct gives serde a map to hold the tag, and keeps this
     /// variant shape consistent with every sibling (`Variant(XMetadata)`) so the derived
     /// OpenAPI discriminator can reference a named component schema.
-    #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+    #[cfg(feature = "tree-sitter-types")]
     Code(CodeMetadata),
 }
 
@@ -126,16 +126,15 @@ pub enum FormatMetadata {
 /// Wrapped by [`FormatMetadata::Code`]. Kept as a named struct (rather than an inline
 /// enum-variant body) so serde can tag it under internal tagging and utoipa can emit a
 /// referenceable `CodeMetadata` component in the OpenAPI schema.
-#[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+#[cfg(feature = "tree-sitter-types")]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct CodeMetadata {
     /// Structural code chunks (function/class/module boundaries).
     pub chunks: Vec<CodeChunkInfo>,
     /// Hierarchical key/value data tree extracted from data-format source
     /// (JSON, YAML, TOML, XML, CSV, etc.), when data extraction was enabled.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub data: Option<CodeDataNode>,
 }
 
@@ -144,9 +143,9 @@ pub struct CodeMetadata {
 /// Purpose-built payload owned by xberg — deliberately does not expose the upstream
 /// `tree_sitter_language_pack` types, so binding generators never need to resolve an
 /// external crate's types across FFI/language boundaries.
-#[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+#[cfg(feature = "tree-sitter-types")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct CodeChunkInfo {
     /// The raw source text of this chunk.
     pub text: String,
@@ -166,10 +165,10 @@ pub struct CodeChunkInfo {
 /// Purpose-built mirror of `tree_sitter_language_pack::DataNodeKind` — kept as an
 /// xberg-owned type so binding generators never need to resolve the upstream crate's
 /// types across FFI/language boundaries.
-#[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+#[cfg(feature = "tree-sitter-types")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub enum CodeDataNodeKind {
     /// A key/value pair or mapping (JSON/TOML/properties/YAML/HCL/CUE/KDL pair, or a
     /// wrapper "object"/"mapping" container).
@@ -186,9 +185,9 @@ pub enum CodeDataNodeKind {
 ///
 /// Populated only for `CodeDataNodeKind::Element`; always empty for `KeyValue` and
 /// `Sequence` nodes.
-#[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+#[cfg(feature = "tree-sitter-types")]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct CodeDataAttribute {
     /// Attribute name (e.g. `"class"`, `"href"`).
     pub name: String,
@@ -206,10 +205,9 @@ pub struct CodeDataAttribute {
 /// `tree_sitter_language_pack::DataNode` but flattens its `Span` down to plain byte
 /// offsets, so binding generators never need to resolve an external crate's types
 /// across FFI/language boundaries.
-#[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+#[cfg(feature = "tree-sitter-types")]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "api", schema(no_recursion))]
+
 pub struct CodeDataNode {
     /// Whether this node is a key/value pair, XML element, or sequence item.
     pub kind: CodeDataNodeKind,
@@ -291,157 +289,9 @@ impl std::fmt::Display for FormatMetadata {
             Self::Pst(_) => f.write_str("pst"),
             #[cfg(feature = "transcription-types")]
             Self::Audio(_) => f.write_str("audio"),
-            #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+            #[cfg(feature = "tree-sitter-types")]
             Self::Code(_) => f.write_str("code"),
         }
-    }
-}
-
-#[cfg(feature = "api")]
-impl utoipa::PartialSchema for FormatMetadata {
-    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
-        use utoipa::openapi::Ref;
-        use utoipa::openapi::schema::{Discriminator, OneOfBuilder};
-
-        let builder = OneOfBuilder::new()
-            .description(Some(
-                "Format-specific metadata (discriminated union). \
-                 Only one format type can exist per extraction result.",
-            ))
-            .discriminator(Some(Discriminator::with_mapping(
-                "format_type",
-                [
-                    #[cfg(feature = "pdf")]
-                    ("pdf", "#/components/schemas/PdfMetadata"),
-                    #[cfg(feature = "office")]
-                    ("docx", "#/components/schemas/DocxMetadata"),
-                    ("excel", "#/components/schemas/ExcelMetadata"),
-                    ("email", "#/components/schemas/EmailMetadata"),
-                    ("pptx", "#/components/schemas/PptxMetadata"),
-                    ("archive", "#/components/schemas/ArchiveMetadata"),
-                    ("image", "#/components/schemas/ImageMetadata"),
-                    ("xml", "#/components/schemas/XmlMetadata"),
-                    ("text", "#/components/schemas/TextMetadata"),
-                    ("html", "#/components/schemas/HtmlMetadata"),
-                    ("ocr", "#/components/schemas/OcrMetadata"),
-                    ("csv", "#/components/schemas/CsvMetadata"),
-                    #[cfg(feature = "office")]
-                    ("bibtex", "#/components/schemas/BibtexMetadata"),
-                    #[cfg(feature = "office")]
-                    ("citation", "#/components/schemas/CitationMetadata"),
-                    #[cfg(feature = "office")]
-                    ("fiction_book", "#/components/schemas/FictionBookMetadata"),
-                    #[cfg(feature = "office")]
-                    ("dbf", "#/components/schemas/DbfMetadata"),
-                    #[cfg(feature = "xml")]
-                    ("jats", "#/components/schemas/JatsMetadata"),
-                    #[cfg(feature = "office")]
-                    ("epub", "#/components/schemas/EpubMetadata"),
-                    ("pst", "#/components/schemas/PstMetadata"),
-                    #[cfg(feature = "transcription-types")]
-                    ("audio", "#/components/schemas/AudioMetadata"),
-                    #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
-                    ("code", "#/components/schemas/CodeMetadata"),
-                ],
-            )));
-
-        let builder = {
-            #[cfg(feature = "pdf")]
-            let builder = builder.item(Ref::from_schema_name("PdfMetadata"));
-            #[cfg(not(feature = "pdf"))]
-            let builder = builder;
-
-            #[cfg(feature = "office")]
-            let builder = builder.item(Ref::from_schema_name("DocxMetadata"));
-            #[cfg(not(feature = "office"))]
-            let builder = builder;
-
-            let builder = builder
-                .item(Ref::from_schema_name("ExcelMetadata"))
-                .item(Ref::from_schema_name("EmailMetadata"))
-                .item(Ref::from_schema_name("PptxMetadata"))
-                .item(Ref::from_schema_name("ArchiveMetadata"))
-                .item(Ref::from_schema_name("ImageMetadata"))
-                .item(Ref::from_schema_name("XmlMetadata"))
-                .item(Ref::from_schema_name("TextMetadata"))
-                .item(Ref::from_schema_name("HtmlMetadata"))
-                .item(Ref::from_schema_name("OcrMetadata"))
-                .item(Ref::from_schema_name("CsvMetadata"));
-
-            #[cfg(feature = "office")]
-            let builder = builder
-                .item(Ref::from_schema_name("BibtexMetadata"))
-                .item(Ref::from_schema_name("CitationMetadata"))
-                .item(Ref::from_schema_name("FictionBookMetadata"))
-                .item(Ref::from_schema_name("DbfMetadata"))
-                .item(Ref::from_schema_name("EpubMetadata"));
-            #[cfg(not(feature = "office"))]
-            let builder = builder;
-
-            #[cfg(feature = "xml")]
-            let builder = builder.item(Ref::from_schema_name("JatsMetadata"));
-            #[cfg(not(feature = "xml"))]
-            let builder = builder;
-
-            let builder = builder.item(Ref::from_schema_name("PstMetadata"));
-
-            #[cfg(feature = "transcription-types")]
-            let builder = builder.item(Ref::from_schema_name("AudioMetadata"));
-            #[cfg(not(feature = "transcription-types"))]
-            let builder = builder;
-
-            #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
-            let builder = builder.item(Ref::from_schema_name("CodeMetadata"));
-            #[cfg(not(any(feature = "tree-sitter", feature = "tree-sitter-types")))]
-            let builder = builder;
-
-            builder
-        };
-
-        builder.into()
-    }
-}
-
-#[cfg(feature = "api")]
-impl utoipa::ToSchema for FormatMetadata {
-    fn schemas(schemas: &mut Vec<(String, utoipa::openapi::RefOr<utoipa::openapi::schema::Schema>)>) {
-        use utoipa::{PartialSchema, ToSchema};
-
-        macro_rules! push_schema {
-            ($t:ty) => {
-                schemas.push((<$t as ToSchema>::name().into(), <$t as PartialSchema>::schema()));
-                <$t as ToSchema>::schemas(schemas);
-            };
-        }
-
-        #[cfg(feature = "pdf")]
-        push_schema!(PdfMetadata);
-        #[cfg(feature = "office")]
-        {
-            push_schema!(DocxMetadata);
-            push_schema!(BibtexMetadata);
-            push_schema!(CitationMetadata);
-            push_schema!(FictionBookMetadata);
-            push_schema!(DbfMetadata);
-            push_schema!(EpubMetadata);
-        }
-        #[cfg(feature = "xml")]
-        push_schema!(JatsMetadata);
-        push_schema!(ExcelMetadata);
-        push_schema!(EmailMetadata);
-        push_schema!(PptxMetadata);
-        push_schema!(ArchiveMetadata);
-        push_schema!(ImageMetadata);
-        push_schema!(XmlMetadata);
-        push_schema!(TextMetadata);
-        push_schema!(HtmlMetadata);
-        push_schema!(OcrMetadata);
-        push_schema!(CsvMetadata);
-        push_schema!(PstMetadata);
-        #[cfg(feature = "transcription-types")]
-        push_schema!(AudioMetadata);
-        #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
-        push_schema!(CodeMetadata);
     }
 }
 
@@ -450,7 +300,7 @@ impl utoipa::ToSchema for FormatMetadata {
 /// Contains common fields applicable to all formats, format-specific metadata
 /// via a discriminated union, and additional custom fields from postprocessors.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct Metadata {
     /// Document title
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -490,7 +340,6 @@ pub struct Metadata {
 
     /// Page/slide/sheet structure with boundaries
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub pages: Option<PageStructure>,
 
     /// Format-specific metadata (discriminated union)
@@ -498,12 +347,10 @@ pub struct Metadata {
     /// Contains detailed metadata specific to the document format.
     /// Serialized as a nested `"format"` object with a `format_type` discriminator field.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub format: Option<FormatMetadata>,
 
     /// Image preprocessing metadata (when OCR preprocessing was applied)
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub image_preprocessing: Option<ImagePreprocessingMetadata>,
 
     /// JSON schema (for structured data extraction)
@@ -512,7 +359,6 @@ pub struct Metadata {
 
     /// Error metadata (for batch operations)
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub error: Option<ErrorMetadata>,
 
     /// Extraction duration in milliseconds (for benchmarking).
@@ -563,7 +409,6 @@ pub struct Metadata {
         deserialize_with = "additional_serde::deserialize",
         default
     )]
-    #[cfg_attr(feature = "api", schema(value_type = HashMap<String, serde_json::Value>))]
     pub additional: AHashMap<Cow<'static, str>, serde_json::Value>,
 }
 
@@ -601,7 +446,7 @@ impl Metadata {
 /// Identifies the document as a spreadsheet source via the `FormatMetadata::Excel`
 /// discriminant. Sheet count and sheet names are stored inside this struct.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ExcelMetadata {
     /// Number of sheets in the workbook.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -616,7 +461,7 @@ pub struct ExcelMetadata {
 ///
 /// Includes sender/recipient information, message ID, and attachment list.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct EmailMetadata {
     /// Sender's email address
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -645,10 +490,9 @@ pub struct EmailMetadata {
 ///
 /// Extracted from compressed archive files containing file lists and size information.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ArchiveMetadata {
     /// Archive format ("ZIP", "TAR", "7Z", etc.)
-    #[cfg_attr(feature = "api", schema(value_type = String))]
     pub format: Cow<'static, str>,
     /// Total number of files in the archive
     pub file_count: u32,
@@ -666,7 +510,7 @@ pub struct ArchiveMetadata {
 ///
 /// Includes dimensions, format, and EXIF data.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ImageMetadata {
     /// Image width in pixels
     pub width: u32,
@@ -682,7 +526,7 @@ pub struct ImageMetadata {
 ///
 /// Provides statistics about XML document structure.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct XmlMetadata {
     /// Total number of XML elements processed
     pub element_count: u32,
@@ -841,63 +685,6 @@ impl<'de> Deserialize<'de> for ImageDimensions {
     }
 }
 
-#[cfg(feature = "api")]
-fn named_pair_schema(
-    first_field: &str,
-    second_field: &str,
-    item_type: utoipa::openapi::schema::Type,
-) -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
-    use utoipa::openapi::schema::{Object, ObjectBuilder, Type};
-
-    ObjectBuilder::new()
-        .schema_type(Type::Object)
-        .property(first_field, Object::with_type(item_type.clone()))
-        .required(first_field)
-        .property(second_field, Object::with_type(item_type))
-        .required(second_field)
-        .into()
-}
-
-#[cfg(feature = "api")]
-impl utoipa::PartialSchema for MarkdownLink {
-    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
-        named_pair_schema("text", "url", utoipa::openapi::schema::Type::String)
-    }
-}
-
-#[cfg(feature = "api")]
-impl utoipa::ToSchema for MarkdownLink {}
-
-#[cfg(feature = "api")]
-impl utoipa::PartialSchema for MarkdownCodeBlock {
-    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
-        named_pair_schema("language", "code", utoipa::openapi::schema::Type::String)
-    }
-}
-
-#[cfg(feature = "api")]
-impl utoipa::ToSchema for MarkdownCodeBlock {}
-
-#[cfg(feature = "api")]
-impl utoipa::PartialSchema for KeyValueAttribute {
-    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
-        named_pair_schema("key", "value", utoipa::openapi::schema::Type::String)
-    }
-}
-
-#[cfg(feature = "api")]
-impl utoipa::ToSchema for KeyValueAttribute {}
-
-#[cfg(feature = "api")]
-impl utoipa::PartialSchema for ImageDimensions {
-    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
-        named_pair_schema("width", "height", utoipa::openapi::schema::Type::Integer)
-    }
-}
-
-#[cfg(feature = "api")]
-impl utoipa::ToSchema for ImageDimensions {}
-
 impl From<(u32, u32)> for ImageDimensions {
     fn from((width, height): (u32, u32)) -> Self {
         Self { width, height }
@@ -915,7 +702,7 @@ impl From<ImageDimensions> for (u32, u32) {
 /// Extracted from plain text and Markdown files. Includes word counts and,
 /// for Markdown, structural elements like headers and links.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct TextMetadata {
     /// Number of lines in the document
     pub line_count: u32,
@@ -939,7 +726,6 @@ pub struct TextMetadata {
 
 /// Text direction enumeration for HTML documents.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum TextDirection {
     /// Left-to-right text direction
@@ -955,7 +741,7 @@ pub enum TextDirection {
 
 /// Header/heading element metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct HeaderMetadata {
     /// Header level: 1 (h1) through 6 (h6)
     pub level: u8,
@@ -972,7 +758,7 @@ pub struct HeaderMetadata {
 
 /// Link element metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct LinkMetadata {
     /// The href URL value
     pub href: String,
@@ -991,7 +777,6 @@ pub struct LinkMetadata {
 
 /// Link type classification.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum LinkType {
     /// Anchor link (#section)
@@ -1010,7 +795,7 @@ pub enum LinkType {
 
 /// Image element metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ImageMetadataType {
     /// Image source (URL, data URI, or SVG content)
     pub src: String,
@@ -1030,7 +815,6 @@ pub struct ImageMetadataType {
 
 /// Image type classification.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum ImageType {
     /// Data URI image
@@ -1047,7 +831,7 @@ pub enum ImageType {
 
 /// Structured data (Schema.org, microdata, RDFa) block.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct StructuredData {
     /// Type of structured data
     pub data_type: StructuredDataType,
@@ -1060,7 +844,6 @@ pub struct StructuredData {
 
 /// Structured data type classification.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum StructuredDataType {
     /// JSON-LD structured data
@@ -1078,7 +861,7 @@ pub enum StructuredDataType {
 /// Includes document-level metadata, Open Graph data, Twitter Card metadata,
 /// and extracted structural elements (headers, links, images, structured data).
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct HtmlMetadata {
     /// Document title from `<title>` tag
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1110,7 +893,6 @@ pub struct HtmlMetadata {
 
     /// Document text direction from `dir` attribute
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub text_direction: Option<TextDirection>,
 
     /// Open Graph metadata (og:* properties) for social media
@@ -1259,7 +1041,7 @@ impl From<html_to_markdown_rs::HtmlMetadata> for HtmlMetadata {
 ///
 /// Captures information about OCR processing configuration and results.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct OcrMetadata {
     /// OCR language code(s) used
     pub language: String,
@@ -1281,7 +1063,7 @@ pub struct OcrMetadata {
 
 /// Error metadata (for batch operations).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ErrorMetadata {
     /// Machine-readable error type identifier (e.g. "UnsupportedFormat").
     pub error_type: String,
@@ -1293,7 +1075,7 @@ pub struct ErrorMetadata {
 ///
 /// Extracted from PPTX files containing slide counts and presentation details.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct PptxMetadata {
     /// Total number of slides in the presentation
     pub slide_count: u32,
@@ -1313,14 +1095,13 @@ pub struct PptxMetadata {
 /// Integrates with `office_metadata` module for core/app/custom properties.
 #[cfg(feature = "office")]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct DocxMetadata {
     /// Core properties from docProps/core.xml (Dublin Core metadata)
     ///
     /// Contains title, creator, subject, keywords, dates, etc.
     /// Shared format across DOCX/PPTX/XLSX documents.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(value_type = Option<Object>))]
     pub core_properties: Option<crate::extraction::office_metadata::CoreProperties>,
 
     /// Application properties from docProps/app.xml (Word-specific statistics)
@@ -1328,7 +1109,6 @@ pub struct DocxMetadata {
     /// Contains word count, page count, paragraph count, editing time, etc.
     /// DOCX-specific variant of Office application properties.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(value_type = Option<Object>))]
     pub app_properties: Option<crate::extraction::office_metadata::DocxAppProperties>,
 
     /// Custom properties from docProps/custom.xml (user-defined properties)
@@ -1341,7 +1121,7 @@ pub struct DocxMetadata {
 
 /// CSV/TSV file metadata.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct CsvMetadata {
     /// Total number of data rows (excluding the header row if present).
     pub row_count: u32,
@@ -1359,7 +1139,7 @@ pub struct CsvMetadata {
 
 /// BibTeX bibliography metadata.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct BibtexMetadata {
     /// Number of entries in the bibliography.
     pub entry_count: usize,
@@ -1371,7 +1151,6 @@ pub struct BibtexMetadata {
     pub authors: Vec<String>,
     /// Earliest and latest publication years found in the bibliography.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub year_range: Option<YearRange>,
     /// Count of entries grouped by BibTeX entry type (e.g. `"article"` → 5).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1380,7 +1159,7 @@ pub struct BibtexMetadata {
 
 /// Citation file metadata (RIS, PubMed, EndNote).
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct CitationMetadata {
     /// Total number of citation records in the file.
     pub citation_count: usize,
@@ -1392,7 +1171,6 @@ pub struct CitationMetadata {
     pub authors: Vec<String>,
     /// Earliest and latest publication years found in the file.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub year_range: Option<YearRange>,
     /// DOI identifiers found in the citation records.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
@@ -1404,7 +1182,7 @@ pub struct CitationMetadata {
 
 /// Year range for bibliographic metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct YearRange {
     /// Earliest (minimum) year in the range.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1419,7 +1197,7 @@ pub struct YearRange {
 
 /// FictionBook (FB2) metadata.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct FictionBookMetadata {
     /// Genre tags as declared in the FB2 `<genre>` elements.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
@@ -1434,7 +1212,7 @@ pub struct FictionBookMetadata {
 
 /// dBASE (DBF) file metadata.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct DbfMetadata {
     /// Total number of data records in the DBF file.
     pub record_count: usize,
@@ -1447,7 +1225,7 @@ pub struct DbfMetadata {
 
 /// dBASE field information.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct DbfFieldInfo {
     /// Field (column) name.
     pub name: String,
@@ -1457,7 +1235,7 @@ pub struct DbfFieldInfo {
 
 /// JATS (Journal Article Tag Suite) metadata.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct JatsMetadata {
     /// Copyright statement from the article's `<permissions>` element.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1475,7 +1253,7 @@ pub struct JatsMetadata {
 
 /// JATS contributor with role.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ContributorRole {
     /// Contributor display name.
     pub name: String,
@@ -1486,7 +1264,7 @@ pub struct ContributorRole {
 
 /// EPUB metadata (Dublin Core extensions).
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct EpubMetadata {
     /// Dublin Core `coverage` field (geographic or temporal scope).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1510,7 +1288,7 @@ pub struct EpubMetadata {
 
 /// Outlook PST archive metadata.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct PstMetadata {
     /// Total number of email messages found in the PST archive.
     pub message_count: usize,
@@ -1522,7 +1300,7 @@ pub struct PstMetadata {
 /// PCM decode properties. Available when the `transcription-types` feature is enabled.
 #[cfg(feature = "transcription-types")]
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct AudioMetadata {
     /// Duration in milliseconds derived from the decoded audio stream.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1544,77 +1322,10 @@ pub struct AudioMetadata {
     pub bitrate: Option<u32>,
 }
 
-#[cfg(all(test, feature = "tree-sitter"))]
-mod code_metadata_serde_tests {
-    use super::{CodeChunkInfo, CodeMetadata, FormatMetadata};
-
-    /// `FormatMetadata` is internally tagged, so the `Code` variant wraps a named
-    /// struct (`CodeMetadata`) — a newtype variant wrapping a `Vec` cannot be
-    /// serialized under internal tagging (serde errors: "cannot serialize tagged
-    /// newtype variant ... containing a sequence"). This guards that regression.
-    #[test]
-    fn code_variant_round_trips_through_json() {
-        let value = FormatMetadata::Code(CodeMetadata {
-            chunks: vec![CodeChunkInfo {
-                text: "fn main() {}".to_string(),
-                context_path: vec!["main".to_string()],
-                node_types: vec!["function_item".to_string()],
-                byte_start: 0,
-                byte_end: 12,
-            }],
-            data: None,
-        });
-
-        let json = serde_json::to_string(&value).expect("Code metadata must serialize");
-        assert!(
-            json.contains("\"format_type\":\"code\""),
-            "internal tag present: {json}"
-        );
-        assert!(json.contains("\"chunks\""), "chunks field present: {json}");
-
-        let back: FormatMetadata = serde_json::from_str(&json).expect("Code metadata must deserialize");
-        let FormatMetadata::Code(CodeMetadata { chunks, .. }) = back else {
-            panic!("expected Code variant after round-trip");
-        };
-        assert_eq!(chunks.len(), 1);
-        assert_eq!(chunks[0].node_types, vec!["function_item".to_string()]);
-    }
-}
-
 #[cfg(test)]
 mod binding_value_serde_tests {
     use super::{ImageDimensions, KeyValueAttribute, MarkdownCodeBlock, MarkdownLink, TextMetadata};
     use serde_json::json;
-
-    #[cfg(feature = "api")]
-    fn assert_named_object_schema<T: utoipa::PartialSchema>(fields: &[(&str, &str)]) {
-        let schema = serde_json::to_value(T::schema()).expect("schema must serialize");
-        assert_eq!(schema["type"], "object");
-
-        let mut required: Vec<String> = schema["required"]
-            .as_array()
-            .expect("required must be an array")
-            .iter()
-            .map(|value| value.as_str().expect("required entry must be a string").to_string())
-            .collect();
-        required.sort();
-        let mut expected_required: Vec<String> = fields.iter().map(|(name, _)| (*name).to_string()).collect();
-        expected_required.sort();
-        assert_eq!(required, expected_required);
-
-        for (name, expected_type) in fields {
-            assert_eq!(schema["properties"][*name]["type"], *expected_type, "field {name} type");
-        }
-    }
-
-    #[cfg(feature = "api")]
-    #[test]
-    fn should_describe_binding_dtos_as_named_object_schemas() {
-        assert_named_object_schema::<MarkdownLink>(&[("text", "string"), ("url", "string")]);
-        assert_named_object_schema::<MarkdownCodeBlock>(&[("language", "string"), ("code", "string")]);
-        assert_named_object_schema::<KeyValueAttribute>(&[("key", "string"), ("value", "string")]);
-        assert_named_object_schema::<ImageDimensions>(&[("width", "integer"), ("height", "integer")]);
-    }
 
     #[test]
     fn should_serialize_markdown_link_and_code_block_as_named_objects() {

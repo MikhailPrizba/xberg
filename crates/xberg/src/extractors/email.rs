@@ -32,7 +32,7 @@ const EMAIL_STRUCT_KEYS: &[&str] = &[
     "email_bcc",
 ];
 const INLINED_ATTACHMENT_ELEMENT_COUNT: usize = 2;
-#[cfg_attr(alef, alef(skip))]
+
 /// Email message extractor.
 ///
 /// Supports: .eml, .msg
@@ -465,12 +465,7 @@ impl InternalDocumentExtractor for EmailExtractor {
     }
 
     #[cfg(feature = "tokio-runtime")]
-    #[cfg_attr(feature = "otel", tracing::instrument(
-        skip(self, path, config),
-        fields(
-            extractor.name = self.name(),
-        )
-    ))]
+
     async fn extract_path(&self, path: &Path, mime_type: &str, config: &ExtractionConfig) -> Result<InternalDocument> {
         let bytes = crate::core::io::read_file_async(path).await?;
         self.extract_content(&bytes, mime_type, config).await

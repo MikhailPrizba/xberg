@@ -18,8 +18,6 @@
 //! assert_eq!(doc.elements.len(), 4);
 //! ```
 
-#![allow(dead_code)]
-
 use ahash::AHashMap;
 
 use super::document_structure::{ContentLayer, TextAnnotation};
@@ -39,7 +37,7 @@ use crate::types::extraction::ProcessingWarning;
 ///
 /// Tracks nesting depth automatically for list and quote containers,
 /// and generates deterministic element IDs via blake3 hashing.
-#[cfg_attr(alef, alef(skip))]
+
 pub struct InternalDocumentBuilder {
     doc: InternalDocument,
     depth: u16,
@@ -775,13 +773,13 @@ fn slugify(text: &str) -> String {
     result
 }
 
-const _: () = {
-    #[allow(dead_code)]
+const _: fn() = {
     fn assert_send_sync<T: Send + Sync>() {}
-    #[allow(dead_code)]
+
     fn _check() {
         assert_send_sync::<InternalDocumentBuilder>();
     }
+    _check
 };
 
 /// Return the LaTeX of every `$$...$$` span in a table cell.

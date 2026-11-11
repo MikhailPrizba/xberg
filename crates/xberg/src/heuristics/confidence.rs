@@ -19,7 +19,6 @@ use crate::types::page::PageContent;
 /// Fold into the combined confidence score without leaking internal validation
 /// error types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum SchemaCompliance {
     /// Every batch validated against the schema.
@@ -211,7 +210,7 @@ impl ConfidenceWeights {
 /// When OCR did not run, the `ocr_aggregate` weight folds into `text_coverage`
 /// so the weighted sum still totals 1.0.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ExtractionConfidence {
     /// Fraction of pages with a usable text layer.
     pub text_coverage: f32,

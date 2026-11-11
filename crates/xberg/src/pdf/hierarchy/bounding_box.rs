@@ -6,7 +6,7 @@
 use serde::{Deserialize, Serialize};
 
 /// A bounding box for text or elements.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct BoundingBox {
     /// Left x-coordinate

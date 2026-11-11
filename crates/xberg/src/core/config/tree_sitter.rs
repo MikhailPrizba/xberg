@@ -162,29 +162,3 @@ impl Default for TreeSitterProcessConfig {
 fn default_true() -> bool {
     true
 }
-
-/// Convert xberg's process config to TSLP's `ProcessConfig`.
-///
-/// The language field is left empty — callers must set it before use.
-#[cfg(feature = "tree-sitter")]
-impl From<&TreeSitterProcessConfig> for tree_sitter_language_pack::ProcessConfig {
-    fn from(p: &TreeSitterProcessConfig) -> Self {
-        Self {
-            language: std::borrow::Cow::Borrowed(""),
-            structure: p.structure,
-            imports: p.imports,
-            exports: p.exports,
-            comments: p.comments,
-            docstrings: p.docstrings,
-            symbols: p.symbols,
-            diagnostics: p.diagnostics,
-            data_extraction: p.data_extraction,
-            chunk_max_size: p.chunk_max_size,
-            // Added as required fields by tree-sitter-language-pack 1.15.0. `None` keeps the
-            // unbounded pre-1.15 behaviour; callers that cap untrusted source do so via
-            // `SecurityLimits` before reaching the parser.
-            max_source_bytes: None,
-            parse_timeout_ms: None,
-        }
-    }
-}

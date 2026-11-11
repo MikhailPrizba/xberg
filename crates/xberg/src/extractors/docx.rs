@@ -19,7 +19,7 @@ use bytes::Bytes;
 use std::borrow::Cow;
 use std::io::Cursor;
 use std::sync::Arc;
-#[cfg_attr(alef, alef(skip))]
+
 /// High-performance DOCX extractor.
 ///
 /// This extractor provides:

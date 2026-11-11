@@ -13,7 +13,7 @@ use super::extraction::BoundingBox;
 /// HTML, JATS, LaTeX, Markdown, and related formats) converts embedded math
 /// to LaTeX, also without geometry.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct Formula {
     /// LaTeX source of the formula, without surrounding `$$` delimiters.
     ///
@@ -31,7 +31,6 @@ pub struct Formula {
     /// the image the OCR backend saw. The C FFI reports an absent bbox as a
     /// null pointer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub bbox: Option<BoundingBox>,
 
     /// 1-indexed page number the formula appears on. `None` when the source

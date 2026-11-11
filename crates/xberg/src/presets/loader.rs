@@ -10,18 +10,15 @@ use crate::presets::types::Preset;
 pub enum LoadError {
     /// The file is not valid JSON.
     #[error("preset {path}: failed to parse JSON: {source}")]
-    #[cfg_attr(alef, alef(error_code = 1200))]
     Parse {
         /// File path that failed to parse.
         path: String,
         /// Underlying serde error.
         #[source]
-        #[cfg_attr(alef, alef(skip))]
         source: serde_json::Error,
     },
     /// The file parses as JSON but does not validate against the meta-schema.
     #[error("preset {path}: failed meta-schema validation: {errors}")]
-    #[cfg_attr(alef, alef(error_code = 1201))]
     SchemaValidation {
         /// File path that failed validation.
         path: String,
@@ -30,18 +27,15 @@ pub enum LoadError {
     },
     /// The file validates but cannot be deserialized into [`Preset`].
     #[error("preset {path}: failed to deserialize after validation: {source}")]
-    #[cfg_attr(alef, alef(error_code = 1202))]
     Deserialize {
         /// File path that failed to deserialize.
         path: String,
         /// Underlying serde error.
         #[source]
-        #[cfg_attr(alef, alef(skip))]
         source: serde_json::Error,
     },
     /// The preset's declared `id` does not match its file-system location.
     #[error("preset {path}: id `{declared}` must match file path stem `{expected}`")]
-    #[cfg_attr(alef, alef(error_code = 1203))]
     IdMismatch {
         /// File path of the offending preset.
         path: String,
@@ -52,16 +46,10 @@ pub enum LoadError {
     },
     /// The meta-schema itself failed to compile.
     #[error("meta-schema is invalid: {0}")]
-    #[cfg_attr(alef, alef(error_code = 1204))]
     BadMetaSchema(String),
     /// A filesystem I/O error occurred while reading a preset directory.
     #[error("I/O error reading preset directory: {0}")]
-    #[cfg_attr(alef, alef(error_code = 1205))]
-    Io(
-        #[from]
-        #[cfg_attr(alef, alef(skip))]
-        std::io::Error,
-    ),
+    Io(#[from] std::io::Error),
 }
 
 /// Compiled meta-schema validator over `preset.schema.json`.

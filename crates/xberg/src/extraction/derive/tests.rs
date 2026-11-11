@@ -605,7 +605,7 @@ fn build_pages_adds_the_ocr_text_one_time_when_the_picture_element_holds_it() {
     assert_eq!(page.content, format!("Stock list\n\n{PICTURE_WORDS}"));
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 #[test]
 fn build_pages_skips_the_ocr_text_of_a_picture_that_page_ocr_replaced() {
     let shown = page_with_a_picture("", PICTURE_WORDS);

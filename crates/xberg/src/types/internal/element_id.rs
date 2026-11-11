@@ -4,14 +4,13 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-#[cfg_attr(alef, alef(skip))]
 /// Deterministic element identifier, generated via blake3 hashing.
 ///
 /// Format: `"ie-{12 hex chars}"` (48 bits from blake3, ~281 trillion address space).
 /// Same input always produces the same ID, enabling diffing and caching.
 ///
 /// Serializes as a plain string (`"ie-aabbccddeeff"`).
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct InternalElementId([u8; 15]);
 

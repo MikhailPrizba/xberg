@@ -58,12 +58,6 @@ pub(crate) fn generate_cache_key(parts: &[(String, String)]) -> String {
     blake3_hash_to_hex(cache_str.as_bytes())
 }
 
-/// Hash arbitrary bytes with blake3, returning a 32-char hex string.
-#[cfg(feature = "ocr")]
-pub(crate) fn blake3_hash_bytes(data: &[u8]) -> String {
-    blake3_hash_to_hex(data)
-}
-
 /// Hash a file's content with blake3 using streaming 64 KiB reads.
 ///
 /// Returns a 32-char hex string (128 bits of blake3 output).
@@ -89,7 +83,7 @@ pub(crate) fn blake3_hash_file(path: &Path) -> Result<String> {
 }
 
 /// Hash bytes with blake3 and return first 128 bits as 32 hex chars.
-#[cfg(any(test, feature = "ocr"))]
+#[cfg(test)]
 fn blake3_hash_to_hex(data: &[u8]) -> String {
     let hash = blake3::hash(data);
     hex::encode(&hash.as_bytes()[..CACHE_KEY_HASH_WIDTH / 2])

@@ -128,7 +128,7 @@ fn count_tag_bytes(text: &str, open_needle: &[u8], close_needle: &[u8]) -> usize
 /// Pass `metadata` as `None` when the caller has no extraction metadata available;
 /// the metadata bonus simply isn't applied in that case. Texts shorter than
 /// `MIN_TEXT_LENGTH` short-circuit to `0.1` regardless of metadata.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn calculate_quality_score(text: &str, metadata: Option<&AHashMap<Cow<'static, str>, serde_json::Value>>) -> f64 {
     if text.is_empty() || text.trim().is_empty() {
         return 0.0;

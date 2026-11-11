@@ -255,149 +255,6 @@ pub(crate) fn clamp_boundaries_to_text(boundaries: &[PageBoundary], text: &str) 
         .collect()
 }
 
-/// Classify a tree-sitter code chunk's structural role from its node types.
-///
-/// Inspects the top-level tree-sitter node kinds captured for the chunk and maps
-/// them onto the closest [`ChunkType`](crate::types::extraction::ChunkType) variant.
-/// Falls back to [`ChunkType::CodeBlock`](crate::types::extraction::ChunkType::CodeBlock)
-/// when no node type matches a known structural category.
-#[cfg(all(feature = "tree-sitter", feature = "chunking"))]
-fn classify_code_chunk(node_types: &[String]) -> crate::types::extraction::ChunkType {
-    use crate::types::extraction::ChunkType;
-
-    let is_class = node_types.iter().any(|t| {
-        matches!(
-            t.as_str(),
-            "class_definition"
-                | "class_declaration"
-                | "struct_item"
-                | "struct_declaration"
-                | "interface_declaration"
-                | "trait_item"
-                | "enum_item"
-                | "enum_declaration"
-        )
-    });
-    if is_class {
-        return ChunkType::Class;
-    }
-
-    let is_module = node_types.iter().any(|t| {
-        matches!(
-            t.as_str(),
-            "module_definition" | "module" | "namespace_declaration" | "mod_item"
-        )
-    });
-    if is_module {
-        return ChunkType::Module;
-    }
-
-    let is_function = node_types.iter().any(|t| {
-        matches!(
-            t.as_str(),
-            "function_definition"
-                | "function_declaration"
-                | "function_item"
-                | "method_definition"
-                | "method_declaration"
-        )
-    });
-    if is_function {
-        return ChunkType::Function;
-    }
-
-    ChunkType::CodeBlock
-}
-
-/// Names of the user-facing chunking settings that `try_code_chunks` silently
-/// disregards, restricted to those the caller set away from their default value.
-///
-/// Tree-sitter code-aware chunking always bypasses the general-purpose splitter,
-/// so `max_characters`/`overlap`/`chunker_type`/`trim`
-/// are *always* ignored in that path — but warning about that unconditionally
-/// would fire on every code-chunked document, including the common case where
-/// the caller never touched chunking config and is relying on defaults. That's
-/// noise, not signal (#260): only settings the caller actually moved away from
-/// their default are worth surfacing.
-#[cfg(all(feature = "tree-sitter", feature = "chunking"))]
-fn overridden_code_chunk_settings(config: &crate::core::config::ChunkingConfig) -> Vec<&'static str> {
-    let default = crate::core::config::ChunkingConfig::default();
-    let mut overridden = Vec::new();
-
-    if config.max_characters != default.max_characters {
-        overridden.push("max_characters");
-    }
-    if config.overlap != default.overlap {
-        overridden.push("overlap");
-    }
-    if config.chunker_type != default.chunker_type {
-        overridden.push("chunker_type");
-    }
-    if config.trim != default.trim {
-        overridden.push("trim");
-    }
-    overridden
-}
-
-/// Map TSLP `CodeChunk`s directly to xberg `Chunk`s, bypassing text-splitter.
-///
-/// When the extraction result contains code intelligence with non-empty chunks,
-/// those chunks already represent semantically meaningful code boundaries produced
-/// by tree-sitter. Using text-splitter would break these boundaries.
-#[cfg(all(feature = "tree-sitter", feature = "chunking"))]
-fn try_code_chunks(
-    result: &ExtractedDocument,
-    sizing: &crate::core::config::ChunkSizing,
-) -> Option<Vec<crate::types::extraction::Chunk>> {
-    use crate::types::extraction::{Chunk, ChunkMetadata};
-    use crate::types::metadata::{CodeMetadata, FormatMetadata};
-
-    let FormatMetadata::Code(CodeMetadata {
-        chunks: code_chunks, ..
-    }) = result.metadata.format.as_ref()?
-    else {
-        return None;
-    };
-
-    if code_chunks.is_empty() {
-        return None;
-    }
-
-    let token_counter = crate::chunking::resolve_token_counter(sizing);
-    let total_chunks = code_chunks.len();
-    let chunks = code_chunks
-        .iter()
-        .enumerate()
-        .map(|(chunk_index, chunk)| {
-            let token_count = token_counter.as_ref().map(|counter| counter(&chunk.text));
-            Chunk {
-                content: chunk.text.clone(),
-                chunk_type: classify_code_chunk(&chunk.node_types),
-                embedding: None,
-                sparse_embedding: None,
-                late_interaction: None,
-                metadata: ChunkMetadata {
-                    byte_start: chunk.byte_start,
-                    byte_end: chunk.byte_end,
-                    token_count,
-                    chunk_index,
-                    total_chunks,
-                    first_page: None,
-                    last_page: None,
-                    heading_context: None,
-                    heading_path: chunk.context_path.clone(),
-                    image_indices: Vec::new(),
-                    node_ids: Vec::new(),
-                    page_spans: Vec::new(),
-                    classifications: Vec::new(),
-                },
-            }
-        })
-        .collect();
-
-    Some(chunks)
-}
-
 /// Execute chunking if configured.
 ///
 /// `heading_source_override`, when supplied, is a pre-rendered Markdown version of the
@@ -419,106 +276,6 @@ pub(super) fn execute_chunking(
     #[cfg(feature = "chunking")]
     if let Some(ref chunking_config) = config.chunking {
         // Synchronous stage — `entered()` is safe here because no `.await` follows.
-        #[cfg(feature = "otel")]
-        let _stage_span =
-            crate::telemetry::spans::pipeline_stage_span(crate::telemetry::conventions::stages::CHUNKING).entered();
-
-        #[cfg(feature = "tree-sitter")]
-        if let Some(code_chunks) = try_code_chunks(result, &chunking_config.sizing) {
-            result.chunks = Some(code_chunks);
-
-            let resolved_config = chunking_config.resolve_preset();
-
-            // Tree-sitter code-aware chunking bypasses the general-purpose splitter
-            // entirely, so max_characters/overlap/chunker_type/trim are silently
-            // ignored. Surface that (#260) — but
-            // only when the caller actually moved one of those settings away from its
-            // default; warning on every code-chunked document (the common case, where
-            // chunking config is left at defaults) would be noise, not signal.
-            let overridden_settings = overridden_code_chunk_settings(&resolved_config);
-            if !overridden_settings.is_empty() {
-                let verb = if overridden_settings.len() == 1 { "was" } else { "were" };
-                result.processing_warnings.push(ProcessingWarning {
-                    source: Cow::Borrowed("chunking"),
-                    message: Cow::Owned(format!(
-                        "{} {verb} ignored: tree-sitter code intelligence produced structural \
-                         (function/class) chunks instead of honoring the configured chunker",
-                        overridden_settings.join("/"),
-                    )),
-                });
-            }
-            #[cfg(feature = "embeddings")]
-            if let Some(ref embedding_config) = resolved_config.embedding
-                && let Some(ref mut chunks) = result.chunks
-                && let Err(e) = crate::embeddings::generate_embeddings_for_chunks(chunks, embedding_config)
-            {
-                tracing::warn!("Embedding generation failed: {e}. Check that ONNX Runtime is installed.");
-                result.processing_warnings.push(ProcessingWarning {
-                    source: Cow::Borrowed("embedding"),
-                    message: Cow::Owned(e.to_string()),
-                });
-            }
-
-            #[cfg(not(feature = "embeddings"))]
-            if resolved_config.embedding.is_some() {
-                tracing::warn!(
-                    "Embedding config provided but embeddings feature is not enabled. Recompile with --features embeddings."
-                );
-                result.processing_warnings.push(ProcessingWarning {
-                    source: Cow::Borrowed("embedding"),
-                    message: Cow::Borrowed("Embeddings feature not enabled"),
-                });
-            }
-
-            #[cfg(feature = "sparse-embeddings")]
-            if let Some(ref sparse_config) = resolved_config.sparse_embedding
-                && let Some(ref mut chunks) = result.chunks
-                && let Err(e) = crate::chunking::vectors::generate_sparse_vectors_for_chunks(chunks, sparse_config)
-            {
-                tracing::warn!("Sparse-embedding generation failed: {e}. Check that ONNX Runtime is installed.");
-                result.processing_warnings.push(ProcessingWarning {
-                    source: Cow::Borrowed("sparse_embedding"),
-                    message: Cow::Owned(e.to_string()),
-                });
-            }
-
-            #[cfg(not(feature = "sparse-embeddings"))]
-            if resolved_config.sparse_embedding.is_some() {
-                tracing::warn!(
-                    "Sparse-embedding config provided but sparse-embeddings feature is not enabled. Recompile with --features sparse-embeddings."
-                );
-                result.processing_warnings.push(ProcessingWarning {
-                    source: Cow::Borrowed("sparse_embedding"),
-                    message: Cow::Borrowed("sparse-embeddings feature not enabled"),
-                });
-            }
-
-            #[cfg(feature = "late-interaction")]
-            if let Some(ref late_config) = resolved_config.late_interaction
-                && let Some(ref mut chunks) = result.chunks
-                && let Err(e) =
-                    crate::chunking::vectors::generate_late_interaction_vectors_for_chunks(chunks, late_config)
-            {
-                tracing::warn!("Late-interaction generation failed: {e}. Check that ONNX Runtime is installed.");
-                result.processing_warnings.push(ProcessingWarning {
-                    source: Cow::Borrowed("late_interaction"),
-                    message: Cow::Owned(e.to_string()),
-                });
-            }
-
-            #[cfg(not(feature = "late-interaction"))]
-            if resolved_config.late_interaction.is_some() {
-                tracing::warn!(
-                    "Late-interaction config provided but late-interaction feature is not enabled. Recompile with --features late-interaction."
-                );
-                result.processing_warnings.push(ProcessingWarning {
-                    source: Cow::Borrowed("late_interaction"),
-                    message: Cow::Borrowed("late-interaction feature not enabled"),
-                });
-            }
-
-            return Ok(());
-        }
 
         let resolved_config = chunking_config.resolve_preset();
         let chunking_config = &resolved_config;
@@ -644,19 +401,6 @@ pub(super) fn execute_chunking(
                     crate::chunking::page_spans::populate_page_span_bboxes(chunks, structure);
                 }
 
-                #[cfg(feature = "embeddings")]
-                if let Some(ref embedding_config) = chunking_config.embedding
-                    && let Some(ref mut chunks) = result.chunks
-                    && let Err(e) = crate::embeddings::generate_embeddings_for_chunks(chunks, embedding_config)
-                {
-                    tracing::warn!("Embedding generation failed: {e}. Check that ONNX Runtime is installed.");
-                    result.processing_warnings.push(ProcessingWarning {
-                        source: Cow::Borrowed("embedding"),
-                        message: Cow::Owned(e.to_string()),
-                    });
-                }
-
-                #[cfg(not(feature = "embeddings"))]
                 if chunking_config.embedding.is_some() {
                     tracing::warn!(
                         "Embedding config provided but embeddings feature is not enabled. Recompile with --features embeddings."
@@ -667,19 +411,6 @@ pub(super) fn execute_chunking(
                     });
                 }
 
-                #[cfg(feature = "sparse-embeddings")]
-                if let Some(ref sparse_config) = chunking_config.sparse_embedding
-                    && let Some(ref mut chunks) = result.chunks
-                    && let Err(e) = crate::chunking::vectors::generate_sparse_vectors_for_chunks(chunks, sparse_config)
-                {
-                    tracing::warn!("Sparse-embedding generation failed: {e}. Check that ONNX Runtime is installed.");
-                    result.processing_warnings.push(ProcessingWarning {
-                        source: Cow::Borrowed("sparse_embedding"),
-                        message: Cow::Owned(e.to_string()),
-                    });
-                }
-
-                #[cfg(not(feature = "sparse-embeddings"))]
                 if chunking_config.sparse_embedding.is_some() {
                     tracing::warn!(
                         "Sparse-embedding config provided but sparse-embeddings feature is not enabled. Recompile with --features sparse-embeddings."
@@ -690,20 +421,6 @@ pub(super) fn execute_chunking(
                     });
                 }
 
-                #[cfg(feature = "late-interaction")]
-                if let Some(ref late_config) = chunking_config.late_interaction
-                    && let Some(ref mut chunks) = result.chunks
-                    && let Err(e) =
-                        crate::chunking::vectors::generate_late_interaction_vectors_for_chunks(chunks, late_config)
-                {
-                    tracing::warn!("Late-interaction generation failed: {e}. Check that ONNX Runtime is installed.");
-                    result.processing_warnings.push(ProcessingWarning {
-                        source: Cow::Borrowed("late_interaction"),
-                        message: Cow::Owned(e.to_string()),
-                    });
-                }
-
-                #[cfg(not(feature = "late-interaction"))]
                 if chunking_config.late_interaction.is_some() {
                     tracing::warn!(
                         "Late-interaction config provided but late-interaction feature is not enabled. Recompile with --features late-interaction."
@@ -739,10 +456,6 @@ pub(super) fn execute_language_detection(result: &mut ExtractedDocument, config:
     #[cfg(feature = "language-detection")]
     if let Some(ref lang_config) = config.language_detection {
         // Synchronous stage — `entered()` is safe here because no `.await` follows.
-        #[cfg(feature = "otel")]
-        let _stage_span =
-            crate::telemetry::spans::pipeline_stage_span(crate::telemetry::conventions::stages::LANGUAGE_DETECTION)
-                .entered();
 
         match crate::language_detection::detect_languages(&result.content, lang_config) {
             Ok(detected) => {
@@ -776,10 +489,6 @@ pub(super) fn execute_token_reduction(result: &mut ExtractedDocument, config: &E
 
         if !matches!(level, crate::text::token_reduction::ReductionLevel::Off) {
             // Synchronous stage — `entered()` is safe here because no `.await` follows.
-            #[cfg(feature = "otel")]
-            let _stage_span =
-                crate::telemetry::spans::pipeline_stage_span(crate::telemetry::conventions::stages::TOKEN_REDUCTION)
-                    .entered();
 
             let impl_config = crate::text::token_reduction::TokenReductionConfig {
                 level,
@@ -1713,167 +1422,5 @@ mod tests {
                 "multi-chunk page-less documents have no reliable image signal yet"
             );
         }
-    }
-
-    /// Builds an `ExtractedDocument` carrying a single tree-sitter code chunk, so
-    /// `try_code_chunks` takes the code-aware path in `execute_chunking`.
-    #[cfg(feature = "tree-sitter")]
-    fn make_code_result() -> ExtractedDocument {
-        use crate::types::metadata::{CodeChunkInfo, CodeMetadata, FormatMetadata};
-
-        let mut result = ExtractedDocument {
-            content: "fn main() {}".to_string(),
-            mime_type: std::borrow::Cow::Borrowed("text/x-rust"),
-            ..Default::default()
-        };
-        result.metadata.format = Some(FormatMetadata::Code(CodeMetadata {
-            chunks: vec![CodeChunkInfo {
-                text: "fn main() {}".to_string(),
-                context_path: vec![],
-                node_types: vec!["function_item".to_string()],
-                byte_start: 0,
-                byte_end: 12,
-            }],
-            data: None,
-        }));
-        result
-    }
-
-    /// Regression test for #260: tree-sitter code-aware chunking silently bypasses the
-    /// user's `max_characters`/`overlap`/`chunker_type`/`trim`
-    /// with no indication anything was overridden. When the caller has actually moved
-    /// settings away from their defaults, the exact overridden names must be surfaced.
-    #[cfg(feature = "tree-sitter")]
-    #[test]
-    fn code_chunking_override_pushes_processing_warning_naming_overridden_settings() {
-        let config = crate::core::config::ExtractionConfig {
-            chunking: Some(crate::core::config::ChunkingConfig {
-                max_characters: 20,
-                overlap: 5,
-                trim: true,
-                chunker_type: crate::chunking::ChunkerType::Text,
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let mut result = make_code_result();
-
-        execute_chunking(&mut result, &config, None).unwrap();
-
-        assert!(result.chunks.is_some(), "code chunks must still be produced");
-        let warning = result
-            .processing_warnings
-            .iter()
-            .find(|w| w.source == "chunking")
-            .unwrap_or_else(|| {
-                panic!(
-                    "expected a 'chunking' ProcessingWarning, got: {:?}",
-                    result.processing_warnings
-                )
-            });
-        assert_eq!(warning.source, "chunking");
-        assert_eq!(
-            warning.message,
-            "max_characters/overlap were ignored: tree-sitter code intelligence produced \
-             structural (function/class) chunks instead of honoring the configured chunker",
-            "warning must name exactly the settings the caller overrode (trim=true and \
-             chunker_type=Text are both defaults here, so must not be listed)"
-        );
-    }
-
-    /// Regression test for #260 scoping: when the caller leaves chunking config at its
-    /// defaults, tree-sitter code-aware chunking must NOT push an override warning — every
-    /// code-chunked document would otherwise get a warning that is never actionable, which
-    /// is noise rather than signal.
-    #[cfg(feature = "tree-sitter")]
-    #[test]
-    fn code_chunking_with_default_settings_pushes_no_override_warning() {
-        let config = crate::core::config::ExtractionConfig {
-            chunking: Some(crate::core::config::ChunkingConfig::default()),
-            ..Default::default()
-        };
-        let mut result = make_code_result();
-
-        execute_chunking(&mut result, &config, None).unwrap();
-
-        assert!(result.chunks.is_some(), "code chunks must still be produced");
-        assert_eq!(
-            result.processing_warnings.len(),
-            0,
-            "no ProcessingWarning must be pushed when chunking config is left at defaults, got: {:?}",
-            result.processing_warnings
-        );
-    }
-
-    /// Regression test for #255: the code-chunk path (`try_code_chunks`) always set
-    /// `token_count: None`, even with `ChunkSizing::Tokenizer` configured.
-    #[cfg(all(feature = "tree-sitter", feature = "chunking-tokenizers"))]
-    #[test]
-    fn code_chunk_token_count_populated_from_registered_tokenizer_backend() {
-        use crate::plugins::registry::test_support::TokenizerRegistryGuard;
-        use crate::plugins::{Plugin, TokenizerBackend, register_tokenizer_backend};
-        use crate::types::metadata::{CodeChunkInfo, CodeMetadata, FormatMetadata};
-        use std::sync::Arc;
-
-        struct WordCountTokenizer;
-        impl Plugin for WordCountTokenizer {
-            fn name(&self) -> &str {
-                "features-code-chunk-word-count-tokenizer"
-            }
-            fn version(&self) -> String {
-                "1.0.0".to_string()
-            }
-            fn initialize(&self) -> crate::Result<()> {
-                Ok(())
-            }
-            fn shutdown(&self) -> crate::Result<()> {
-                Ok(())
-            }
-        }
-        impl TokenizerBackend for WordCountTokenizer {
-            fn count_tokens(&self, text: &str) -> usize {
-                text.split_whitespace().count()
-            }
-        }
-
-        let _guard = TokenizerRegistryGuard::acquire();
-        register_tokenizer_backend(Arc::new(WordCountTokenizer)).unwrap();
-
-        let config = crate::core::config::ExtractionConfig {
-            chunking: Some(crate::core::config::ChunkingConfig {
-                sizing: crate::core::config::ChunkSizing::Tokenizer {
-                    model: "features-code-chunk-word-count-tokenizer".to_string(),
-                    cache_dir: None,
-                },
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let code_text = "fn add(a: i32, b: i32) -> i32 { a + b }";
-        let mut result = ExtractedDocument {
-            content: code_text.to_string(),
-            mime_type: std::borrow::Cow::Borrowed("text/x-rust"),
-            ..Default::default()
-        };
-        result.metadata.format = Some(FormatMetadata::Code(CodeMetadata {
-            chunks: vec![CodeChunkInfo {
-                text: code_text.to_string(),
-                context_path: vec![],
-                node_types: vec!["function_item".to_string()],
-                byte_start: 0,
-                byte_end: code_text.len(),
-            }],
-            data: None,
-        }));
-
-        execute_chunking(&mut result, &config, None).unwrap();
-
-        let chunks = result.chunks.expect("code chunks must be produced");
-        assert_eq!(chunks.len(), 1);
-        assert_eq!(
-            chunks[0].metadata.token_count,
-            Some(code_text.split_whitespace().count()),
-            "code chunk token_count must be populated from the registered tokenizer backend"
-        );
     }
 }

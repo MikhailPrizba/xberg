@@ -38,7 +38,7 @@ const MAX_CLASSIFY_PIXELS: u64 = 64 * 1024 * 1024;
 /// `ImageClassifyInput` for a purely internal parameter bag. It stays `pub`
 /// rather than `pub(crate)` because tests/image_classification.rs is a separate
 /// crate and constructs it. ~keep
-#[cfg_attr(alef, alef(skip))]
+
 pub struct ImageClassifyInput<'a> {
     /// Raw image bytes (should be decodable to standard formats).
     pub bytes: &'a [u8],
@@ -66,7 +66,7 @@ pub struct ImageClassifyInput<'a> {
 ///
 /// A tuple of `(ImageKind, confidence)` where confidence is in [0.0, 1.0].
 /// Returns `(Unknown, 0.0)` if bytes cannot be decoded.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn classify(input: ImageClassifyInput<'_>) -> (ImageKind, f32) {
     let ImageClassifyInput {
         bytes,
@@ -195,50 +195,8 @@ fn uf_union(parent: &mut [usize], x: usize, y: usize) {
     }
 }
 
-/// Compute entropy of a downsampled 64×64 thumbnail.
-///
-/// Attempts to load the image using the `image` crate, resize to 64×64,
-/// and compute Shannon entropy of the flattened RGB histogram.
-/// Returns `Err` if the image cannot be decoded or is too small.
-///
-/// Only available when the `image-processing` feature is enabled (via ocr or ocr-wasm).
-#[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
-fn compute_entropy_on_thumbnail(bytes: &[u8], _width: u32, _height: u32) -> Result<f64, String> {
-    use image::imageops::FilterType;
-
-    const THUMBNAIL_RGB_BYTES: u64 = 64 * 64 * 3;
-    let rgb =
-        crate::extraction::image_decode::decode_standard_rgb8_with_additional_live_bytes_and_default_security_limits(
-            bytes,
-            THUMBNAIL_RGB_BYTES,
-        )
-        .map_err(|error| error.to_string())?;
-    let img = image::DynamicImage::ImageRgb8(rgb);
-
-    let thumb = img.resize_exact(64, 64, FilterType::Lanczos3);
-
-    let rgb = thumb.into_rgb8();
-    let pixels = rgb.as_raw();
-
-    let mut histogram = vec![0u32; 256];
-    for &byte in pixels {
-        histogram[byte as usize] += 1;
-    }
-
-    let total = pixels.len() as f64;
-    let mut entropy = 0.0;
-    for count in histogram {
-        if count > 0 {
-            let p = count as f64 / total;
-            entropy -= p * p.log2();
-        }
-    }
-
-    Ok(entropy)
-}
-
 /// Fallback entropy computation when image crate is unavailable.
-#[cfg(not(any(feature = "ocr", feature = "ocr-wasm")))]
+
 fn compute_entropy_on_thumbnail(_bytes: &[u8], _width: u32, _height: u32) -> Result<f64, String> {
     Err("Image processing not available".to_string())
 }
@@ -256,7 +214,7 @@ fn compute_entropy_on_thumbnail(_bytes: &[u8], _width: u32, _height: u32) -> Res
 ///   (`min(width, height) / 2`) of each other
 /// - Dimensions must match within ±20%
 /// - Emits one `info!` span per page with cluster count and max cluster size
-#[cfg_attr(alef, alef(skip))]
+
 pub fn cluster_tiles(images: &mut [ExtractedImage]) {
     if images.is_empty() {
         return;

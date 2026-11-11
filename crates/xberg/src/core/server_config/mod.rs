@@ -297,7 +297,7 @@ impl ServerConfig {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg_attr(alef, alef(skip))]
+
     pub fn apply_env_overrides(&mut self) -> Result<()> {
         env::apply_env_overrides(
             &mut self.host,
@@ -345,7 +345,7 @@ impl ServerConfig {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg_attr(alef, alef(skip))]
+
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
         let config = loader::from_file(path)?;
         config.validate()?;
@@ -372,7 +372,7 @@ impl ServerConfig {
     /// # Ok(())
     /// # }
     /// ```
-    #[cfg_attr(alef, alef(skip))]
+
     pub fn from_toml_file(path: impl AsRef<Path>) -> Result<Self> {
         let config = loader::from_toml_file(path)?;
         config.validate()?;
@@ -388,7 +388,7 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns `XbergError::Validation` if the file doesn't exist or is invalid YAML.
-    #[cfg_attr(alef, alef(skip))]
+
     pub fn from_yaml_file(path: impl AsRef<Path>) -> Result<Self> {
         let config = loader::from_yaml_file(path)?;
         config.validate()?;
@@ -404,7 +404,7 @@ impl ServerConfig {
     /// # Errors
     ///
     /// Returns `XbergError::Validation` if the file doesn't exist or is invalid JSON.
-    #[cfg_attr(alef, alef(skip))]
+
     pub fn from_json_file(path: impl AsRef<Path>) -> Result<Self> {
         let config = loader::from_json_file(path)?;
         config.validate()?;

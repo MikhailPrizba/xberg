@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 /// Table-level properties from `<w:tblPr>`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(alef, alef(skip))]
+
 pub struct TableProperties {
     /// Style ID of the table style applied to this table.
     pub style_id: Option<String>,
@@ -33,7 +33,7 @@ pub struct TableProperties {
 }
 
 /// Width specification used for tables and cells.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TableWidth {
     /// Numeric width value; interpretation depends on `width_type`.
@@ -44,7 +44,7 @@ pub struct TableWidth {
 
 /// Table look bitmask/flags controlling conditional formatting bands.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(alef, alef(skip))]
+
 pub struct TableLook {
     /// Apply first-row conditional formatting.
     pub first_row: bool,
@@ -62,7 +62,7 @@ pub struct TableLook {
 
 /// Borders for a table (6 borders: top, bottom, left, right, insideH, insideV).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(alef, alef(skip))]
+
 pub struct TableBorders {
     /// Top outer border.
     pub top: Option<BorderStyle>,
@@ -80,7 +80,7 @@ pub struct TableBorders {
 
 /// A single border specification.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(alef, alef(skip))]
+
 pub struct BorderStyle {
     /// Border line style: `"single"`, `"double"`, `"dashed"`, `"dotted"`, `"none"`, etc.
     pub style: String,
@@ -94,7 +94,7 @@ pub struct BorderStyle {
 
 /// Cell margins (used for both table-level defaults and per-cell overrides).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(alef, alef(skip))]
+
 pub struct CellMargins {
     /// Top cell margin in twips.
     pub top: Option<i32>,
@@ -108,7 +108,7 @@ pub struct CellMargins {
 
 /// Row-level properties from `<w:trPr>`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(alef, alef(skip))]
+
 pub struct RowProperties {
     /// Row height in twips.
     pub height: Option<i32>,
@@ -131,7 +131,7 @@ pub(crate) struct RowGridSkips {
 
 /// Cell-level properties from `<w:tcPr>`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(alef, alef(skip))]
+
 pub struct CellProperties {
     /// Cell width specification.
     pub width: Option<TableWidth>,
@@ -154,7 +154,7 @@ pub struct CellProperties {
 }
 
 /// Vertical merge state for a table cell.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum VerticalMerge {
     /// This cell starts a new vertically-merged group.
@@ -165,7 +165,7 @@ pub enum VerticalMerge {
 
 /// Per-cell borders (4 sides).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(alef, alef(skip))]
+
 pub struct CellBorders {
     /// Top cell border.
     pub top: Option<BorderStyle>,
@@ -179,7 +179,7 @@ pub struct CellBorders {
 
 /// Cell shading/background fill.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(alef, alef(skip))]
+
 pub struct CellShading {
     /// Background fill color as hex RGB or `"auto"`.
     pub fill: Option<String>,
@@ -190,7 +190,7 @@ pub struct CellShading {
 }
 
 /// Column widths from `<w:tblGrid>`.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct TableGrid {
     /// Ordered list of column widths in twips.

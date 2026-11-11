@@ -19,7 +19,7 @@ use crate::extractors::rtf::formatting::map_offset;
 use std::collections::HashMap;
 
 /// Metadata for a single paragraph extracted from RTF.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default)]
 pub struct ParagraphMeta {
     /// Heading level (1-based): 1 = H1, 2 = H2, etc. 0 = not a heading.

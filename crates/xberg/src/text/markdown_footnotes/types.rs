@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Represents a `[^label]` use-site (not a definition).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct FootnoteAnchor {
     /// The label of the footnote reference (e.g., "1" in `[^1]`).
     pub label: String,
@@ -19,7 +19,7 @@ pub struct FootnoteAnchor {
 ///
 /// Represents `[^label]: content` declarations (including multi-line continuations).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct FootnoteDefinition {
     /// The label of the footnote (e.g., "1" in `[^1]: ...`).
     pub label: String,
@@ -36,7 +36,7 @@ pub struct FootnoteDefinition {
 /// Parsed from entries like:
 /// `[^srcN]: source, locator, excerpt: "text"`
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct Citation {
     /// The label of the citation (e.g., "src1" in `[^src1]: ...`).
     pub label: String,

@@ -1,23 +1,11 @@
-#[cfg(any(
-    test,
-    feature = "candle-trocr",
-    feature = "candle-paddleocr-vl",
-    feature = "candle-glm-ocr",
-    feature = "candle-deepseek-ocr"
-))]
+#[cfg(test)]
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use CandleDevicePreference as DevicePreference;
 
-#[cfg(any(
-    test,
-    feature = "candle-trocr",
-    feature = "candle-paddleocr-vl",
-    feature = "candle-glm-ocr",
-    feature = "candle-deepseek-ocr"
-))]
+#[cfg(test)]
 use crate::XbergError;
 
 /// Device selection shared by the typed candle backend option objects.
@@ -30,8 +18,6 @@ pub enum CandleDevicePreference {
     Cuda,
     Metal,
 }
-
-
 
 /// TrOCR model variant accepted by `candle-trocr` backend options.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -183,13 +169,7 @@ pub struct DeepseekOcrBackendOptions {
     pub dtype: Option<CandleDeepseekOcrDtype>,
 }
 
-#[cfg(any(
-    test,
-    feature = "candle-trocr",
-    feature = "candle-paddleocr-vl",
-    feature = "candle-glm-ocr",
-    feature = "candle-deepseek-ocr"
-))]
+#[cfg(test)]
 pub(crate) fn parse_backend_options<T>(value: Option<&serde_json::Value>, backend_name: &str) -> crate::Result<T>
 where
     T: DeserializeOwned + Default,
@@ -221,13 +201,7 @@ where
         .map_err(|error| XbergError::validation(format!("invalid {backend_name} backend_options: {error}")))
 }
 
-#[cfg(any(
-    test,
-    feature = "candle-trocr",
-    feature = "candle-paddleocr-vl",
-    feature = "candle-glm-ocr",
-    feature = "candle-deepseek-ocr"
-))]
+#[cfg(test)]
 pub(crate) fn validate_optional_non_empty(
     value: Option<&str>,
     backend_name: &str,
@@ -242,7 +216,7 @@ pub(crate) fn validate_optional_non_empty(
 }
 
 /// Identifier used by [`CandleOcrConfig::backend_name`] for its legacy model pair.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum CandleModelId {
@@ -255,7 +229,7 @@ pub enum CandleModelId {
 ///
 /// Use the backend-specific option objects for new code. This type remains for
 /// 1.x compatibility and can produce the backend name and common runtime options.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CandleOcrConfig {

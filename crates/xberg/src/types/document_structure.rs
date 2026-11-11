@@ -23,8 +23,7 @@ use super::extraction::BoundingBox;
 /// Uses `u32` for cross-platform consistency (WASM is 32-bit) and to avoid
 /// confusion with page numbers or other `usize` values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "api", schema(value_type = u32))]
+
 pub struct NodeIndex(pub u32);
 
 /// Deterministic node identifier.
@@ -35,8 +34,7 @@ pub struct NodeIndex(pub u32);
 /// [`NodeIndex`]'s wrapper pattern) so bindings can treat it as a plain
 /// newtype rather than requiring a lossy fallback conversion.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "api", schema(value_type = String))]
+
 pub struct NodeId(pub String);
 
 impl NodeId {
@@ -98,8 +96,7 @@ impl std::fmt::Display for NodeId {
 /// Call `validate()` after construction to verify all node indices are in bounds
 /// and parent-child relationships are bidirectionally consistent.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "api", schema(no_recursion))]
+
 pub struct DocumentStructure {
     /// All nodes in document/reading order.
     pub nodes: Vec<DocumentNode>,
@@ -201,7 +198,6 @@ impl DocumentStructure {
     /// to expose yet. A binding-facing surface can be added once #1296
     /// implements real offset resolution.
     #[deprecated(since = "1.1.0", note = "Always returns None; scheduled for removal in 2.0")]
-    #[cfg_attr(alef, alef(skip))]
     #[must_use]
     pub fn node_rendered_offset(&self, _node_index: NodeIndex) -> Option<(usize, usize)> {
         // TODO(#1296): implement real node -> rendered-offset mapping.
@@ -211,7 +207,7 @@ impl DocumentStructure {
 
 /// A resolved relationship between two nodes in the document tree.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct DocumentRelationship {
     /// Source node index (the referencing node).
     pub source: NodeIndex,
@@ -223,7 +219,6 @@ pub struct DocumentRelationship {
 
 /// Semantic kind of a relationship between document elements.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RelationshipKind {
     /// Footnote marker -> footnote definition.
@@ -247,7 +242,7 @@ pub enum RelationshipKind {
 /// Each node has deterministic `id`, typed `content`, optional `parent`/`children`
 /// for tree structure, and metadata like page number, bounding box, and content layer.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct DocumentNode {
     /// Deterministic identifier (hash of node type + text + page + position).
     ///
@@ -267,7 +262,6 @@ pub struct DocumentNode {
 
     /// Parent node index (`None` = root-level node).
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub parent: Option<NodeIndex>,
 
     /// Child node indices in reading order.
@@ -293,7 +287,6 @@ pub struct DocumentNode {
 
     /// Bounding box in document coordinates.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub bbox: Option<BoundingBox>,
 
     /// Inline annotations (formatting, links) on this node's text content.
@@ -314,7 +307,6 @@ pub struct DocumentNode {
 ///
 /// Replaces separate body/furniture arrays with per-node granularity.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ContentLayer {
     /// Main document body content.
@@ -333,7 +325,6 @@ pub enum ContentLayer {
 /// Uses `#[serde(tag = "node_type")]` to avoid "type" keyword collision in
 /// Go/Java/TypeScript bindings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(tag = "node_type", rename_all = "snake_case")]
 pub enum NodeContent {
     /// Document title.
@@ -416,7 +407,6 @@ pub enum NodeContent {
     /// Distinct from [`NodeContent::Footnote`] (xberg-io/xberg#300): comments and
     /// footnotes both reach the internal document via a marker/definition pair, but
     /// a consumer needs to tell a reviewer comment apart from an authored footnote.
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     Comment {
         /// The comment body text.
         text: String,
@@ -533,7 +523,7 @@ impl NodeContent {
 ///
 /// Stores row/column dimensions and a flat list of cells with position info.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct TableGrid {
     /// Number of rows in the table.
     pub rows: u32,
@@ -545,7 +535,7 @@ pub struct TableGrid {
 
 /// Individual grid cell with position and span metadata.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct GridCell {
     /// Cell text content.
     pub content: String,
@@ -564,7 +554,6 @@ pub struct GridCell {
     pub is_header: bool,
     /// Bounding box for this cell (if available).
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub bbox: Option<BoundingBox>,
     /// Outline level (1-6) of the heading style this cell's text carries, when it has one.
     ///
@@ -594,7 +583,7 @@ fn default_span() -> u32 {
 /// Annotations reference byte offsets into the node's text content,
 /// enabling precise identification of formatted regions.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct TextAnnotation {
     /// Start byte offset in the node's text content (inclusive).
     pub start: u32,
@@ -606,7 +595,6 @@ pub struct TextAnnotation {
 
 /// Types of inline text annotations.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(tag = "annotation_type", rename_all = "snake_case")]
 pub enum AnnotationKind {
     /// Bold (strong) text formatting.
@@ -759,7 +747,7 @@ impl NodeContent {
     /// `dead_code`, which CI escalates via `-D warnings`. Any new caller must add its
     /// feature here, or the walker silently compiles out and that caller becomes a
     /// no-op rather than failing to build (#254).
-    #[cfg(any(feature = "redaction", feature = "translation"))]
+    #[cfg(feature = "redaction")]
     pub(crate) fn for_each_text_field_mut(&mut self, mut redact: impl FnMut(&mut String)) {
         match self {
             NodeContent::Title { text }
@@ -926,7 +914,7 @@ impl DocumentStructure {
 
     /// Iterate over root-level body nodes (content_layer == Body, parent == None).
     #[cfg(test)]
-    #[cfg_attr(alef, alef(skip))]
+
     pub(crate) fn body_roots(&self) -> impl Iterator<Item = (NodeIndex, &DocumentNode)> {
         self.nodes.iter().enumerate().filter_map(|(i, node)| {
             if node.parent.is_none() && node.content_layer == ContentLayer::Body {
@@ -939,7 +927,7 @@ impl DocumentStructure {
 
     /// Iterate over root-level furniture nodes (non-Body content_layer, parent == None).
     #[cfg(test)]
-    #[cfg_attr(alef, alef(skip))]
+
     pub(crate) fn furniture_roots(&self) -> impl Iterator<Item = (NodeIndex, &DocumentNode)> {
         self.nodes.iter().enumerate().filter_map(|(i, node)| {
             if node.parent.is_none() && node.content_layer != ContentLayer::Body {

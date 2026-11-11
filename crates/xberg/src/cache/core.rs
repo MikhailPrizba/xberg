@@ -58,7 +58,7 @@ pub(super) struct CacheScanResult {
 /// `GenericCache` stores opaque blobs keyed by a content-hash string. It tracks
 /// in-flight deletions to prevent read-during-delete races and periodically runs
 /// a background cleanup that enforces the configured age and size limits.
-#[cfg_attr(alef, alef(skip))]
+
 pub struct GenericCache {
     cache_dir: PathBuf,
     #[cfg(test)]
@@ -292,18 +292,6 @@ impl GenericCache {
 
     /// Emit cache-lookup telemetry for a resolved key.
     fn record_lookup(versioned_key: &str, hit: bool) {
-        #[cfg(feature = "otel")]
-        {
-            tracing::Span::current().record("cache.hit", hit);
-
-            let metrics = crate::telemetry::metrics::get_metrics();
-            if hit {
-                metrics.cache_hits.add(1, &[]);
-            } else {
-                metrics.cache_misses.add(1, &[]);
-            }
-        }
-
         tracing::debug!(
             { conventions::OPERATION } = conventions::operations::CACHE_LOOKUP,
             { conventions::CACHE_KEY } = versioned_key,
@@ -312,13 +300,6 @@ impl GenericCache {
         );
     }
 
-    #[cfg_attr(feature = "otel", tracing::instrument(
-        skip(self),
-        fields(
-            cache.hit = tracing::field::Empty,
-            cache.key = %cache_key,
-        )
-    ))]
     pub(crate) fn get(
         &self,
         cache_key: &str,
@@ -375,13 +356,6 @@ impl GenericCache {
         self.get(cache_key, source_file, None, None)
     }
 
-    #[cfg_attr(feature = "otel", tracing::instrument(
-        skip(self, data),
-        fields(
-            cache.key = %cache_key,
-            cache.size_bytes = data.len(),
-        )
-    ))]
     pub(crate) fn set(
         &self,
         cache_key: &str,

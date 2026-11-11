@@ -20,7 +20,7 @@ const MAX_TITLE_WORD_COUNT: usize = 8;
 const TITLE_UPPERCASE_RATIO: (usize, usize) = (3, 5);
 
 /// A detected structural boundary in the text.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DetectedBoundary {
     /// Byte offset of the start of the line in the original text.

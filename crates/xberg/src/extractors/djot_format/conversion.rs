@@ -34,7 +34,7 @@ use std::borrow::Cow;
 /// let markup = djot_content_to_djot(&djot_content);
 /// println!("{}", markup);
 /// ```
-#[cfg_attr(alef, alef(skip))]
+
 pub fn djot_content_to_djot(content: &crate::types::DjotContent) -> String {
     let mut output = String::new();
 
@@ -65,7 +65,7 @@ pub fn djot_content_to_djot(content: &crate::types::DjotContent) -> String {
 /// let result = extractor.extract_bytes(bytes, "text/plain", &config).await?;
 /// let djot_markup = extraction_result_to_djot(&result)?;
 /// ```
-#[cfg_attr(alef, alef(skip))]
+
 pub fn extraction_result_to_djot(result: &crate::types::ExtractedDocument) -> crate::Result<String> {
     if let Some(ref djot_content) = result.djot_content {
         Ok(djot_content_to_djot(djot_content))

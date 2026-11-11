@@ -13,7 +13,7 @@ mod helpers;
 mod lenient;
 
 #[allow(unused_imports)]
-pub(crate) use bytes::{extract_bytes, extract_bytes_with_layout_pages};
+pub(crate) use bytes::extract_bytes;
 #[allow(unused_imports)]
 pub(crate) use file::extract_file;
 

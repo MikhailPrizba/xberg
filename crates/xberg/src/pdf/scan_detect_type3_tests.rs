@@ -1,5 +1,5 @@
 use super::*;
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 use lopdf::dictionary;
 
 // GH#1782: unmapped Type 3 procedure codes are not Unicode. Extraction
@@ -13,7 +13,7 @@ fn type3_fixture(name: &str) -> PdfDocument {
     PdfDocument::open(&path).unwrap_or_else(|e| panic!("open fixture {name}: {e}"))
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 fn inset_raster_type3_fixture() -> PdfDocument {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/pdf/regressions/type3/gh1782-2-readable-lines.pdf");
@@ -74,7 +74,7 @@ fn inset_raster_type3_fixture() -> PdfDocument {
     PdfDocument::from_bytes(bytes).expect("open inset-raster Type 3 fixture")
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 #[test]
 fn inset_scan_ignores_more_than_four_hundred_fallback_type3_glyphs() {
     let doc = inset_raster_type3_fixture();

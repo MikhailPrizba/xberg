@@ -307,19 +307,3 @@ pub(crate) const PDFIUM_KNOWN_REGRESSIONS: &[&str] = &[
     // floor -- the floor is not what is wrong here. ~keep
     "pdfa_019",
 ];
-
-/// OCR ground truth entries. Same documents but tested through OCR pipeline.
-/// Thresholds are lower because OCR introduces more noise than native extraction.
-#[cfg(feature = "ocr")]
-pub(crate) const OCR_GROUND_TRUTH: &[(&str, f64)] = &[
-    ("hello_structure", 0.30),
-    ("multi_page", 0.30),
-    ("code_and_formula", 0.20),
-    ("2305.03393v1-pg9", 0.20),
-    ("amt_handbook_sample", 0.20),
-    ("scotus-transcript-p1", 0.30),
-    ("federal-register-2020-17221", 0.30),
-    ("issue-33-lorem-ipsum", 0.30),
-    ("masterformat_partial_numbering", 0.20),
-    ("test", 0.20),
-];

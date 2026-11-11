@@ -18,8 +18,6 @@ use std::fs::{File, OpenOptions};
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
-#[cfg(feature = "otel")]
-use tracing::Instrument;
 
 pub(super) fn ensure_builtin_extraction_method(doc: &mut crate::types::internal::InternalDocument, is_builtin: bool) {
     if !is_builtin {
@@ -153,31 +151,13 @@ async fn detect_file_mime(
 /// # Ok(())
 /// # }
 /// ```
-#[cfg_attr(feature = "otel", tracing::instrument(
-    skip(config, path),
-    fields(
-        { crate::telemetry::conventions::OPERATION } = crate::telemetry::conventions::operations::EXTRACT_FILE,
-        { crate::telemetry::conventions::DOCUMENT_FILENAME } = tracing::field::Empty,
-        { crate::telemetry::conventions::OTEL_STATUS_CODE } = tracing::field::Empty,
-        { crate::telemetry::conventions::ERROR_TYPE } = tracing::field::Empty,
-        { crate::telemetry::conventions::ERROR_MESSAGE } = tracing::field::Empty,
-    )
-))]
+
 pub(crate) async fn extract_file(
     path: impl AsRef<Path>,
     mime_type: Option<&str>,
     config: &ExtractionConfig,
 ) -> Result<ExtractedDocument> {
     let path = path.as_ref();
-
-    #[cfg(feature = "otel")]
-    {
-        let span = tracing::Span::current();
-        span.record(
-            crate::telemetry::conventions::DOCUMENT_FILENAME,
-            crate::telemetry::spans::sanitize_path(path),
-        );
-    }
 
     // `token.cancel()` below needs a token to signal, but `config.cancel_token` is
     // `None` on every binding-driven and CLI-driven call (see
@@ -271,11 +251,6 @@ pub(crate) async fn extract_file(
         }
         extraction_future.await
     };
-
-    #[cfg(feature = "otel")]
-    if let Err(ref e) = result {
-        crate::telemetry::spans::record_error_on_current_span(e);
-    }
 
     result
 }
@@ -486,40 +461,8 @@ pub(crate) async fn extract_with_candidates(
     for (index, candidate) in candidates.into_iter().enumerate() {
         // The extraction stage span wraps only the extractor invocation — post-processing
         // is covered by `run_pipeline` below and must not be nested inside it.
-        let extraction = async {
-            #[cfg(feature = "otel")]
-            {
-                let stage_span = crate::telemetry::spans::extraction_stage_span(
-                    candidate.plugin().name(),
-                    candidate.plugin().priority(),
-                );
-                candidate
-                    .extract_path(path, mime_type, config)
-                    .instrument(stage_span)
-                    .await
-            }
-            #[cfg(not(feature = "otel"))]
-            candidate.extract_path(path, mime_type, config).await
-        };
-        #[cfg(all(
-            feature = "pdf",
-            feature = "ocr",
-            feature = "tokio-runtime",
-            not(target_arch = "wasm32")
-        ))]
-        let (extraction, placement) = crate::extraction::image_ocr::pdf_gap::capture(
-            candidate.is_builtin()
-                && mime_type == "application/pdf"
-                && crate::extraction::image_ocr::pdf_gap::eligible(config),
-            extraction,
-        )
-        .await;
-        #[cfg(not(all(
-            feature = "pdf",
-            feature = "ocr",
-            feature = "tokio-runtime",
-            not(target_arch = "wasm32")
-        )))]
+        let extraction = async { candidate.extract_path(path, mime_type, config).await };
+
         let extraction = extraction.await;
 
         match extraction {
@@ -541,13 +484,6 @@ pub(crate) async fn extract_with_candidates(
                     doc,
                     config,
                     builtin_html,
-                    #[cfg(all(
-                        feature = "pdf",
-                        feature = "ocr",
-                        feature = "tokio-runtime",
-                        not(target_arch = "wasm32")
-                    ))]
-                    placement,
                 ))
                 .await?;
                 return Ok(result);
@@ -897,11 +833,10 @@ fn get_extraction_cache() -> Option<&'static crate::cache::GenericCache> {
         .as_ref()
 }
 
-pub(in crate::core::extractor) async fn extract_bytes_with_extractor_and_layout_pages(
+pub(in crate::core::extractor) async fn extract_bytes_with_extractor(
     content: &[u8],
     mime_type: &str,
     config: &ExtractionConfig,
-    pages: Option<&crate::core::layout_pages::LayoutPageSelection>,
 ) -> Result<ExtractedDocument> {
     let config = config.normalized();
     let config = config.as_ref();
@@ -910,39 +845,10 @@ pub(in crate::core::extractor) async fn extract_bytes_with_extractor_and_layout_
 
     crate::extractors::ensure_initialized()?;
 
-    let (extractor, is_builtin) = super::helpers::get_extractor_with_layout_pages(mime_type, pages)?;
+    let (extractor, is_builtin) = super::helpers::get_extractor(mime_type)?;
 
-    let extraction = async {
-        #[cfg(feature = "otel")]
-        {
-            let stage_span = crate::telemetry::spans::extraction_stage_span(extractor.name(), extractor.priority());
-            Box::pin(extractor.extract_content(content, mime_type, config))
-                .instrument(stage_span)
-                .await
-        }
-        #[cfg(not(feature = "otel"))]
-        Box::pin(extractor.extract_content(content, mime_type, config)).await
-    };
-    #[cfg(all(
-        feature = "pdf",
-        feature = "ocr",
-        feature = "tokio-runtime",
-        not(target_arch = "wasm32")
-    ))]
-    let (extraction, placement) = crate::extraction::image_ocr::pdf_gap::capture(
-        is_builtin
-            && pages.is_none()
-            && mime_type == "application/pdf"
-            && crate::extraction::image_ocr::pdf_gap::eligible(config),
-        extraction,
-    )
-    .await;
-    #[cfg(not(all(
-        feature = "pdf",
-        feature = "ocr",
-        feature = "tokio-runtime",
-        not(target_arch = "wasm32")
-    )))]
+    let extraction = async { Box::pin(extractor.extract_content(content, mime_type, config)).await };
+
     let extraction = extraction.await;
 
     let mut doc = match extraction {
@@ -962,13 +868,6 @@ pub(in crate::core::extractor) async fn extract_bytes_with_extractor_and_layout_
         doc,
         config,
         builtin_html,
-        #[cfg(all(
-            feature = "pdf",
-            feature = "ocr",
-            feature = "tokio-runtime",
-            not(target_arch = "wasm32")
-        ))]
-        placement,
     ))
     .await?;
     Ok(result)
@@ -1050,105 +949,6 @@ mod cache_key_tests {
     }
 
     #[test]
-    #[cfg(feature = "ocr")]
-    fn tessdata_bytes_changes_the_cache_key() {
-        use crate::core::config::OcrConfig;
-        use std::collections::HashMap;
-
-        let mut eng = HashMap::new();
-        eng.insert("eng".to_string(), vec![1u8, 2, 3]);
-        let mut deu = HashMap::new();
-        deu.insert("eng".to_string(), vec![9u8, 9, 9]);
-
-        let a = ExtractionConfig {
-            ocr: Some(OcrConfig {
-                tessdata_bytes: Some(eng),
-                ..OcrConfig::default()
-            }),
-            ..Default::default()
-        };
-        let b = ExtractionConfig {
-            ocr: Some(OcrConfig {
-                tessdata_bytes: Some(deu),
-                ..OcrConfig::default()
-            }),
-            ..Default::default()
-        };
-        assert_ne!(
-            hash_extraction_config(&a, "image/png"),
-            hash_extraction_config(&b, "image/png"),
-            "tessdata_bytes (serde-skipped) must be part of the cache key"
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "ocr")]
-    fn tesseract_use_cache_does_not_change_the_cache_key() {
-        use crate::core::config::OcrConfig;
-        use crate::types::TesseractConfig;
-
-        let cache_on = ExtractionConfig {
-            ocr: Some(OcrConfig {
-                tesseract_config: Some(TesseractConfig {
-                    use_cache: true,
-                    ..TesseractConfig::default()
-                }),
-                ..OcrConfig::default()
-            }),
-            ..Default::default()
-        };
-        let cache_off = ExtractionConfig {
-            ocr: Some(OcrConfig {
-                tesseract_config: Some(TesseractConfig {
-                    use_cache: false,
-                    ..TesseractConfig::default()
-                }),
-                ..OcrConfig::default()
-            }),
-            ..Default::default()
-        };
-        assert_eq!(
-            hash_extraction_config(&cache_on, "image/png"),
-            hash_extraction_config(&cache_off, "image/png"),
-            "ocr.tesseract_config.use_cache is a cache-control field and must not affect the \
-             extraction-cache key (#693)"
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "ocr")]
-    fn tesseract_psm_changes_the_cache_key() {
-        use crate::core::config::OcrConfig;
-        use crate::types::TesseractConfig;
-
-        let psm_auto = ExtractionConfig {
-            ocr: Some(OcrConfig {
-                tesseract_config: Some(TesseractConfig {
-                    psm: Some(3),
-                    ..TesseractConfig::default()
-                }),
-                ..OcrConfig::default()
-            }),
-            ..Default::default()
-        };
-        let psm_sparse = ExtractionConfig {
-            ocr: Some(OcrConfig {
-                tesseract_config: Some(TesseractConfig {
-                    psm: Some(11),
-                    ..TesseractConfig::default()
-                }),
-                ..OcrConfig::default()
-            }),
-            ..Default::default()
-        };
-        assert_ne!(
-            hash_extraction_config(&psm_auto, "image/png"),
-            hash_extraction_config(&psm_sparse, "image/png"),
-            "psm changes Tesseract's recognized output and must be part of the cache key"
-        );
-    }
-
-    #[test]
     fn ocr_strategy_changes_the_cache_key() {
         use crate::core::config::OcrStrategy;
 
@@ -1204,80 +1004,6 @@ mod cache_key_tests {
             ..LlmConfig::default()
         };
         (cache_on, cache_off)
-    }
-
-    #[test]
-    #[cfg(feature = "ocr")]
-    fn ocr_vlm_config_llm_cache_does_not_change_the_cache_key() {
-        use crate::core::config::OcrConfig;
-
-        let (cache_on, cache_off) = llm_configs_differing_only_in_cache();
-        let a = ExtractionConfig {
-            ocr: Some(OcrConfig {
-                vlm_config: Some(cache_on),
-                ..OcrConfig::default()
-            }),
-            ..Default::default()
-        };
-        let b = ExtractionConfig {
-            ocr: Some(OcrConfig {
-                vlm_config: Some(cache_off),
-                ..OcrConfig::default()
-            }),
-            ..Default::default()
-        };
-        assert_eq!(
-            hash_extraction_config(&a, "application/pdf"),
-            hash_extraction_config(&b, "application/pdf"),
-            "ocr.vlm_config.cache is a cache-control field and must not affect the extraction-cache key"
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "ocr")]
-    fn ocr_pipeline_stage_vlm_config_llm_cache_does_not_change_the_cache_key() {
-        use crate::core::config::{OcrConfig, OcrPipelineConfig, OcrPipelineStage, OcrQualityThresholds};
-
-        fn stage(vlm_config: crate::core::config::LlmConfig) -> OcrPipelineStage {
-            OcrPipelineStage {
-                backend: "vlm".to_string(),
-                priority: 100,
-                language: None,
-                tesseract_config: None,
-                paddle_ocr_config: None,
-                paddle_ocr_settings: None,
-                vlm_config: Some(vlm_config),
-                backend_options: None,
-            }
-        }
-
-        let (cache_on, cache_off) = llm_configs_differing_only_in_cache();
-        let a = ExtractionConfig {
-            ocr: Some(OcrConfig {
-                pipeline: Some(OcrPipelineConfig {
-                    stages: vec![stage(cache_on)],
-                    quality_thresholds: OcrQualityThresholds::default(),
-                }),
-                ..OcrConfig::default()
-            }),
-            ..Default::default()
-        };
-        let b = ExtractionConfig {
-            ocr: Some(OcrConfig {
-                pipeline: Some(OcrPipelineConfig {
-                    stages: vec![stage(cache_off)],
-                    quality_thresholds: OcrQualityThresholds::default(),
-                }),
-                ..OcrConfig::default()
-            }),
-            ..Default::default()
-        };
-        assert_eq!(
-            hash_extraction_config(&a, "application/pdf"),
-            hash_extraction_config(&b, "application/pdf"),
-            "ocr.pipeline.stages[].vlm_config.cache is a cache-control field and must not \
-             affect the extraction-cache key"
-        );
     }
 
     #[test]

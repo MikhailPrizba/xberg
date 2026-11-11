@@ -30,7 +30,7 @@ fn ocr_model_cache_override_for(
 ///
 /// Uses the same resolution order as [`resolve_cache_dir`] but returns
 /// the top-level xberg cache directory.
-#[allow(dead_code)]
+
 pub(crate) fn resolve_cache_base() -> PathBuf {
     cache_base_for(std::env::var("XBERG_CACHE_DIR").ok().as_deref().map(Path::new))
 }
@@ -61,7 +61,7 @@ pub(crate) fn cache_base_for(env_override: Option<&Path>) -> PathBuf {
 ///    - Windows: `%LOCALAPPDATA%/xberg/{module}`
 /// 3. Home directory fallback: `~/.cache/xberg/{module}`
 /// 4. CWD-relative fallback: `.xberg/{module}` (last resort, e.g. no HOME set)
-#[cfg_attr(alef, alef(skip))]
+
 pub(crate) fn resolve_cache_dir(module: &str) -> PathBuf {
     if let Ok(env_path) = std::env::var("XBERG_CACHE_DIR") {
         return PathBuf::from(env_path).join(module);

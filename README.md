@@ -24,9 +24,9 @@ uv build --out-dir /tmp/xberg-compact-wheels
 
 The checked Cargo manifests select the compact profile. Its feature list and
 retained workspace members are recorded in compact-profile.json. Release builds
-use thin LTO and 16 codegen units. Cargo defaults to the Python package. Only the core, native PDF and Python crates
-are workspace members. The only additional crate is xberg-pdfium-render, excluded
-from default workspace builds and available through the optional pdf-pdfium feature.
+use thin LTO and 16 codegen units. Cargo defaults to the Python package. The workspace contains the core, native PDF, Python and PDFium crates.
+Only the Python crate is built by default. PDFium is available through the
+optional pdf-pdfium feature and is a workspace member for maintenance checks.
 Unused OCR/ML/HEIC/WordPerfect crates, model implementations, server transports and
 upstream generation/release scripts have been removed. VS Code checks only xberg-py.
 The default Cargo cache is ../.cache/xberg-compact/target, outside this checkout.
@@ -45,8 +45,9 @@ servers. Optional classify_chunks_owned, map_url and extract_with_layout_pages
 entry points raise NotImplementedError in this extraction profile.
 
 Unsupported upstream features, including full and mobile, are removed from Cargo
-manifests. Some inactive cfg branches remain in shared parser/configuration files
-to keep upstream fixes manageable; they cannot activate missing engines. Python
+manifests. Source branches for removed features have been deleted, including unreachable
+modules and private model/layout execution paths. Only retained Cargo features
+and platform/test conditions remain. Python
 binding adaptations and lightweight type gates are maintained in this fork; review
 them when merging upstream generated bindings.
 
@@ -62,7 +63,8 @@ This enables the backend without changing the extraction default. Select Pdfium
 explicitly in PdfConfig when running a comparison. Set PDFIUM_DYNAMIC_LIB_PATH at runtime to the directory containing a compatible
 libpdfium shared library, or install it on the system library search path.
 The Python build configuration lives in the repository-root pyproject.toml.
-Source archives explicitly include this optional path crate.
+Source archives explicitly include this optional path crate. PDFium uses checked-in
+Rust FFI bindings; the unused bindgen generator and C headers are removed.
 Compilation with this feature is checked; runtime PDFium extraction is not yet
 validated on this host.
 
@@ -71,4 +73,7 @@ validated on this host.
 The original source is available through origin; fetch additional history only
 when needed. No Git history was rewritten on the remote. Native PDF tests and
 fixtures are retained for parser fixes. License and attribution files remain.
+Some upstream Rust tests additionally require external binary fixtures under
+`test_documents`; fetch the needed paths using that repository's README.
+Compile-time PDF/TSV fixtures used by retained core tests are kept under fixtures/repros.
 Validation results and measured sizes are recorded in compact-verification.json.

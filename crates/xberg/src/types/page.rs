@@ -14,7 +14,7 @@ use super::tables::Table;
 /// Supports different page types (PDF pages, PPTX slides, Excel sheets)
 /// with character offset boundaries for chunk-to-page mapping.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct PageStructure {
     /// Total number of pages/slides/sheets
     pub total_count: u32,
@@ -39,7 +39,7 @@ pub struct PageStructure {
 /// Distinguishes between different types of "pages" (PDF pages, presentation slides, spreadsheet sheets).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub enum PageUnitType {
     /// Standard document pages (PDF, DOCX, images)
     Page,
@@ -55,7 +55,7 @@ pub enum PageUnitType {
 /// enabling mapping from byte positions to page numbers. Offsets are guaranteed to be
 /// at valid UTF-8 character boundaries when using standard String methods (push_str, push, etc.).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct PageBoundary {
     /// Byte offset where this page starts in the content string (UTF-8 valid boundary, inclusive)
     pub byte_start: usize,
@@ -98,23 +98,6 @@ impl<'de> Deserialize<'de> for PageDimensions {
     }
 }
 
-#[cfg(feature = "api")]
-impl utoipa::PartialSchema for PageDimensions {
-    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
-        use utoipa::openapi::schema::{Object, ObjectBuilder, Type};
-
-        ObjectBuilder::new()
-            .property("width", Object::with_type(Type::Number))
-            .required("width")
-            .property("height", Object::with_type(Type::Number))
-            .required("height")
-            .into()
-    }
-}
-
-#[cfg(feature = "api")]
-impl utoipa::ToSchema for PageDimensions {}
-
 impl From<(f64, f64)> for PageDimensions {
     fn from((width, height): (f64, f64)) -> Self {
         Self { width, height }
@@ -128,7 +111,7 @@ impl From<PageDimensions> for (f64, f64) {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct PageInfo {
     /// Page number (1-indexed)
     pub number: u32,
@@ -139,7 +122,6 @@ pub struct PageInfo {
 
     /// Dimensions in points (PDF) or pixels (images).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub dimensions: Option<PageDimensions>,
 
     /// Number of images on this page
@@ -191,7 +173,7 @@ pub struct PageInfo {
 /// This reduces memory overhead for documents with shared tables/images
 /// by avoiding redundant copies during serialization.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct PageContent {
     /// Page number (1-indexed)
     pub page_number: u32,
@@ -204,7 +186,6 @@ pub struct PageContent {
     /// Serializes as `Vec<Table>` for JSON compatibility while maintaining
     /// Arc semantics in-memory for zero-copy sharing.
     #[serde(skip_serializing_if = "Vec::is_empty", default, with = "serde_vec_arc")]
-    #[cfg_attr(feature = "api", schema(value_type = Vec<Table>))]
     pub tables: Vec<Arc<Table>>,
 
     /// Indices into `ExtractedDocument.images` for images found on this page.
@@ -216,14 +197,12 @@ pub struct PageContent {
 
     /// OCR image preprocessing applied to this page's raster.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub image_preprocessing: Option<super::ImagePreprocessingMetadata>,
 
     /// Hierarchy information for the page (when hierarchy extraction is enabled)
     ///
     /// Contains text hierarchy levels (H1-H6) extracted from the page content.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub hierarchy: Option<PageHierarchy>,
 
     /// Whether this page is blank (no meaningful text content)
@@ -266,7 +245,6 @@ pub struct PageContent {
 
     /// Aggregate OCR confidence for this page. `None` when the page was not OCR'd.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub ocr_confidence: Option<PageOcrConfidence>,
 
     /// Text layer of this page, kept when OCR output replaced it in `content`.
@@ -274,7 +252,6 @@ pub struct PageContent {
     /// Set only when `PageConfig::keep_native_content` is on, an OCR route replaced this page's `content`, and the
     /// text layer is not blank and differs from the OCR text. `None` on every other page. PDF only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.3.8"))]
     pub native_content: Option<String>,
 }
 
@@ -285,7 +262,7 @@ pub struct PageContent {
 /// is a page-level summary computed after noise filtering, intended for triage of which pages
 /// are worth a closer look, not for comparing OCR engines against each other.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct PageOcrConfidence {
     /// Aggregate legibility score in `0.0..=1.0`, or `None` when the backend that
     /// produced this page does not report a calibrated legibility scale.
@@ -312,7 +289,7 @@ pub struct PageOcrConfidence {
 /// identifying different content types (text, pictures, tables, etc.)
 /// with confidence scores and spatial positions.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct LayoutRegion {
     /// Layout class name (e.g. "picture", "table", "text", "section_header").
     #[serde(alias = "class")]
@@ -338,7 +315,7 @@ impl LayoutRegion {
 /// Used when PDF text hierarchy extraction is enabled. Contains hierarchical
 /// blocks with heading levels (H1-H6) for semantic document structure.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct PageHierarchy {
     /// Number of hierarchy blocks on this page
     pub block_count: u32,
@@ -401,27 +378,6 @@ impl<'de> Deserialize<'de> for HierarchicalBoundingBox {
     }
 }
 
-#[cfg(feature = "api")]
-impl utoipa::PartialSchema for HierarchicalBoundingBox {
-    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
-        use utoipa::openapi::schema::{Object, ObjectBuilder, Type};
-
-        ObjectBuilder::new()
-            .property("left", Object::with_type(Type::Number))
-            .required("left")
-            .property("top", Object::with_type(Type::Number))
-            .required("top")
-            .property("right", Object::with_type(Type::Number))
-            .required("right")
-            .property("bottom", Object::with_type(Type::Number))
-            .required("bottom")
-            .into()
-    }
-}
-
-#[cfg(feature = "api")]
-impl utoipa::ToSchema for HierarchicalBoundingBox {}
-
 impl From<(f32, f32, f32, f32)> for HierarchicalBoundingBox {
     fn from((left, top, right, bottom): (f32, f32, f32, f32)) -> Self {
         Self {
@@ -440,7 +396,7 @@ impl From<HierarchicalBoundingBox> for (f32, f32, f32, f32) {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct HierarchicalBlock {
     /// The text content of this block
     pub text: String,
@@ -464,7 +420,6 @@ pub struct HierarchicalBlock {
     ///
     /// Contains left, top, right, and bottom coordinates in PDF units.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub bbox: Option<HierarchicalBoundingBox>,
 }
 
@@ -477,29 +432,6 @@ fn is_default_bool(v: &bool) -> bool {
 mod binding_value_serde_tests {
     use super::{HierarchicalBlock, HierarchicalBoundingBox, PageContent, PageDimensions, PageInfo, PageOcrConfidence};
     use serde_json::json;
-
-    #[cfg(feature = "api")]
-    fn assert_named_object_schema<T: utoipa::PartialSchema>(fields: &[&str]) {
-        let schema = serde_json::to_value(T::schema()).expect("schema must serialize");
-        assert_eq!(schema["type"], "object");
-        let properties = schema["properties"].as_object().expect("schema must have properties");
-        assert_eq!(properties.len(), fields.len());
-        for field in fields {
-            assert_eq!(properties[*field]["type"], "number");
-        }
-        let required = schema["required"].as_array().expect("schema must have required fields");
-        assert_eq!(required.len(), fields.len());
-        for field in fields {
-            assert!(required.contains(&json!(field)));
-        }
-    }
-
-    #[cfg(feature = "api")]
-    #[test]
-    fn should_describe_binding_dtos_as_named_object_schemas() {
-        assert_named_object_schema::<PageDimensions>(&["width", "height"]);
-        assert_named_object_schema::<HierarchicalBoundingBox>(&["left", "top", "right", "bottom"]);
-    }
 
     #[test]
     fn should_still_accept_legacy_positional_array_for_page_dimensions() {

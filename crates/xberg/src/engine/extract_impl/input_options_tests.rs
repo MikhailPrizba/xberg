@@ -112,72 +112,7 @@ fn paired_pending_reorder_preserves_option_and_payload_identity() {
     }
 }
 
-#[cfg(all(feature = "tokio-runtime", not(target_arch = "wasm32"), layout_detection))]
-fn layout_base(flag: bool) -> ExtractionConfig {
-    ExtractionConfig {
-        layout: Some(Default::default()),
-        use_layout_for_markdown: flag,
-        disable_ocr: true,
-        concurrency: Some(crate::core::config::ConcurrencyConfig {
-            max_threads: Some(8),
-            ..Default::default()
-        }),
-        ..Default::default()
-    }
-}
-
-#[cfg(all(feature = "tokio-runtime", not(target_arch = "wasm32"), layout_detection))]
-#[test]
-fn paired_actual_classifier_resolves_the_complete_layout_matrix() {
-    use crate::core::config::concurrency::LayoutBatchWorkload::{All, None};
-    let mut actual = Vec::new();
-    for base_flag in [false, true] {
-        let base = layout_base(base_flag);
-        for flag in [Option::None, Some(true), Some(false)] {
-            let inputs = (0..4).map(|_| paired(flag)).collect::<Vec<_>>();
-            assert!(base.layout.is_some() && base.disable_ocr);
-            for item in &inputs {
-                assert!(pdf_batch_evidence(&item.input) == PdfBatchEvidence::Likely);
-            }
-            let workload = classify_layout_batch(&base, &inputs);
-            let plan = resolve_engine_batch_execution_plan(&base, &inputs);
-            actual.push((workload, plan.workers, plan.thread_budget));
-        }
-    }
-    assert_eq!(
-        actual,
-        [
-            (None, 4, 2),
-            (All, 1, 8),
-            (None, 4, 2),
-            (All, 1, 8),
-            (All, 1, 8),
-            (None, 4, 2)
-        ]
-    );
-}
-
-#[cfg(all(feature = "tokio-runtime", not(target_arch = "wasm32"), layout_detection))]
-#[test]
-fn paired_actual_pending_classifier_keeps_mixed_layout_options() {
-    let base = layout_base(false);
-    let pending = [Some(true), Some(false), None, None]
-        .into_iter()
-        .enumerate()
-        .map(|(index, flag)| (index, paired(flag), format!("input-{index}")))
-        .collect::<VecDeque<_>>();
-    for (_, item, _) in &pending {
-        assert!(pdf_batch_evidence(&item.input) == PdfBatchEvidence::Likely);
-    }
-    let plan = resolve_pending_batch_execution_plan(&base, &pending);
-    assert_eq!(
-        classify_layout_batch(&base, pending.iter().map(|(_, item, _)| item)),
-        crate::core::config::concurrency::LayoutBatchWorkload::Mixed
-    );
-    assert_eq!((plan.workers, plan.thread_budget), (2, 4));
-}
-
-#[cfg(all(feature = "tokio-runtime", not(target_arch = "wasm32"), not(layout_detection)))]
+#[cfg(all(feature = "tokio-runtime", not(target_arch = "wasm32")))]
 #[test]
 fn paired_actual_classifier_without_backend_keeps_layout_work_disabled() {
     let base = ExtractionConfig::default();

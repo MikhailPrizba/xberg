@@ -1,4 +1,4 @@
-#[cfg(any(feature = "pdf", feature = "office", feature = "ocr"))]
+#[cfg(any(feature = "pdf", feature = "office"))]
 pub mod blank_detection;
 pub mod derive;
 /// Deterministic node/edge recovery from vector diagrams. The SVG front end
@@ -12,25 +12,15 @@ pub(crate) mod doctags;
 pub(crate) mod grid_flatten;
 #[cfg(any(
     all(feature = "pdf", feature = "heuristics"),
-    feature = "ocr",
-    feature = "ocr-wasm",
     feature = "ocr-pipeline",
-    feature = "image-encode",
-    feature = "qr-codes",
-    feature = "layout-detection",
-    feature = "layout-tract",
-    feature = "auto-rotate",
-    feature = "auto-rotate-tract"
+    feature = "image-encode"
 ))]
 pub(crate) mod image_decode;
 pub mod image_kind;
 pub mod structured;
 pub mod transform;
 
-#[cfg(feature = "hwp")]
-pub mod hwp;
-
-#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub mod image;
 
 /// HEIF-family (HEIC, HEIF, AVIF) detection and decoding.
@@ -52,16 +42,13 @@ pub(crate) mod exif;
 /// reallocation cycles during string building operations.
 pub mod capacity;
 
-#[cfg(feature = "archives")]
-pub mod archive;
-
 #[cfg(feature = "email")]
 pub mod email;
 
 #[cfg(feature = "email")]
 pub mod pst;
 
-#[cfg(any(feature = "excel", feature = "excel-wasm"))]
+#[cfg(feature = "excel")]
 pub mod excel;
 
 #[cfg(feature = "html")]
@@ -112,12 +99,6 @@ pub mod ooxml_embedded;
 
 #[cfg(feature = "office")]
 pub mod image_format;
-
-#[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-pub mod image_ocr;
-
-#[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-pub(crate) mod metafile;
 
 #[cfg(feature = "office")]
 pub mod ppt;

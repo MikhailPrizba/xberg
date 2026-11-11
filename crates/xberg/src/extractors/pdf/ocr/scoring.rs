@@ -1,4 +1,4 @@
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 use crate::core::config::OcrQualityThresholds;
 
 /// Minimum average non-whitespace characters per page for extracted text to be treated as
@@ -6,32 +6,32 @@ use crate::core::config::OcrQualityThresholds;
 /// consecutive-repeat ratio) are skipped so legitimately non-prose content — numeric tables,
 /// formula pages, sparse forms — is not misclassified as needing OCR (issue #1176). Corruption
 /// checks (empty, no-alphanumerics, garbage chars, critical fragmentation) still always apply.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) const MIN_AVG_NON_WHITESPACE_TO_TRUST: f64 = 150.0;
 /// Inclusive start of the Unicode Private Use Area (BMP: U+E000-U+F8FF). Codepoints here
 /// have no standard meaning; a font's glyph-index-to-character mapping that resolves into
 /// this range signals an undecodable text layer rather than real text (issue #1254).
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) const PUA_RANGE_START: u32 = 0xE000;
 /// Inclusive end of the Unicode Private Use Area (BMP).
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) const PUA_RANGE_END: u32 = 0xF8FF;
 /// OCR may legitimately clean a native text layer, but recovering less than half of an
 /// independently healthy page is evidence of destructive recognition rather than cleanup. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) const MIN_OCR_NATIVE_ALNUM_RETENTION_RATIO: f64 = 0.5;
 /// Returns `true` for characters that indicate a broken glyph-to-Unicode mapping rather
 /// than legible text: Unicode Private Use Area codepoints (a common fallback target for
 /// undecodable CID/glyph indices), the replacement character (U+FFFD), and non-whitespace
 /// control characters. Ordinary symbols, punctuation, and emoji are unaffected.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn is_undecodable_char(ch: char) -> bool {
     let code = ch as u32;
     (PUA_RANGE_START..=PUA_RANGE_END).contains(&code) || ch == '\u{FFFD}' || (ch.is_control() && !ch.is_whitespace())
 }
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Default)]
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub struct NativeTextStats {
     pub non_whitespace: usize,
     pub alnum: usize,
@@ -56,7 +56,7 @@ pub struct NativeTextStats {
     /// no `cmap`/`post` table to fall back to.
     pub undecodable_ratio: f64,
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub struct OcrFallbackDecision {
     pub stats: NativeTextStats,
     pub avg_non_whitespace: f64,
@@ -70,7 +70,7 @@ pub struct OcrFallbackDecision {
 }
 /// Which branch the OCR skip gate selects, given pre-rendered doc presence,
 /// text statistics, and the per-page fallback decision.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum OcrGateOutcome {
     /// Content is non-textual and a pre-rendered doc is available — skip OCR.
@@ -90,7 +90,7 @@ pub(crate) enum OcrGateOutcome {
 /// independently. Fixes #917: `has_substantive_doc` alone must not suppress
 /// OCR when `decision_fallback` is true (a scanned page was detected despite
 /// good aggregate text).
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn evaluate_ocr_skip_gate(
     pre_rendered_doc_present: bool,
     total_chars: usize,
@@ -129,7 +129,7 @@ pub(crate) fn evaluate_ocr_skip_gate(
         OcrGateOutcome::UseNative
     }
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 impl NativeTextStats {
     pub(crate) fn compute(text: &str, thresholds: &OcrQualityThresholds) -> Self {
         let mut non_whitespace = 0usize;
@@ -226,20 +226,11 @@ impl NativeTextStats {
             undecodable_ratio,
         }
     }
-
-    /// Convenience method using default thresholds.
-    // Gated to `ocr` to match its only callers, which live in the
-    // `#[cfg(all(test, feature = "ocr"))]` test module below. `ocr-pipeline`
-    // alone (pulled in by `liter-llm`) compiles this file but not them. ~keep
-    #[cfg(all(test, feature = "ocr"))]
-    pub(crate) fn from(text: &str) -> Self {
-        Self::compute(text, &OcrQualityThresholds::default())
-    }
 }
 /// Evaluates native PDF text quality to determine if OCR fallback is needed.
 ///
 /// Uses the provided quality thresholds (or defaults) to make the decision.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn evaluate_native_text_for_ocr(
     native_text: &str,
     page_count: Option<u32>,
@@ -249,7 +240,7 @@ pub(crate) fn evaluate_native_text_for_ocr(
 }
 /// The clauses of the native-text gate that mark a text layer as unusable regardless of its
 /// size: no alphanumerics, undecodable characters, fragmentation, repeated runs. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn native_text_definitively_failed(
     stats: &NativeTextStats,
     has_substantial_content: bool,
@@ -282,7 +273,7 @@ fn native_text_definitively_failed(
 /// True when a text layer is readable text that failed the OCR gate on size only: the layer
 /// holds characters and none of the garble clauses of the gate fires. A caller keeps such a
 /// layer beside OCR text that is judged recognition noise. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn native_layer_is_clean(native_text: &str, thresholds: &OcrQualityThresholds) -> bool {
     let trimmed = native_text.trim();
     if trimmed.is_empty() {
@@ -292,7 +283,7 @@ pub(crate) fn native_layer_is_clean(native_text: &str, thresholds: &OcrQualityTh
     let has_substantial_content = stats.non_whitespace as f64 >= MIN_AVG_NON_WHITESPACE_TO_TRUST;
     !native_text_definitively_failed(&stats, has_substantial_content, thresholds, true)
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn evaluate_native_text_for_ocr_with_garbage_threshold(
     native_text: &str,
     page_count: Option<u32>,
@@ -377,7 +368,7 @@ pub(super) fn evaluate_native_text_for_ocr_with_garbage_threshold(
 /// score reflects the prose content rather than the formatting. The returned string
 /// is used only as scoring input; the emitted OCR text is never altered. Inline
 /// hyphens and periods are preserved so real word lengths are unaffected.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn normalize_markdown_for_scoring(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for line in text.lines() {
@@ -432,9 +423,9 @@ pub(super) fn normalize_markdown_for_scoring(text: &str) -> String {
 /// OCR confusions and the doubled `lL.` misread of a single `1.`). Flip to `false` to A/B this
 /// behavior in isolation — the original, narrower repairs (`3,` -> `3.` and `l.` -> `1.`) are
 /// unconditional and keep working either way.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) const ENABLE_WIDENED_OCR_LIST_MARKER_REPAIR: bool = true;
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 /// Repair ordered-list markers the OCR engine mis-read at the start of a line.
 ///
 /// A list marker is one or two characters carrying all of the structure: `3.` makes a list
@@ -467,7 +458,7 @@ pub(super) const ENABLE_WIDENED_OCR_LIST_MARKER_REPAIR: bool = true;
 /// real list; `2024, the year ...` is not), and it is followed by exactly one space and then
 /// an uppercase letter. Sentences beginning "3, and the remainder ..." keep their comma
 /// because of the uppercase requirement; prose beginning "l. " does not occur.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn repair_ocr_list_markers(text: &str) -> std::borrow::Cow<'_, str> {
     let lines: Vec<&str> = text.lines().collect();
     let kinds: Vec<LineMarkerKind> = lines.iter().map(|line| classify_marker_line(line)).collect();
@@ -510,7 +501,7 @@ pub(crate) fn repair_ocr_list_markers(text: &str) -> std::borrow::Cow<'_, str> {
     std::borrow::Cow::Owned(out)
 }
 /// How a line's leading token reads as an ordered-list marker.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum LineMarkerKind {
     /// Not a list-marker-shaped line at all.
@@ -534,7 +525,7 @@ pub(super) enum LineMarkerKind {
     Letter,
 }
 /// Classify a line's leading token as an ordered-list marker, if it looks like one at all.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn classify_marker_line(line: &str) -> LineMarkerKind {
     let Some((marker, rest)) = line.split_once(' ') else {
         return LineMarkerKind::None;
@@ -578,7 +569,7 @@ pub(super) fn classify_marker_line(line: &str) -> LineMarkerKind {
 /// Deliberately the exact confusion set observed on the ordinance fixture, not a general
 /// OCR confusion table: widening it further would widen the set of legitimate lettered
 /// markers (`A.` .. `Z.`) this function has to reason about being corrupted.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn confusable_digit_for_letter(ch: char) -> Option<char> {
     match ch {
         'L' => Some('1'),
@@ -591,7 +582,7 @@ pub(super) fn confusable_digit_for_letter(ch: char) -> Option<char> {
 }
 /// This marker line's contribution, if any, to deciding whether a *neighboring* ambiguous
 /// line sits in a numeric or a lettered run.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn nearest_marker_is_digit(kind: &LineMarkerKind) -> Option<bool> {
     match kind {
         LineMarkerKind::Digit | LineMarkerKind::LegacyRepairableDigit | LineMarkerKind::LegacyRepairableL => Some(true),
@@ -605,7 +596,7 @@ pub(super) fn nearest_marker_is_digit(kind: &LineMarkerKind) -> Option<bool> {
 /// Repairs only when every side that found an answer says "numeric" (a `Letter` neighbor on
 /// either side vetoes the repair) and at least one side found an answer at all. A page with no
 /// determinable neighbor in either direction is left alone.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn ambiguous_marker_is_numeric_context(kinds: &[LineMarkerKind], index: usize) -> bool {
     let before = kinds[..index].iter().rev().find_map(nearest_marker_is_digit);
     let after = kinds[index + 1..].iter().find_map(nearest_marker_is_digit);
@@ -615,7 +606,7 @@ pub(super) fn ambiguous_marker_is_numeric_context(kinds: &[LineMarkerKind], inde
     )
 }
 /// Rewrite a line already decided to be repaired, per its classified kind.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn repaired_marker_line(line: &str, kind: &LineMarkerKind) -> String {
     let space_index = line.find(' ').unwrap_or(0);
     let (marker, rest) = line.split_at(space_index);
@@ -635,42 +626,42 @@ pub(super) fn repaired_marker_line(line: &str, kind: &LineMarkerKind) -> String 
 /// Minimum digit count a bare integer must have before it is treated as a grouped value by
 /// [`repair_ocr_numeric_tokens`]'s separator rule (GH#1789). Below this, a 1-3 digit number is
 /// too common as a small quantity, a percentage, or a short id to safely re-punctuate. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 const NUMERIC_REPAIR_MIN_SEPARATOR_DIGITS: usize = 4;
 /// Maximum digit count the separator rule will re-punctuate. Above this the token is more
 /// likely an account or reference number than a currency amount, and grouping it would assert
 /// a scale ("hundred million") the source never claimed. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 const NUMERIC_REPAIR_MAX_SEPARATOR_DIGITS: usize = 9;
 /// Digits after the decimal point the period rule requires before treating a misread comma as
 /// restored. Financial schedules in this corpus group in exactly three digits (`7,812`); a
 /// different fraction length (`7.81`) is a real decimal, not an OCR miss. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 const NUMERIC_REPAIR_GROUP_WIDTH: usize = 3;
 /// Maximum digits before the decimal point the period rule will treat as the misread leading
 /// group of a grouped number (`7.812` -> `7,812`, `812.812` -> `812,812`). Four or more digits
 /// before the point is already an ordinary decimal (`1234.5`), not a split thousands group.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 const NUMERIC_REPAIR_PERIOD_LEAD_DIGITS: usize = 3;
 /// Maximum digits the join rule's second (already-grouped) token may carry before its comma
 /// (`2 2,411` -> `22,411`, capturing `2,411`). A three-or-more digit leading group would make
 /// the "lone digit" on its own a implausible split -- a real 3-digit group does not usually
 /// tear a single leading digit off across a rendering gap.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 const NUMERIC_REPAIR_JOIN_LEAD_DIGITS: usize = 2;
 /// `true` if `ch` is a character that, immediately adjacent to a digit run, means the run is
 /// already part of a larger token (a longer number, a decimal, an identifier) and must not be
 /// treated as a repair candidate on its own. Shared by every rule in
 /// [`repair_ocr_numeric_tokens`] as the baseline "already inside a word" boundary; individual
 /// rules layer additional forbidden neighbors on top (see each rule's own comment).
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn numeric_repair_blocks_word_boundary(ch: char) -> bool {
     ch.is_alphanumeric() || ch == '_' || ch == '.' || ch == ','
 }
 /// Group a base-10 digit string with `NUMERIC_REPAIR_GROUP_WIDTH`-digit thousands separators
 /// (`"1172"` -> `"1,172"`). Leading zeros are dropped, matching the reference implementation's
 /// `int(...)` round trip: a token is a magnitude here, not a preserved digit sequence.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn numeric_repair_group_digits(digits: &str) -> String {
     let normalized = digits.parse::<u64>().map(|value| value.to_string()).unwrap_or_default();
     let bytes = normalized.as_bytes();
@@ -691,7 +682,7 @@ fn numeric_repair_group_digits(digits: &str) -> String {
 /// caller via [`numeric_repair_blocks_word_boundary`] on the preceding character), and the
 /// matched group must not be immediately followed by another digit -- otherwise `"2 22,411"`
 /// would wrongly absorb only part of a longer run.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn numeric_repair_match_join(chars: &[char], start: usize) -> Option<(usize, String)> {
     let lone_digit = *chars.get(start)?;
     if !lone_digit.is_ascii_digit() || chars.get(start + 1) != Some(&' ') {
@@ -730,7 +721,7 @@ fn numeric_repair_match_join(chars: &[char], start: usize) -> Option<(usize, Str
 /// `NUMERIC_REPAIR_GROUP_WIDTH` digits, is a comma the OCR engine misread as a period
 /// (`"7.812"` -> `"7,812"`). A trailing digit, `%`, `.`, or `,` means this is actually a longer
 /// decimal or percentage, not a grouped amount, and is left alone.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn numeric_repair_match_period(chars: &[char], start: usize) -> Option<(usize, String)> {
     let mut lead_start = start;
     if chars.get(lead_start) == Some(&'(') {
@@ -777,7 +768,7 @@ fn numeric_repair_match_period(chars: &[char], start: usize) -> Option<(usize, S
 /// after a `FY` header token (`"FY 2025"` stays a year), which the generic word-boundary check
 /// alone would not catch because the character right before the digits is a space, not a word
 /// character.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn numeric_repair_match_separator(chars: &[char], start: usize) -> Option<(usize, String)> {
     if start >= 3 && chars[start - 3] == 'F' && chars[start - 2] == 'Y' && chars[start - 1] == ' ' {
         return None;
@@ -817,7 +808,7 @@ fn numeric_repair_match_separator(chars: &[char], start: usize) -> Option<(usize
 /// preceding character does not already block a match. Shared driver for the three
 /// [`repair_ocr_numeric_tokens`] rules, which differ only in `matcher` and in which characters
 /// additionally block the position on the left (`extra_left_block`).
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 fn numeric_repair_apply_rule(
     text: &str,
     extra_left_block: impl Fn(char) -> bool,
@@ -864,7 +855,7 @@ fn numeric_repair_apply_rule(
 /// Applied in the same order as the reference implementation: join, then period, then
 /// separator, so a split grouped number is reassembled before either punctuation rule looks at
 /// it.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn repair_ocr_numeric_tokens(text: &str) -> std::borrow::Cow<'_, str> {
     let (joined, join_changed) = numeric_repair_apply_rule(text, |_| false, numeric_repair_match_join);
     let (period_fixed, period_changed) = numeric_repair_apply_rule(&joined, |_| false, numeric_repair_match_period);
@@ -890,7 +881,7 @@ pub(crate) fn repair_ocr_numeric_tokens(text: &str) -> std::borrow::Cow<'_, str>
 /// four-digit coordinates are the norm rather than an edge case (GH#1836). An allowlist, not a
 /// denylist, so a renderer added later defaults to "not repairable" instead of being silently
 /// corrupted. `None` is repairable because `TesseractConfig::default` renders `"markdown"`. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn ocr_content_is_repairable_prose(ocr_config: &crate::core::config::OcrConfig) -> bool {
     match ocr_config.tesseract_config.as_ref() {
         Some(tesseract_config) => matches!(tesseract_config.output_format.as_str(), "text" | "markdown"),
@@ -903,7 +894,7 @@ pub(crate) fn ocr_content_is_repairable_prose(ocr_config: &crate::core::config::
 /// Only [`ConfidenceSemantics::Legibility`] is normalized (by its `scale_max`) and compared
 /// against the ABSOLUTE 0-100 `min_ocr_mean_confidence` threshold. `Uncalibrated` and `None`
 /// never trigger here because their number, if any, does not mean legibility.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn confidence_gate_rejects(
     semantics: crate::plugins::ConfidenceSemantics,
     confidence: Option<f64>,
@@ -917,13 +908,13 @@ pub(super) fn confidence_gate_rejects(
     }
     confidence.is_some_and(|c| c / scale_max < min_ocr_mean_confidence / 100.0)
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[derive(Debug, Clone, Copy)]
 pub(super) struct OcrRecognitionNoiseDecision {
     pub(super) low_confidence: bool,
     pub(super) fragmented_noise: bool,
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 impl OcrRecognitionNoiseDecision {
     fn suspected(self) -> bool {
         self.low_confidence || self.fragmented_noise
@@ -933,7 +924,7 @@ impl OcrRecognitionNoiseDecision {
 ///
 /// Confidence is consulted only when the producing backend declares a calibrated legibility
 /// scale. Fragmentation remains an independent signal so warnings report every reason that fired. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn ocr_recognition_noise_decision(
     content: &str,
     thresholds: &OcrQualityThresholds,
@@ -951,7 +942,7 @@ pub(super) fn ocr_recognition_noise_decision(
 ///
 /// Written by `perform_ocr` from `api.mean_text_conf()`. Backends that do not report it
 /// (and Tesseract itself, when it read nothing) simply yield `None`.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn mean_text_conf_of(
     metadata: &ahash::AHashMap<std::borrow::Cow<'_, str>, serde_json::Value>,
 ) -> Option<f64> {
@@ -967,7 +958,7 @@ pub(crate) fn mean_text_conf_of(
 /// never report it simply yield `None`, which callers read as "unknown", not as zero words.
 /// The `u64` is narrowed by saturation rather than cast, so an implausibly large count
 /// cannot silently wrap into a small one. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn word_count_of(metadata: &ahash::AHashMap<std::borrow::Cow<'_, str>, serde_json::Value>) -> Option<u32> {
     let count = metadata.get("word_count")?.as_u64()?;
     Some(u32::try_from(count).unwrap_or(u32::MAX))
@@ -985,7 +976,7 @@ pub(crate) fn word_count_of(metadata: &ahash::AHashMap<std::borrow::Cow<'_, str>
 /// `Some(0.0)` is never used as a substitute for "no data": zero confidence and no data are
 /// different facts, and collapsing them would make a genuinely illegible page indistinguishable
 /// from one nobody scored.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn page_ocr_confidence(
     semantics: crate::plugins::ConfidenceSemantics,
     raw_confidence: Option<f64>,
@@ -1010,7 +1001,7 @@ pub(crate) fn page_ocr_confidence(
 /// raw Markdown makes a page of perfectly good tabular OCR look exactly like line-art noise.
 /// [`compute_quality_score`] already normalizes for this (#1341); the veto has to as well, or a
 /// scanned table becomes its most likely false positive.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn ocr_output_stats(text: &str, thresholds: &OcrQualityThresholds) -> NativeTextStats {
     NativeTextStats::compute(&scoring_input(text.trim()), thresholds)
 }
@@ -1035,7 +1026,7 @@ pub(super) fn ocr_output_stats(text: &str, thresholds: &OcrQualityThresholds) ->
 /// This is deliberately conservative: it declines to judge pages with too few words to make
 /// the ratio meaningful, and its threshold sits in the middle of the measured gap rather than
 /// at either edge.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn is_ocr_recognition_noise(text: &str, thresholds: &OcrQualityThresholds) -> bool {
     let stats = ocr_output_stats(text, thresholds);
     if stats.word_count < thresholds.min_words_for_ocr_output_check {
@@ -1044,14 +1035,14 @@ pub(crate) fn is_ocr_recognition_noise(text: &str, thresholds: &OcrQualityThresh
     stats.fragmented_word_ratio >= thresholds.max_ocr_output_fragmented_word_ratio
 }
 /// Whether the text has too few words for [`is_ocr_recognition_noise`] to judge it.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn is_below_noise_check_minimum(text: &str, thresholds: &OcrQualityThresholds) -> bool {
     ocr_output_stats(text, thresholds).word_count < thresholds.min_words_for_ocr_output_check
 }
 
 /// The pool already met the minimum sample size. Compare a member's own fragmentation
 /// without the sample size guard, so a short clean read need not share the pool's verdict.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "pdf"))]
+#[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn small_read_has_fragmented_words(text: &str, thresholds: &OcrQualityThresholds) -> bool {
     let input = scoring_input(text.trim());
     let (words, short) = input
@@ -1073,7 +1064,7 @@ pub(super) fn small_read_has_fragmented_words(text: &str, thresholds: &OcrQualit
 ///
 /// The default threshold (see `OcrQualityThresholds::max_ocr_output_dict_invalid_word_ratio`)
 /// disables this check until it is calibrated.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn is_dictionary_invalid_noise(
     dict_invalid_word_ratio: Option<f64>,
     thresholds: &OcrQualityThresholds,
@@ -1089,7 +1080,7 @@ pub(super) fn is_dictionary_invalid_noise(
 /// 1,061-page corpus cleanly (median dictionary-valid-word ratio 0.772 for documents where it
 /// fires on >=15% of pages, vs. 0.928 for the rest) but was previously discarded one frame
 /// before the accept decision that needs it. Plumbed through, not yet gated on. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct OcrPageNoiseVerdict {
     pub(crate) page_index: usize,
@@ -1107,7 +1098,7 @@ pub(crate) struct OcrPageNoiseVerdict {
 /// Outcome of [`accept_or_reject_ocr_page`]: the (possibly discarded) page text, whether it
 /// was discarded, and -- when recognition noise was suspected -- the numeric verdict behind
 /// that call, so a caller can observe the signal without recomputing stats.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) struct OcrPageAcceptance {
     pub(super) content: String,
     pub(super) discarded: bool,
@@ -1119,7 +1110,7 @@ pub(super) struct OcrPageAcceptance {
 /// Blank pages carry neither a warning nor a destructive verdict, and `verdict` is `None`
 /// whenever no warning fires -- mirroring the `warnings` accumulator this function already
 /// writes into.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn accept_or_reject_ocr_page(
     page_index: usize,
     content: String,
@@ -1187,7 +1178,7 @@ pub(super) fn accept_or_reject_ocr_page(
         }
     }
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn ocr_noise_warning(
     verdict: &OcrPageNoiseVerdict,
     thresholds: &OcrQualityThresholds,
@@ -1250,7 +1241,7 @@ pub(super) fn ocr_noise_warning(
 /// table-separator row inflate the density denominator while the meaningful-word count stayed
 /// flat, vetoing a good VLM candidate -- #1341's Markdown-penalizes-VLM bias reintroduced
 /// through an un-normalized side door. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn scoring_input(trimmed: &str) -> std::borrow::Cow<'_, str> {
     let normalized = normalize_markdown_for_scoring(trimmed);
     if normalized.trim().is_empty() {
@@ -1260,7 +1251,7 @@ pub(super) fn scoring_input(trimmed: &str) -> std::borrow::Cow<'_, str> {
     }
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn compute_quality_score(text: &str, thresholds: &OcrQualityThresholds) -> f64 {
     let trimmed = text.trim();
     if trimmed.is_empty() {
@@ -1307,14 +1298,14 @@ pub(crate) fn compute_quality_score(text: &str, thresholds: &OcrQualityThreshold
 /// For any other backend `extract_with_ocr` reports `None`, so this drops the confidence
 /// term entirely and blends nothing, rather than averaging in a number with no defined
 /// scale (see `resolve_confidence_semantics`).
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(super) fn pipeline_stage_score(text_score: f64, mean_conf: Option<f64>) -> f64 {
     match mean_conf {
         Some(conf) => text_score * 0.7 + conf * 0.3,
         None => text_score,
     }
 }
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn evaluate_per_page_ocr(
     native_text: &str,
     boundaries: Option<&[crate::types::PageBoundary]>,
@@ -1427,7 +1418,7 @@ pub(crate) fn evaluate_per_page_ocr(
 /// caller data corruption, not evidence of a real page needing OCR, and padding the failing-page
 /// set with it would let a caller's off-by-one inflate `whole_doc_failure`'s "every page failed"
 /// comparison against a page count the bad index was never part of. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn apply_flagged_pages(
     decision: &mut OcrFallbackDecision,
     flagged_pages: &[u32],

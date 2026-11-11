@@ -1,16 +1,14 @@
-#[cfg(not(feature = "ocr"))]
 use super::tests::build_paged_text_pdf;
 use super::*;
 
 // OCR tests already install a global allocation observer. ~keep
-#[cfg(not(feature = "ocr"))]
+
 #[path = "span_carrier_tests/allocations.rs"]
 mod allocations;
 
 #[path = "span_carrier_tests/behavior.rs"]
 mod behavior;
 
-#[cfg(not(feature = "ocr"))]
 #[test]
 fn should_avoid_materializing_unused_character_records_in_the_core_span_carrier() {
     let bytes = build_paged_text_pdf(1, 24);

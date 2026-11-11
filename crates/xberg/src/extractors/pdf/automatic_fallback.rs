@@ -3,33 +3,7 @@ use crate::core::config::ExtractionConfig;
 
 pub(super) fn automatic_page_acceptance_supported(config: &ExtractionConfig) -> bool {
     // Document-scoped OCR must keep its original input; only native-preserving single-backend reads may detach. ~keep
-    #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-    {
-        let Some(ocr_config) = config.ocr.as_ref() else {
-            return false;
-        };
-        if config.output_format != crate::core::config::OutputFormat::Plain
-            || config.include_document_structure
-            || config.result_format == crate::types::ResultFormat::ElementBased
-        {
-            return false;
-        }
-        if config.force_ocr_pages.as_ref().is_some_and(|pages| !pages.is_empty()) {
-            return false;
-        }
-        // No page override remains, so the shared page-specific predicate is uniform across the document. ~keep
-        if !ocr::native_preservation_is_automatic(config, 1)
-            || ocr_config.vlm_fallback != crate::core::config::VlmFallbackPolicy::Disabled
-        {
-            return false;
-        }
-        let registry = crate::plugins::registry::get_ocr_backend_registry();
-        let registry = registry.read();
-        registry
-            .get(&ocr_config.backend)
-            .is_ok_and(|backend| registry.is_builtin_tesseract(&backend))
-    }
-    #[cfg(not(all(feature = "ocr", not(target_arch = "wasm32"))))]
+
     {
         let _ = config;
         false

@@ -61,24 +61,3 @@ fn should_not_redact_a_longer_word_that_merely_contains_the_mention() {
         "word-boundary anchoring must keep the engine from shredding unrelated words"
     );
 }
-
-/// The offset-resolution helper the LLM backend now uses: one entity per
-/// occurrence, in ascending byte order.
-#[cfg(feature = "ner")]
-#[test]
-fn should_resolve_all_occurrences_when_backend_reports_a_bare_mention() {
-    use xberg::text::ner::offsets::entities_for_every_occurrence;
-
-    let text = format!("{SUBJECT} a {SUBJECT} b {SUBJECT}");
-    let found = entities_for_every_occurrence(&text, SUBJECT, EntityCategory::Person, Some(0.9));
-
-    assert_eq!(found.len(), 3, "expected one entity per occurrence, got {found:?}");
-    assert_eq!(
-        found.iter().map(|e| (e.start, e.end)).collect::<Vec<_>>(),
-        vec![(0, 14), (17, 31), (34, 48)]
-    );
-    for entity in &found {
-        assert_eq!(&text[entity.start as usize..entity.end as usize], SUBJECT);
-        assert_eq!(entity.category, EntityCategory::Person);
-    }
-}

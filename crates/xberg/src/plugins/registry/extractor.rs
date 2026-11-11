@@ -13,8 +13,6 @@ use std::sync::Arc;
 pub(crate) struct RegisteredDocumentExtractor {
     extractor: Arc<dyn DocumentExtractor>,
     internal: Option<Arc<dyn InternalDocumentExtractor>>,
-    layout_pages_capability: Option<Arc<dyn crate::core::layout_pages::LayoutPagesExtractor>>,
-    layout_page_selection: Option<crate::core::layout_pages::LayoutPageSelection>,
 }
 
 impl RegisteredDocumentExtractor {
@@ -22,8 +20,6 @@ impl RegisteredDocumentExtractor {
         Self {
             extractor,
             internal: None,
-            layout_pages_capability: None,
-            layout_page_selection: None,
         }
     }
 
@@ -34,20 +30,7 @@ impl RegisteredDocumentExtractor {
         Self {
             extractor: extractor.clone(),
             internal: Some(extractor),
-            layout_pages_capability: None,
-            layout_page_selection: None,
         }
-    }
-
-    pub(crate) fn with_layout_pages(mut self, pages: &crate::core::layout_pages::LayoutPageSelection) -> Result<Self> {
-        if self.layout_pages_capability.is_none() {
-            return Err(XbergError::validation(format!(
-                "selected extractor {:?} does not support explicit layout-page selection",
-                self.plugin().name()
-            )));
-        }
-        self.layout_page_selection = Some(pages.clone());
-        Ok(self)
     }
 
     pub(crate) fn extractor(&self) -> Arc<dyn DocumentExtractor> {
@@ -68,14 +51,6 @@ impl RegisteredDocumentExtractor {
         mime_type: &str,
         config: &ExtractionConfig,
     ) -> Result<InternalDocument> {
-        if let Some(pages) = &self.layout_page_selection {
-            let capability = self.layout_pages_capability.as_ref().ok_or_else(|| {
-                XbergError::validation("selected extractor lacks explicit layout-page support".to_string())
-            })?;
-            return capability
-                .extract_with_layout_pages(content, mime_type, config, pages)
-                .await;
-        }
         if let Some(internal) = &self.internal {
             return internal.extract_content(content, mime_type, config).await;
         }
@@ -162,7 +137,6 @@ impl InternalDocumentExtractor for RegisteredDocumentExtractor {
     }
 }
 
-#[cfg_attr(alef, alef(skip))]
 /// Registry for document extractor plugins.
 ///
 /// Manages extractors with MIME type and priority-based selection.
@@ -206,16 +180,6 @@ impl DocumentExtractorRegistry {
         T: InternalDocumentExtractor + 'static,
     {
         self.register_entry(RegisteredDocumentExtractor::internal(extractor))
-    }
-
-    #[cfg(all(feature = "pdf", feature = "layout-detection"))]
-    pub(crate) fn register_internal_with_layout_pages<T>(&mut self, extractor: Arc<T>) -> Result<()>
-    where
-        T: InternalDocumentExtractor + crate::core::layout_pages::LayoutPagesExtractor + 'static,
-    {
-        let mut entry = RegisteredDocumentExtractor::internal(Arc::clone(&extractor));
-        entry.layout_pages_capability = Some(extractor);
-        self.register_entry(entry)
     }
 
     fn register_entry(&mut self, entry: RegisteredDocumentExtractor) -> Result<()> {
@@ -309,13 +273,7 @@ impl DocumentExtractorRegistry {
     /// # Returns
     ///
     /// The highest priority extractor, or an error if none found.
-    #[cfg_attr(feature = "otel", tracing::instrument(
-        skip(self),
-        fields(
-            registry.mime_type = %mime_type,
-            registry.found = tracing::field::Empty,
-        )
-    ))]
+
     pub fn get(&self, mime_type: &str) -> Result<Arc<dyn DocumentExtractor>> {
         Ok(self.get_registered(mime_type)?.extractor())
     }
@@ -324,8 +282,6 @@ impl DocumentExtractorRegistry {
         if let Some(priority_map) = self.extractors.get(mime_type)
             && let Some((_priority, entry)) = priority_map.iter().next_back()
         {
-            #[cfg(feature = "otel")]
-            tracing::Span::current().record("registry.found", true);
             return Ok(entry.clone());
         }
 
@@ -352,13 +308,9 @@ impl DocumentExtractorRegistry {
         }
 
         if let Some((_priority, entry)) = best_match {
-            #[cfg(feature = "otel")]
-            tracing::Span::current().record("registry.found", true);
             return Ok(entry);
         }
 
-        #[cfg(feature = "otel")]
-        tracing::Span::current().record("registry.found", false);
         Err(XbergError::UnsupportedFormat(mime_type.to_string()))
     }
 

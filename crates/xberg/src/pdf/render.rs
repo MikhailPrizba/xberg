@@ -14,9 +14,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 /// gap is upstream vs. xberg-side.
 const PDF_RENDER_WARNING_SOURCE: &str = "pdf-render";
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 const ROTATED_PNG_ENCODE_BYTES_PER_PIXEL: u64 = 4;
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 const ROTATED_PNG_ENCODE_FIXED_BYTES: u64 = 256 * 1024;
 
 thread_local! {
@@ -211,7 +211,7 @@ impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for EngineWarningCaptu
 /// until something does, so that the render path costs nothing for the majority of embedders
 /// who never opt in. Building a layer you then discard leaves the render path arming and
 /// draining an empty buffer: harmless, but pointless.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn glyph_drop_capture_layer<S: tracing::Subscriber>() -> impl tracing_subscriber::Layer<S> {
     ENGINE_CAPTURE_ACTIVE.store(true, Ordering::Release);
     EngineWarningCapture
@@ -420,7 +420,7 @@ pub fn take_xberg_native_pdf_render_warnings() -> Vec<ProcessingWarning> {
 // narrow feature legs, so `-D dead-code` fires there and nowhere else. A hand-kept
 // union-of-consumers `cfg` is what drifted here and failed the 1.3.0 publish (GH#1951).
 #[cfg(feature = "pdf")]
-#[allow(dead_code)]
+
 pub(crate) fn record_render_warning(warning: ProcessingWarning) {
     ENGINE_PENDING_WARNINGS.with(|pending| push_warning_deduped(&mut pending.borrow_mut(), warning));
 }
@@ -459,7 +459,7 @@ pub(crate) async fn with_task_render_warnings<F: std::future::Future>(future: F)
 
 /// Capture this synchronous render's warnings without leaving them on a worker that
 /// may poll another extraction while the current request awaits OCR.
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(crate) fn capture_render_warnings<T>(render: impl FnOnce() -> Result<T>) -> Result<(T, Vec<ProcessingWarning>)> {
     let prior = take_xberg_native_pdf_render_warnings();
     let result = render();
@@ -471,7 +471,7 @@ pub(crate) fn capture_render_warnings<T>(render: impl FnOnce() -> Result<T>) -> 
 /// retaining the original length preserves warnings already pending on the same thread.
 #[cfg(all(
     feature = "pdf",
-    any(feature = "ocr", feature = "ocr-pipeline"),
+    feature = "ocr-pipeline",
     any(test, not(feature = "tokio-runtime"), target_arch = "wasm32")
 ))]
 pub(crate) fn discard_new_render_warnings_on_error<T>(render: impl FnOnce() -> Result<T>) -> Result<T> {
@@ -511,7 +511,7 @@ pub(crate) fn discard_new_render_warnings_on_error<T>(render: impl FnOnce() -> R
 /// indexed `collect` preserves `page_indices`' order, so merging afterwards needs no sort. ~keep
 #[cfg(all(
     feature = "pdf",
-    any(feature = "ocr", feature = "ocr-pipeline"),
+    feature = "ocr-pipeline",
     feature = "tokio-runtime",
     not(target_arch = "wasm32")
 ))]
@@ -548,7 +548,7 @@ pub(crate) fn par_render_pages_collecting_warnings<T: Send>(
 
 #[cfg(all(
     feature = "pdf",
-    any(feature = "ocr", feature = "ocr-pipeline"),
+    feature = "ocr-pipeline",
     feature = "tokio-runtime",
     not(target_arch = "wasm32")
 ))]
@@ -582,7 +582,7 @@ pub(crate) fn par_render_pages_collecting_results<T: Send>(
 // no local gate builds (GH#1861).
 #[cfg(all(
     feature = "pdf",
-    any(feature = "ocr", feature = "ocr-pipeline"),
+    feature = "ocr-pipeline",
     feature = "tokio-runtime",
     not(target_arch = "wasm32")
 ))]
@@ -658,7 +658,7 @@ pub(crate) fn get_page_dimensions_pt(doc: &xberg_native_pdf::PdfDocument, page_i
 ///
 /// Returns `None` for a degenerate page box or an empty raster so callers keep their
 /// "resolution unknown" behaviour instead of adopting a fabricated one.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn rendered_page_dpi(rendered_width_px: u32, page_width_pt: f32) -> Option<f64> {
     /// Points per inch in PDF user space: a MediaBox is expressed in these units, so a page's
     /// width in inches is its width in points divided by this.
@@ -680,7 +680,7 @@ pub(crate) fn rendered_page_dpi(rendered_width_px: u32, page_width_pt: f32) -> O
 /// orientation, so the OCR image axes already align with the MediaBox: the
 /// mapping is a pure scale plus a y flip. Scaling from the actual rendered
 /// size keeps it correct when [`choose_safe_dpi`] reduced the render DPI.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn pixel_bbox_to_pdf_points(
     bbox: crate::types::BoundingBox,
     rendered_w: u32,
@@ -705,7 +705,7 @@ pub(crate) fn pixel_bbox_to_pdf_points(
     }
 }
 
-#[cfg(all(test, any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(test, feature = "ocr-pipeline"))]
 mod pixel_bbox_tests {
     use super::pixel_bbox_to_pdf_points;
     use crate::types::BoundingBox;
@@ -795,7 +795,7 @@ mod pixel_bbox_tests {
 /// relies on it. See `get_page_rotations`' test module for the pinning test.
 ///
 /// See `get_page_rotations_from_bytes` for callers that hold only the raw bytes.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn get_page_rotations(doc: &xberg_native_pdf::PdfDocument, page_count: usize) -> Vec<u32> {
     (0..page_count)
         .map(|page_index| match doc.get_page_rotation(page_index) {
@@ -814,28 +814,9 @@ pub(crate) fn get_page_rotations(doc: &xberg_native_pdf::PdfDocument, page_count
         .collect()
 }
 
-/// Prefer the document-taking form wherever a `PdfDocument` is already open — three call
-/// sites were re-parsing the same bytes a second time purely to read `/Rotate`. This exists
-/// for the markdown-layout reuse gate, which genuinely has no document in scope, and it opens
-/// one so the extra parse is at least explicit at the call site rather than hidden inside the
-/// lookup.
-///
-/// Returns all-zero rotations if the document cannot be opened: this is a rendering hint,
-/// and a document that will not open fails for better reasons elsewhere.
-#[cfg(all(any(feature = "ocr", feature = "ocr-pipeline"), feature = "layout-detection"))]
-pub(crate) fn get_page_rotations_from_bytes(content: &[u8], page_count: usize) -> Vec<u32> {
-    match xberg_native_pdf::PdfDocument::from_bytes(content.to_vec()) {
-        Ok(doc) => get_page_rotations(&doc, page_count),
-        Err(error) => {
-            tracing::warn!(%error, "failed to open PDF to read page rotations; assuming none");
-            vec![0; page_count]
-        }
-    }
-}
-
 /// Rotate a decoded page image per the page's normalized /Rotate value.
 /// No-op for 0 or non-quarter-turn values.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn rotate_dynamic_image(img: image::DynamicImage, rotation_degrees: u32) -> image::DynamicImage {
     match rotation_degrees % 360 {
         90 => img.rotate90(),
@@ -848,7 +829,7 @@ pub(crate) fn rotate_dynamic_image(img: image::DynamicImage, rotation_degrees: u
 /// Return the correction needed to make a page raster upright after
 /// `xberg_native_pdf` has applied the PDF page's `/Rotate` value while rendering.
 /// ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn ocr_page_correction_degrees(rotation_degrees: u32) -> u32 {
     (360 - rotation_degrees % 360) % 360
 }
@@ -859,7 +840,7 @@ pub(crate) fn ocr_page_correction_degrees(rotation_degrees: u32) -> u32 {
 /// pages pay one decode + re-encode, which only happens for documents that
 /// actually carry /Rotate. Returns the (possibly new) PNG bytes with the
 /// post-rotation width and height.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 #[cfg(test)]
 pub(crate) fn rotate_png_page_if_needed(
     png_data: Vec<u8>,
@@ -876,7 +857,7 @@ pub(crate) fn rotate_png_page_if_needed(
     )
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn rotate_png_page_if_needed_with_security_limits(
     png_data: Vec<u8>,
     width: u32,
@@ -924,7 +905,7 @@ pub(crate) fn rotate_png_page_if_needed_with_security_limits(
 /// `xberg_native_pdf` already applies `/Rotate` to the rendered page. OCR needs the
 /// inverse transform exactly once so text is upright before layout and OCR
 /// inference consume the shared raster. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 #[cfg(test)]
 pub(crate) fn normalize_rendered_page_for_ocr(
     png_data: Vec<u8>,
@@ -935,7 +916,7 @@ pub(crate) fn normalize_rendered_page_for_ocr(
     rotate_png_page_if_needed(png_data, width, height, ocr_page_correction_degrees(rotation_degrees))
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn normalize_rendered_page_for_ocr_with_security_limits(
     png_data: Vec<u8>,
     width: u32,
@@ -997,84 +978,19 @@ pub(crate) fn render_page_with_safeguards(
     render_page_with_options(doc, page_index, &options, max_png_working_bytes)
 }
 
-#[cfg(feature = "layout-detection")]
-pub(crate) fn render_pdf_layout_page(
-    doc: &xberg_native_pdf::PdfDocument,
-    page_index: usize,
-    images_config: Option<&crate::core::config::ImageExtractionConfig>,
-    max_working_bytes: usize,
-) -> std::result::Result<xberg_native_pdf::rendering::RenderedImage, xberg_native_pdf::Error> {
-    const POINT_DPI: u32 = 72;
-    let media = doc.get_page_media_box(page_index).ok();
-    let dimensions = media
-        .map(|(llx, lly, urx, ury)| ((urx - llx).abs(), (ury - lly).abs()))
-        .unwrap_or((612.0, 792.0));
-    let requested =
-        crate::image::dpi::effective_pdf_render_dpi(images_config, f64::from(dimensions.0), f64::from(dimensions.1));
-    let options = safeguarded_render_options(page_index, requested.max(1) as u32, dimensions);
-    // The layout point frame also depends on a valid MediaBox. Keep the fixed-DPI
-    // behavior when layout would project into fallback dimensions. ~keep
-    if !layout_media_matches_renderer(doc, page_index, media) {
-        return render_page_with_options(doc, page_index, &options, Some(max_working_bytes));
-    }
-    let minimum_dpi = images_config
-        .map_or(POINT_DPI, |images| (images.min_dpi.max(1) as u32).max(POINT_DPI))
-        .min(options.dpi);
-    let (image, dpi) = render_page_capturing_glyph_drops(page_index, || {
-        guard_render_panic(page_index, || {
-            xberg_native_pdf::rendering::render_png_page_with_dpi_budget(
-                doc,
-                page_index,
-                options.dpi,
-                minimum_dpi,
-                max_working_bytes,
-            )
-        })
-    })?;
-    if dpi < options.dpi {
-        tracing::debug!(
-            page = page_index + 1,
-            requested_dpi = options.dpi,
-            dpi,
-            "layout raster DPI reduced to fit the render budget"
-        );
-    }
-    Ok(image)
-}
-
-#[cfg(feature = "layout-detection")]
-fn layout_media_matches_renderer(
-    doc: &xberg_native_pdf::PdfDocument,
-    page_index: usize,
-    media: Option<(f32, f32, f32, f32)>,
-) -> bool {
-    let Some((left, bottom, right, top)) = media else {
-        return false;
-    };
-    let (width, height) = (right - left, top - bottom);
-    [left, bottom, width, height].into_iter().all(f32::is_finite)
-        && width > 0.0
-        && height > 0.0
-        && doc
-            .get_page_info(page_index)
-            .is_ok_and(|info| info.media_box == xberg_native_pdf::geometry::Rect::new(left, bottom, width, height))
-}
-
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct OcrRasterDpi {
     requested: u32,
     actual: u32,
     budget_clamped: bool,
-    #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-    pub(crate) type0_ink_loss: bool,
 }
 
 /// Native OCR render provenance by zero-indexed physical PDF page, paired with that render's image.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) type OcrRasterDpis = ahash::AHashMap<usize, OcrRasterDpi>;
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 impl OcrRasterDpi {
     pub(crate) fn empty_text_warning(self, page_index: usize) -> Option<ProcessingWarning> {
         self.budget_clamped.then(|| {
@@ -1093,10 +1009,7 @@ impl OcrRasterDpi {
     }
 }
 
-#[cfg(any(
-    feature = "layout-detection",
-    all(test, any(feature = "ocr", feature = "ocr-pipeline"))
-))]
+#[cfg(all(test, feature = "ocr-pipeline"))]
 pub(crate) fn render_pdf_ocr_page_with_dpi(
     doc: &xberg_native_pdf::PdfDocument,
     page_index: usize,
@@ -1106,7 +1019,7 @@ pub(crate) fn render_pdf_ocr_page_with_dpi(
     render_pdf_ocr_page_with_budget_evidence(doc, page_index, images_config, security_limits, &mut false, None)
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+#[cfg(feature = "ocr-pipeline")]
 pub(crate) fn render_pdf_ocr_page_with_budget_evidence(
     doc: &xberg_native_pdf::PdfDocument,
     page_index: usize,
@@ -1148,14 +1061,12 @@ pub(crate) fn render_pdf_ocr_page_with_budget_evidence(
             })
         })
     })?;
-    #[cfg(not(all(feature = "ocr", not(target_arch = "wasm32"))))]
+
     let _ = type0_ink_loss;
     let raster_dpi = OcrRasterDpi {
         requested: requested.max(1) as u32,
         actual: dpi,
         budget_clamped: dpi < requested.max(1) as u32 && (planned < requested || dpi < options.dpi),
-        #[cfg(all(feature = "ocr", not(target_arch = "wasm32")))]
-        type0_ink_loss,
     };
     if raster_dpi.budget_clamped {
         record_render_warning(warning(
@@ -1295,13 +1206,12 @@ pub(crate) fn render_open_pdf_page_to_png(
 /// This Rust-only session keeps the native PDF engine private while exposing the
 /// efficient open-once rendering path. Use [`render_pdf_page_to_png`] for a single
 /// page and this type when rendering several pages from the same document.
-#[cfg_attr(alef, alef(skip))]
+
 pub struct PdfRenderSession {
     document: xberg_native_pdf::PdfDocument,
     page_count: usize,
 }
 
-#[cfg_attr(alef, alef(skip))]
 impl PdfRenderSession {
     /// Open and optionally authenticate a PDF document.
     ///
@@ -1435,11 +1345,7 @@ pub(crate) fn build_minimal_pdf_with_mediabox(w: f32, h: f32) -> Vec<u8> {
 /// scan with a stamp; with many it is a figure on a text page.
 // GH#1835: every caller of this fixture builder lives behind the OCR or layout-detection
 // feature sets, so `all(test, pdf)` left it unused on a `pdf`-only test build. ~keep
-#[cfg(all(
-    test,
-    feature = "pdf",
-    any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection")
-))]
+#[cfg(all(test, feature = "pdf", feature = "ocr-pipeline"))]
 pub(crate) fn build_full_page_raster_pdf(
     page_pt: (f32, f32),
     image_px: (u32, u32),
@@ -1620,7 +1526,7 @@ mod tests {
     /// the actual default the PDF OCR route requests is `effective_pdf_render_dpi`, #1577) is
     /// 1275px wide, and that must read back as 150 — not as the 72 the preprocessor assumes
     /// when nobody tells it otherwise.
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+    #[cfg(feature = "ocr-pipeline")]
     #[test]
     fn should_derive_render_dpi_from_raster_width_and_mediabox() {
         assert_eq!(rendered_page_dpi(1275, 612.0), Some(150.0));
@@ -1630,7 +1536,7 @@ mod tests {
     /// at 150 DPI comes back at 72 (see `test_choose_safe_dpi_extreme_wide_reduced`), i.e.
     /// 20000px, and must read back as the 72 it really is rather than the 150 that was asked
     /// for.
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+    #[cfg(feature = "ocr-pipeline")]
     #[test]
     fn should_derive_reduced_render_dpi_when_safe_dpi_clamped_the_page() {
         assert_eq!(rendered_page_dpi(20000, 20000.0), Some(72.0));
@@ -1638,7 +1544,7 @@ mod tests {
 
     /// A degenerate MediaBox or an empty raster yields no resolution at all, so the caller
     /// keeps its "unknown" behaviour instead of dividing by zero into an infinite DPI.
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+    #[cfg(feature = "ocr-pipeline")]
     #[test]
     fn should_return_none_when_page_box_or_raster_is_degenerate() {
         assert_eq!(rendered_page_dpi(1275, 0.0), None);
@@ -1713,7 +1619,7 @@ mod tests {
         );
     }
 
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+    #[cfg(feature = "ocr-pipeline")]
     #[test]
     fn test_rotate_dynamic_image_0_degrees_is_noop() {
         let img = image::DynamicImage::new_rgb8(100, 150);
@@ -1721,7 +1627,7 @@ mod tests {
         assert_eq!((rotated.width(), rotated.height()), (100, 150));
     }
 
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+    #[cfg(feature = "ocr-pipeline")]
     #[test]
     fn test_rotate_dynamic_image_90_degrees_swaps_dimensions() {
         let img = image::DynamicImage::new_rgb8(100, 150);
@@ -1729,7 +1635,7 @@ mod tests {
         assert_eq!((rotated.width(), rotated.height()), (150, 100));
     }
 
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+    #[cfg(feature = "ocr-pipeline")]
     #[test]
     fn test_rotate_dynamic_image_180_degrees_keeps_dimensions() {
         let img = image::DynamicImage::new_rgb8(100, 150);
@@ -1737,7 +1643,7 @@ mod tests {
         assert_eq!((rotated.width(), rotated.height()), (100, 150));
     }
 
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+    #[cfg(feature = "ocr-pipeline")]
     #[test]
     fn test_rotate_dynamic_image_270_degrees_swaps_dimensions() {
         let img = image::DynamicImage::new_rgb8(100, 150);
@@ -1745,7 +1651,7 @@ mod tests {
         assert_eq!((rotated.width(), rotated.height()), (150, 100));
     }
 
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+    #[cfg(feature = "ocr-pipeline")]
     #[test]
     fn rotated_png_rejects_request_limit_before_peak_allocation() {
         let image = image::RgbImage::from_pixel(2, 2, image::Rgb([255, 255, 255]));
@@ -1820,7 +1726,7 @@ mod tests {
         }
     }
 
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+    #[cfg(feature = "ocr-pipeline")]
     #[test]
     fn ocr_page_correction_inverts_pdf_rotation() {
         assert_eq!(ocr_page_correction_degrees(0), 0);
@@ -1830,7 +1736,7 @@ mod tests {
         assert_eq!(ocr_page_correction_degrees(360), 0);
     }
 
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+    #[cfg(feature = "ocr-pipeline")]
     #[test]
     fn rendered_page_ocr_normalization_applies_inverse_quarter_turns() {
         let marker = image::Rgb([17, 31, 47]);
@@ -1865,7 +1771,7 @@ mod tests {
         }
     }
 
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+    #[cfg(feature = "ocr-pipeline")]
     #[test]
     fn test_get_page_rotations_no_rotate_attribute_yields_zeroes() {
         // Behavior-preserving: passes against both the old lopdf-based
@@ -1884,7 +1790,7 @@ mod tests {
     /// and value-normalization contract. Mirrors the equivalent fixture
     /// builder in `extractors::pdf::layout_runner`'s test module, which is
     /// private to that module and out of scope to reuse from here.
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+    #[cfg(feature = "ocr-pipeline")]
     fn build_pdf_with_rotate(rotation: i64, inherited: bool) -> Vec<u8> {
         use lopdf::{Document, Object, Stream, dictionary};
 
@@ -1926,7 +1832,7 @@ mod tests {
         bytes
     }
 
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+    #[cfg(feature = "ocr-pipeline")]
     #[test]
     fn test_get_page_rotations_own_rotate_is_read() {
         // Behavior-preserving for a normal, in-spec /Rotate: both the old
@@ -1936,7 +1842,7 @@ mod tests {
         assert_eq!(get_page_rotations(&doc, 1), vec![90]);
     }
 
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+    #[cfg(feature = "ocr-pipeline")]
     #[test]
     fn test_get_page_rotations_inherited_rotate_is_resolved_from_parent() {
         // Behavior-preserving: both the old /Parent-walking implementation
@@ -1947,7 +1853,7 @@ mod tests {
         assert_eq!(get_page_rotations(&doc, 1), vec![90]);
     }
 
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+    #[cfg(feature = "ocr-pipeline")]
     #[test]
     fn test_get_page_rotations_negative_rotate_normalizes_to_positive_equivalent() {
         // Behavior-preserving: the old `rem_euclid(360)` fold and the new
@@ -1957,7 +1863,7 @@ mod tests {
         assert_eq!(get_page_rotations(&doc, 1), vec![270]);
     }
 
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+    #[cfg(feature = "ocr-pipeline")]
     #[test]
     fn test_get_page_rotations_non_multiple_of_90_folds_to_zero() {
         // Pins the deliberate behavior CHANGE documented on `get_page_rotations`:
@@ -1975,7 +1881,7 @@ mod tests {
         assert_eq!(get_page_rotations(&doc, 1), vec![0]);
     }
 
-    #[cfg(any(feature = "ocr", feature = "ocr-pipeline", feature = "layout-detection"))]
+    #[cfg(feature = "ocr-pipeline")]
     #[test]
     fn test_get_page_rotations_page_index_beyond_tree_defaults_to_zero() {
         // Replaces the old `test_get_page_rotations_unparsable_bytes_yield_zeroes`:

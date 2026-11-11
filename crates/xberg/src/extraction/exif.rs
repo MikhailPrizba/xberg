@@ -18,7 +18,7 @@ use std::collections::HashMap;
 ///
 /// Backed by `nom-exif`, which supports EXIF blocks across JPEG, PNG, TIFF,
 /// HEIC/HEIF, AVIF and several video containers in a single pure-Rust API.
-#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "heic", feature = "image-metadata"))]
+#[cfg(feature = "image-metadata")]
 pub(crate) fn extract_exif_data(bytes: &[u8]) -> HashMap<String, String> {
     use nom_exif::{Exif, ExifIter, MediaParser, MediaSource};
 
@@ -48,7 +48,7 @@ pub(crate) fn extract_exif_data(bytes: &[u8]) -> HashMap<String, String> {
 
 /// Every EXIF field `nom-exif` exposes through its curated [`nom_exif::ExifTag`] enum, paired with
 /// the display name it surfaces under in [`extract_exif_data`]'s output map.
-#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "heic", feature = "image-metadata"))]
+#[cfg(feature = "image-metadata")]
 const KNOWN_EXIF_TAGS: &[(nom_exif::ExifTag, &str)] = {
     use nom_exif::ExifTag;
     &[
@@ -129,7 +129,7 @@ const KNOWN_EXIF_TAGS: &[(nom_exif::ExifTag, &str)] = {
 };
 
 /// Insert every EXIF field `nom-exif` exposes through its curated [`nom_exif::ExifTag`] enum.
-#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "heic", feature = "image-metadata"))]
+#[cfg(feature = "image-metadata")]
 fn insert_known_exif_tags(exif: &nom_exif::Exif, exif_map: &mut HashMap<String, String>) {
     for (tag, field_name) in KNOWN_EXIF_TAGS {
         if let Some(value) = exif.get(*tag) {
@@ -140,7 +140,7 @@ fn insert_known_exif_tags(exif: &nom_exif::Exif, exif_map: &mut HashMap<String, 
 
 /// Insert the IFD0 `Artist` tag, looked up by code since it has no variant in nom-exif 3.6.2's
 /// curated `ExifTag` enum. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "heic", feature = "image-metadata"))]
+#[cfg(feature = "image-metadata")]
 fn insert_artist_tag(exif: &nom_exif::Exif, exif_map: &mut HashMap<String, String>) {
     const ARTIST_TAG_CODE: u16 = 0x013B;
 
@@ -152,7 +152,7 @@ fn insert_artist_tag(exif: &nom_exif::Exif, exif_map: &mut HashMap<String, Strin
 /// Insert Windows Explorer's "XP" tag family: BYTE arrays holding null-terminated UTF-16LE text.
 /// Not part of the base TIFF/EXIF spec, but commonly written by Windows Photo/Explorer property
 /// sheets and read back by most tooling. ~keep
-#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "heic", feature = "image-metadata"))]
+#[cfg(feature = "image-metadata")]
 fn insert_xp_tags(exif: &nom_exif::Exif, exif_map: &mut HashMap<String, String>) {
     const XP_TITLE_TAG_CODE: u16 = 0x9C9B;
     const XP_COMMENT_TAG_CODE: u16 = 0x9C9C;
@@ -180,7 +180,7 @@ fn insert_xp_tags(exif: &nom_exif::Exif, exif_map: &mut HashMap<String, String>)
 /// `nom-exif` has no dedicated variant for these tags, so they surface as
 /// `U8Array`/`Undefined` raw bytes depending on how the writer declared the
 /// TIFF field type; both are handled the same way here.
-#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "heic", feature = "image-metadata"))]
+#[cfg(feature = "image-metadata")]
 fn decode_xp_bytes(value: &nom_exif::EntryValue) -> Option<String> {
     let bytes: &[u8] = match value {
         nom_exif::EntryValue::U8Array(bytes) => bytes,
@@ -208,8 +208,8 @@ fn decode_xp_bytes(value: &nom_exif::EntryValue) -> Option<String> {
 /// Compiled under any feature combination so the rest of the image path keeps
 /// the same signature, but reranker-only builds — which drop every caller —
 /// would surface it as `dead_code` without the `#[allow]`.
-#[cfg(not(any(feature = "ocr", feature = "ocr-wasm", feature = "heic", feature = "image-metadata")))]
-#[allow(dead_code)]
+#[cfg(not(feature = "image-metadata"))]
+
 pub(crate) fn extract_exif_data(bytes: &[u8]) -> HashMap<String, String> {
     extract_xmp_data(bytes)
 }
@@ -222,7 +222,7 @@ pub(crate) fn extract_exif_data(bytes: &[u8]) -> HashMap<String, String> {
 /// simply carries no EXIF block at all. Returns `Some(reason)` when the media
 /// source or the EXIF block itself could not be read, which is the case
 /// [`extract_exif_data`] silently swallows into an empty map.
-#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "heic", feature = "image-metadata"))]
+#[cfg(feature = "image-metadata")]
 fn exif_parse_failure_reason(bytes: &[u8]) -> Option<String> {
     use nom_exif::{MediaParser, MediaSource};
 
@@ -246,7 +246,7 @@ fn exif_parse_failure_reason(bytes: &[u8]) -> Option<String> {
 /// has no EXIF block to read (not a degradation). Callers attach the returned
 /// warning to the document's `processing_warnings` so silent degradation is
 /// visible to consumers.
-#[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "heic", feature = "image-metadata"))]
+#[cfg(feature = "image-metadata")]
 pub(crate) fn extract_exif_warning(bytes: &[u8]) -> Option<crate::types::ProcessingWarning> {
     let reason = exif_parse_failure_reason(bytes)?;
     Some(crate::types::ProcessingWarning {
@@ -258,8 +258,8 @@ pub(crate) fn extract_exif_warning(bytes: &[u8]) -> Option<crate::types::Process
 /// No EXIF-capable feature is compiled in, so metadata extraction never even
 /// attempts to run. Always surfaces a warning so callers know why the
 /// resulting metadata map is empty.
-#[cfg(not(any(feature = "ocr", feature = "ocr-wasm", feature = "heic", feature = "image-metadata")))]
-#[allow(dead_code)]
+#[cfg(not(feature = "image-metadata"))]
+
 pub(crate) fn extract_exif_warning(_bytes: &[u8]) -> Option<crate::types::ProcessingWarning> {
     Some(crate::types::ProcessingWarning {
         source: std::borrow::Cow::Borrowed("exif"),
@@ -379,7 +379,7 @@ fn extract_xmp_leaf_text(xml: &str, tag: &str) -> Option<String> {
 mod tests {
     use super::*;
 
-    #[cfg(any(feature = "ocr", feature = "ocr-wasm", feature = "heic", feature = "image-metadata"))]
+    #[cfg(feature = "image-metadata")]
     #[test]
     fn unreadable_media_retains_an_exif_processing_warning() {
         for bytes in [b"".as_slice(), b"not image media".as_slice()] {

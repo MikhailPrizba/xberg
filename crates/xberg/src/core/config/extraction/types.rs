@@ -11,8 +11,6 @@ use crate::types::ExtractedDocument;
 
 /// ~keep: Selects which evidence is authoritative when Xberg infers a MIME type.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
 #[serde(rename_all = "snake_case")]
 pub enum MimeDetectionPolicy {
     /// ~keep: Prefer a supported content signature, falling back to the filename extension.
@@ -45,7 +43,6 @@ pub enum MimeDetectionPolicy {
 /// Uses a tagged enum: `{"type": "native"}`, `{"type": "png"}`,
 /// `{"type": "jpeg", "quality": 90}`, etc.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ImageOutputFormat {
     /// Preserve whatever format the extractor produced (default).
@@ -188,7 +185,6 @@ impl Default for SvgOptions {
 
 /// Source kind for [`ExtractInput`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum ExtractInputKind {
     /// Raw in-memory bytes.
@@ -199,7 +195,6 @@ pub enum ExtractInputKind {
 
 /// Unified extraction input for all public extraction entry points.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(default)]
 pub struct ExtractInput {
     /// Source kind. `bytes` requires `bytes`; `uri` requires `uri`.
@@ -217,7 +212,7 @@ pub struct ExtractInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filename: Option<String>,
     /// Per-input extraction overrides.
-    #[cfg_attr(feature = "api", schema(value_type = Option<serde_json::Value>))]
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub config: Option<super::FileExtractionConfig>,
 }
@@ -263,7 +258,6 @@ impl ExtractInput {
 /// option inherits the batch setting; an explicit boolean selects it for this input.
 /// Construct with [`Self::new`] or [`Default`] to allow future options to be added.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 #[expect(
@@ -293,7 +287,7 @@ impl ExtractInputWithOptions {
 
 /// Non-fatal per-input extraction error captured by [`ExtractionResult`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ExtractionErrorItem {
     /// Input index in the original request.
     pub index: usize,
@@ -309,7 +303,7 @@ pub struct ExtractionErrorItem {
 
 /// Summary for a unified extraction call.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ExtractionSummary {
     /// Number of inputs submitted by the caller.
     pub inputs: usize,
@@ -327,7 +321,7 @@ pub struct ExtractionSummary {
 
 /// Unified extraction result envelope.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ExtractionResult {
     /// Extracted documents in discovery order.
     pub results: Vec<ExtractedDocument>,
@@ -373,7 +367,6 @@ pub(crate) fn is_zero(value: &usize) -> bool {
 
 /// URL extraction mode.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum UrlExtractionMode {
     /// Classify HTTP(S) resources after fetch.
@@ -387,14 +380,12 @@ pub enum UrlExtractionMode {
 
 /// URL ingestion and crawl configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(default, deny_unknown_fields)]
 pub struct UrlExtractionConfig {
     /// URL extraction mode.
     pub mode: UrlExtractionMode,
     /// Crawlberg crawl configuration used for HTTP(S) URL extraction.
-    #[cfg(any(feature = "url-ingestion", feature = "url-config-types"))]
-    #[cfg_attr(feature = "api", schema(value_type = serde_json::Value))]
+    #[cfg(feature = "url-config-types")]
     pub crawl: crawlberg::CrawlConfig,
     /// Optional regex filter for document-discovered URLs.
     pub document_url_pattern: Option<String>,
@@ -412,7 +403,7 @@ impl Default for UrlExtractionConfig {
     fn default() -> Self {
         Self {
             mode: UrlExtractionMode::Auto,
-            #[cfg(any(feature = "url-ingestion", feature = "url-config-types"))]
+            #[cfg(feature = "url-config-types")]
             crawl: UrlExtractionConfig::default_xberg_crawl_config(),
             document_url_pattern: None,
             max_document_urls_per_result: Some(100),
@@ -423,7 +414,7 @@ impl Default for UrlExtractionConfig {
     }
 }
 
-#[cfg(any(feature = "url-ingestion", feature = "url-config-types"))]
+#[cfg(feature = "url-config-types")]
 impl UrlExtractionConfig {
     /// Default [`Self::crawl`] policy.
     ///
@@ -856,23 +847,6 @@ mod tests {
         let fmt = ImageOutputFormat::Webp { quality: 80 };
         let json = serde_json::to_string(&fmt).unwrap();
         assert_eq!(json, r#"{"type":"webp","quality":80}"#);
-    }
-
-    #[cfg(feature = "heic")]
-    #[test]
-    fn test_output_format_heif_roundtrips_via_json() {
-        let fmt = ImageOutputFormat::Heif { quality: 70 };
-        let json = serde_json::to_string(&fmt).unwrap();
-        let back: ImageOutputFormat = serde_json::from_str(&json).unwrap();
-        assert_eq!(back, ImageOutputFormat::Heif { quality: 70 });
-    }
-
-    #[cfg(feature = "heic")]
-    #[test]
-    fn test_output_format_heif_default_quality_applied_when_field_absent() {
-        let json = r#"{"type":"heif"}"#;
-        let fmt: ImageOutputFormat = serde_json::from_str(json).unwrap();
-        assert_eq!(fmt, ImageOutputFormat::Heif { quality: 80 });
     }
 
     #[test]

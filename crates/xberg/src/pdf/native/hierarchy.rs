@@ -994,7 +994,7 @@ fn normalize_script_span(
 ///
 /// The OCR layer merge and the tests call it: a `pdf` build without OCR has no caller, so the
 /// gate keeps it out of that build. ~keep
-#[cfg(any(test, feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(any(test, feature = "ocr-pipeline"))]
 pub(crate) fn extract_segments_from_page(
     doc: &mut NativeDocument,
     page_index: usize,

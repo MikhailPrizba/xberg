@@ -68,7 +68,7 @@ pub(crate) const MAX_ODT_IMAGES_TOTAL_SIZE: u64 = 500 * 1024 * 1024;
 /// - Table extraction with row and cell support
 /// - Formatting preservation (bold, italic, strikeout)
 /// - Support for headings, paragraphs, and special elements
-#[cfg_attr(alef, alef(skip))]
+
 pub struct OdtExtractor;
 
 impl OdtExtractor {
@@ -1820,16 +1820,6 @@ fn extract_table_inline(table_node: roxmltree::Node) -> Option<String> {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl InternalDocumentExtractor for OdtExtractor {
-    #[cfg_attr(
-        feature = "otel",
-        tracing::instrument(
-            skip(self, content, config),
-            fields(
-                extractor.name = self.name(),
-                content.size_bytes = content.len(),
-            )
-        )
-    )]
     async fn extract_content(
         &self,
         content: &[u8],

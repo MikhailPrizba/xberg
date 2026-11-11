@@ -275,7 +275,7 @@ fn image_no_flags_emits_figure_without_figcaption() {
     );
 }
 
-#[cfg(all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 #[test]
 fn image_internal_suppression_preserves_figure_without_nested_ocr() {
     let mut doc = make_image_doc(false, true);

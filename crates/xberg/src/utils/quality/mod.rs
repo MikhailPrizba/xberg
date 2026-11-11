@@ -16,7 +16,7 @@ use std::borrow::Cow;
 ///
 /// This function normalises whitespace, removes navigation boilerplate, and strips
 /// repeated punctuation that commonly appears in OCR output.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn clean_extracted_text(text: &str) -> String {
     if text.is_empty() {
         return String::new();

@@ -37,7 +37,7 @@ use parsing::{MAX_EPUB_MEMBER_SIZE, parse_container_xml, parse_encrypted_members
 
 const MARKUP_SWITCH_NAMESPACES: &[&str] = &[content::XHTML_NAMESPACE, content::MATHML_NAMESPACE];
 const PLAIN_SWITCH_NAMESPACES: &[&str] = &[content::XHTML_NAMESPACE];
-#[cfg_attr(alef, alef(skip))]
+
 /// EPUB format extractor using permissive-licensed dependencies.
 ///
 /// Extracts content and metadata from EPUB files (both EPUB2 and EPUB3)
@@ -78,49 +78,26 @@ impl Default for EpubExtractor {
 }
 
 #[cfg(feature = "office")]
-#[allow(dead_code)]
+
 struct RenderedSpineDocument {
     content_fragment: String,
     content_fully_converted: bool,
-    document: Option<crate::types::document_structure::DocumentStructure>,
     warnings: Vec<ProcessingWarning>,
 }
 
 #[cfg(feature = "office")]
-#[allow(dead_code)]
+
 fn trim_trailing_newlines(s: &str) -> &str {
     s.trim_end_matches(['\n', '\r'])
 }
 
 #[cfg(feature = "office")]
-#[allow(dead_code)]
+
 impl EpubExtractor {
-    fn build_fallback_document_structure(
-        xhtml: &str,
-        index: usize,
-    ) -> crate::types::document_structure::DocumentStructure {
-        use crate::types::builder::DocumentStructureBuilder;
-
-        let mut builder = DocumentStructureBuilder::new().source_format("epub");
-        let chapter_title = extract_title_from_xhtml(xhtml).unwrap_or_else(|| format!("Chapter {}", index + 1));
-        builder.push_heading(1, &chapter_title, None, None);
-
-        let text = extract_text_from_xhtml(xhtml);
-        for paragraph in text.split("\n\n") {
-            let trimmed = paragraph.trim();
-            if !trimmed.is_empty() {
-                builder.push_paragraph(trimmed, vec![], None, None);
-            }
-        }
-
-        builder.build()
-    }
-
     /// Render a spine document once.
     fn render_spine_document(
         document: &content::EpubSpineDocument,
         xhtml: &str,
-        index: usize,
         config: &ExtractionConfig,
     ) -> RenderedSpineDocument {
         let wants_markup = matches!(
@@ -155,59 +132,25 @@ impl EpubExtractor {
             (extract_text_from_xhtml(xhtml).trim_end().to_string(), true)
         };
 
-        let document = if config.include_document_structure {
-            let chapter_structure = crate::extraction::html::structure::build_document_structure(xhtml);
-
-            if chapter_structure.nodes.is_empty() {
-                warnings.push(ProcessingWarning {
-                    source: std::borrow::Cow::Borrowed("epub"),
-                    message: std::borrow::Cow::Owned(format!(
-                        "Document structure extraction produced no nodes for spine item '{}'; falling back to plain-text structure",
-                        document.file_path
-                    )),
-                });
-                Some(Self::build_fallback_document_structure(xhtml, index))
-            } else {
-                Some(chapter_structure)
-            }
-        } else {
-            None
-        };
+        if config.include_document_structure
+            && crate::extraction::html::structure::build_document_structure(xhtml)
+                .nodes
+                .is_empty()
+        {
+            warnings.push(ProcessingWarning {
+                source: std::borrow::Cow::Borrowed("epub"),
+                message: std::borrow::Cow::Owned(format!(
+                    "Document structure extraction produced no nodes for spine item '{}'; falling back to plain-text structure",
+                    document.file_path
+                )),
+            });
+        }
 
         RenderedSpineDocument {
             content_fragment,
             content_fully_converted,
-            document,
             warnings,
         }
-    }
-
-    fn build_document_structure(
-        rendered_documents: &[RenderedSpineDocument],
-    ) -> Option<crate::types::document_structure::DocumentStructure> {
-        use crate::types::builder::DocumentStructureBuilder;
-
-        let mut builder = DocumentStructureBuilder::new().source_format("epub");
-        let mut has_nodes = false;
-
-        for rendered in rendered_documents {
-            let Some(chapter_structure) = &rendered.document else {
-                continue;
-            };
-
-            for node in &chapter_structure.nodes {
-                has_nodes = true;
-                builder.push_raw(
-                    node.content.clone(),
-                    None,
-                    None,
-                    node.content_layer,
-                    node.annotations.clone(),
-                );
-            }
-        }
-
-        if has_nodes { Some(builder.build()) } else { None }
     }
 
     /// Build an `InternalDocument` from the EPUB spine.
@@ -319,7 +262,7 @@ impl EpubExtractor {
             let sanitized = resolved_xhtml.as_str();
 
             if wants_markup {
-                let rendered = Self::render_spine_document(spine_doc, sanitized, index, config);
+                let rendered = Self::render_spine_document(spine_doc, sanitized, config);
                 warnings.extend(rendered.warnings);
                 if rendered.content_fully_converted {
                     pre_rendered_fragments.push(rendered.content_fragment);
@@ -719,16 +662,6 @@ impl Plugin for EpubExtractor {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl InternalDocumentExtractor for EpubExtractor {
-    #[cfg_attr(
-        feature = "otel",
-        tracing::instrument(
-            skip(self, content, config),
-            fields(
-                extractor.name = self.name(),
-                content.size_bytes = content.len(),
-            )
-        )
-    )]
     async fn extract_content(
         &self,
         content: &[u8],

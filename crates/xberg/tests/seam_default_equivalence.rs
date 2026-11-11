@@ -134,29 +134,3 @@ mod preset_resolver {
         assert!(resolver.get("definitely-not-a-real-preset-id").is_none());
     }
 }
-
-#[cfg(feature = "liter-llm")]
-mod llm_client {
-    use std::sync::Arc;
-
-    use xberg::engine::seams::{LiterLlmClient, LlmClient};
-
-    #[test]
-    fn default_llm_client_is_a_trait_object() {
-        let _client: Arc<dyn LlmClient> = Arc::new(LiterLlmClient);
-    }
-}
-
-#[cfg(feature = "layout-detection")]
-mod model_provider {
-    use xberg::engine::seams::{DefaultModelProvider, ModelId, ModelProvider};
-
-    #[tokio::test]
-    async fn unknown_model_errors_without_download() {
-        let provider = DefaultModelProvider::default();
-        let result = provider
-            .ensure_model(&ModelId::new("definitely-not-a-real-model"))
-            .await;
-        assert!(result.is_err(), "unknown model id must resolve to an error");
-    }
-}

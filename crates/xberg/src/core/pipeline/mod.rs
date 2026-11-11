@@ -22,12 +22,6 @@ mod tests;
 pub use cache::clear_processor_cache;
 pub use format::apply_output_format;
 #[cfg(any(
-    feature = "classification",
-    feature = "summarization",
-    feature = "translation",
-    feature = "captioning",
-    feature = "qr-codes",
-    feature = "ner",
     feature = "redaction",
     feature = "quality",
     feature = "keywords-yake",
@@ -64,8 +58,6 @@ pub(crate) async fn prepare_extraction_cache_lifecycle(config: &ExtractionConfig
 // `pub(crate)` so `pdf::native::images` can reference this SAME constant when deciding, before
 // any per-image decode, whether a full-page image will end up excluded here anyway (GH#1732) --
 // the two checks must use one number, never two independently-maintained literals. ~keep
-#[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-pub(crate) const FULL_PAGE_IMAGE_AREA_RATIO: f64 = 0.85;
 
 type PostProcessorHandle = std::sync::Arc<dyn crate::plugins::PostProcessor>;
 
@@ -78,81 +70,6 @@ enum ProcessorSource {
     Global,
     #[cfg(all(test, feature = "tokio-runtime"))]
     Isolated(std::sync::Arc<initialization::ProcessorRegistryState>),
-}
-
-#[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-fn image_ocr_positions(doc: &InternalDocument) -> Vec<usize> {
-    if image_file_text_is_already_extracted(doc) {
-        return Vec::new();
-    }
-    doc.images
-        .iter()
-        .enumerate()
-        .filter_map(|(position, image)| (!should_skip_pdf_image_ocr(doc, image)).then_some(position))
-        .collect()
-}
-
-/// Whether the OCR read of an image file already gave the document text or a table.
-///
-/// The picture of an image file is the document, not a picture inside it: the image extractor
-/// read it with OCR, and that read is the text and the tables of the document. Image OCR would
-/// read the same picture again with other settings and show its words a second time. A file
-/// whose read gave no text and no table stays eligible, so image OCR can still find its
-/// words. The text of an image element describes the picture and is not a read of it, so it
-/// does not count. ~keep
-#[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-fn image_file_text_is_already_extracted(doc: &InternalDocument) -> bool {
-    use crate::types::internal::ElementKind;
-
-    if doc.source_format != "image" {
-        return false;
-    }
-    let has_text = doc
-        .elements
-        .iter()
-        .any(|element| !matches!(element.kind, ElementKind::Image { .. }) && !element.text.trim().is_empty());
-    let has_table = doc
-        .tables
-        .iter()
-        .any(|table| table.cells.iter().flatten().any(|cell| !cell.trim().is_empty()));
-    has_text || has_table
-}
-
-#[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-fn should_skip_pdf_image_ocr(doc: &InternalDocument, image: &crate::types::ExtractedImage) -> bool {
-    if image.image_kind == Some(crate::types::ImageKind::PageRaster) {
-        return true;
-    }
-    // A page-sized PDF XObject repeats content already supplied by native text or
-    // page OCR. Keep empty pages eligible so image OCR can still recover their text.
-    if doc.source_format != "pdf" || !page_has_extracted_text(doc, image.page_number) {
-        return false;
-    }
-
-    let Some(bounding_box) = image.bounding_box.as_ref() else {
-        return false;
-    };
-    let Some(page_number) = image.page_number else {
-        return false;
-    };
-    let Some(dimensions) = doc
-        .metadata
-        .pages
-        .as_ref()
-        .and_then(|structure| structure.pages.as_ref())
-        .and_then(|pages| pages.iter().find(|page| page.number == page_number))
-        .and_then(|page| page.dimensions)
-    else {
-        return false;
-    };
-    let page_width = dimensions.width;
-    let page_height = dimensions.height;
-    if page_width <= 0.0 || page_height <= 0.0 {
-        return false;
-    }
-
-    let image_area = (bounding_box.x1 - bounding_box.x0).abs() * (bounding_box.y1 - bounding_box.y0).abs();
-    image_area / (page_width * page_height) >= FULL_PAGE_IMAGE_AREA_RATIO
 }
 
 /// Whether `ExtractedDocument.images` must survive past embedded-image OCR (GH#1703).
@@ -205,21 +122,6 @@ fn drop_ocr_only_images(result: &mut ExtractedDocument) -> usize {
         }
     }
     dropped
-}
-
-#[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-fn page_has_extracted_text(doc: &InternalDocument, page_number: Option<u32>) -> bool {
-    let Some(page_number) = page_number else {
-        return false;
-    };
-    doc.elements
-        .iter()
-        .any(|element| element.page == Some(page_number) && !element.text.trim().is_empty())
-        || doc.prebuilt_pages.as_ref().is_some_and(|pages| {
-            pages
-                .iter()
-                .any(|page| page.page_number == page_number && !page.content.trim().is_empty())
-        })
 }
 
 fn processors_without_captioning(
@@ -369,13 +271,6 @@ async fn run_captioning_prepass(
     // payload the first derivation already computed back under the scratch key so
     // the second derivation round-trips the same `.remove()` and reconstructs the
     // identical, non-degraded result. ~keep
-    #[cfg(feature = "tree-sitter")]
-    if let Some(code_intelligence) = caption_result.code_intelligence.take() {
-        doc.metadata.additional.insert(
-            std::borrow::Cow::Borrowed(crate::extractors::code::CODE_INTELLIGENCE_SCRATCH_KEY),
-            code_intelligence,
-        );
-    }
     doc.uris = caption_result.uris.take().unwrap_or_default();
     doc.processing_warnings = std::mem::take(&mut caption_result.processing_warnings);
     doc.llm_usage = caption_result.llm_usage.take();
@@ -429,57 +324,17 @@ async fn run_captioning_prepass(
 /// - Validator errors bubble up immediately
 /// - Post-processor errors are caught and recorded in metadata
 /// - System errors (IO, RuntimeError equivalents) always bubble up
-#[cfg_attr(alef, alef(skip))]
+
 pub async fn run_pipeline(doc: InternalDocument, config: &ExtractionConfig) -> Result<ExtractedDocument> {
-    run_pipeline_from_extractor(
-        doc,
-        config,
-        false,
-        #[cfg(all(
-            feature = "pdf",
-            feature = "ocr",
-            feature = "tokio-runtime",
-            not(target_arch = "wasm32")
-        ))]
-        None,
-    )
-    .await
+    run_pipeline_from_extractor(doc, config, false).await
 }
 
-#[cfg_attr(feature = "otel", tracing::instrument(
-    name = "run_pipeline",
-    skip_all,
-    fields(
-        { crate::telemetry::conventions::OPERATION } = crate::telemetry::conventions::operations::PIPELINE,
-        content.element_count = doc.elements.len(),
-    )
-))]
 pub(crate) async fn run_pipeline_from_extractor(
     doc: InternalDocument,
     config: &ExtractionConfig,
     builtin_html_origin: bool,
-    #[cfg(all(
-        feature = "pdf",
-        feature = "ocr",
-        feature = "tokio-runtime",
-        not(target_arch = "wasm32")
-    ))]
-    placement: Option<crate::extraction::image_ocr::pdf_gap::Placement>,
 ) -> Result<ExtractedDocument> {
-    run_pipeline_impl(
-        doc,
-        config,
-        ProcessorSource::Global,
-        builtin_html_origin,
-        #[cfg(all(
-            feature = "pdf",
-            feature = "ocr",
-            feature = "tokio-runtime",
-            not(target_arch = "wasm32")
-        ))]
-        placement,
-    )
-    .await
+    run_pipeline_impl(doc, config, ProcessorSource::Global, builtin_html_origin).await
 }
 
 /// Isolated-registry counterpart of [`run_pipeline`] for the #1749 tests described on
@@ -491,20 +346,7 @@ async fn run_pipeline_with_isolated_registry(
     config: &ExtractionConfig,
     state: std::sync::Arc<initialization::ProcessorRegistryState>,
 ) -> Result<ExtractedDocument> {
-    run_pipeline_impl(
-        doc,
-        config,
-        ProcessorSource::Isolated(state),
-        false,
-        #[cfg(all(
-            feature = "pdf",
-            feature = "ocr",
-            feature = "tokio-runtime",
-            not(target_arch = "wasm32")
-        ))]
-        None,
-    )
-    .await
+    run_pipeline_impl(doc, config, ProcessorSource::Isolated(state), false).await
 }
 
 async fn run_pipeline_impl(
@@ -512,13 +354,6 @@ async fn run_pipeline_impl(
     config: &ExtractionConfig,
     processor_source: ProcessorSource,
     _builtin_html_origin: bool,
-    #[cfg(all(
-        feature = "pdf",
-        feature = "ocr",
-        feature = "tokio-runtime",
-        not(target_arch = "wasm32")
-    ))]
-    placement: Option<crate::extraction::image_ocr::pdf_gap::Placement>,
 ) -> Result<ExtractedDocument> {
     #[cfg(feature = "redaction")]
     let replace_html_djot = _builtin_html_origin
@@ -542,86 +377,10 @@ async fn run_pipeline_impl(
     // (the READ gate a container consults before it reads an embedded image's bytes at all)
     // is defined in terms of this same method, and the two being separately-written copies
     // is exactly how GH#1662 happened. Do not inline the condition back. ~keep
-    #[cfg(all(
-        feature = "pdf",
-        feature = "ocr",
-        feature = "tokio-runtime",
-        not(target_arch = "wasm32")
-    ))]
-    let mut image_gap_text = None;
-    #[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-    if config.runs_ocr_on_embedded_images() && !doc.images.is_empty() {
-        let image_positions = image_ocr_positions(&doc);
-        #[cfg(all(
-            feature = "pdf",
-            feature = "ocr",
-            feature = "tokio-runtime",
-            not(target_arch = "wasm32")
-        ))]
-        let image_positions = if let Some(placement) = placement
-            && image_positions == [0]
-            && let Some(native) = crate::extraction::image_ocr::pdf_gap::native_anchor_text(&doc, &placement)
-            && let Some(backend) = crate::extraction::image_ocr::pdf_gap::stock_backend(config)
-        {
-            let page = placement.page();
-            let (image, addition) = Box::pin(crate::extraction::image_ocr::pdf_gap::process(
-                doc.images[0].clone(),
-                placement,
-                backend,
-                config,
-                &native,
-                &mut doc.processing_warnings,
-            ))
-            .await?;
-            doc.images[0] = image;
-            image_gap_text = addition.map(|text| (page, text));
-            Vec::new()
-        } else {
-            image_positions
-        };
-        // Clone only selected images so skipped entries keep their positions and a
-        // batch-level OCR failure cannot discard the original extracted images.
-        if !image_positions.is_empty() {
-            let images_to_process = image_positions
-                .iter()
-                .map(|&position| doc.images[position].clone())
-                .collect();
-            match crate::extraction::image_ocr::process_images_with_ocr(
-                images_to_process,
-                config,
-                &mut doc.processing_warnings,
-            )
-            .await
-            {
-                Ok(processed) => {
-                    for (position, image) in image_positions.into_iter().zip(processed) {
-                        doc.images[position] = image;
-                    }
-                }
-                Err(e) => {
-                    doc.processing_warnings.push(crate::types::ProcessingWarning {
-                        source: std::borrow::Cow::Borrowed("image_ocr"),
-                        message: std::borrow::Cow::Owned(format!("Image OCR failed: {e}")),
-                    });
-                }
-            }
-        }
-    }
 
     // Before the fold: the fold turns an OCR text anchor into a paragraph, and after it the
     // picture of the anchor would read as a picture that nothing shows. ~keep
     let inline_images = images_without_an_element(&doc);
-    #[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-    fold_embedded_image_ocr_text_with_gap(
-        &mut doc,
-        #[cfg(all(
-            feature = "pdf",
-            feature = "ocr",
-            feature = "tokio-runtime",
-            not(target_arch = "wasm32")
-        ))]
-        image_gap_text.as_ref().map(|(page, text)| (*page, text.as_str())),
-    );
 
     // After the fold: a marker follows each page break, and the fold removes the page break
     // of a page that held only a picture with no text. ~keep
@@ -844,38 +603,11 @@ async fn run_pipeline_impl(
 
     // ~keep Run LLM-based structured extraction BEFORE output formatting
     // ~keep so extraction sees plain text, not markdown/HTML
-    #[cfg(all(feature = "liter-llm", not(target_arch = "wasm32")))]
-    if let Some(ref structured_config) = config.structured_extraction {
-        match crate::llm::structured::extract_structured(&result.content, structured_config).await {
-            Ok((output, usage)) => {
-                result.structured_output = Some(output);
-                crate::llm::usage::push_llm_usage(&mut result, usage);
-            }
-            Err(e) => {
-                let usage = crate::llm::usage::usage_from_error(&e);
-                crate::llm::usage::push_llm_usage(&mut result, usage);
-                tracing::warn!("Structured extraction failed: {e}");
-                result.processing_warnings.push(crate::types::ProcessingWarning {
-                    source: std::borrow::Cow::Borrowed("structured_extraction"),
-                    message: std::borrow::Cow::Owned(format!("Structured extraction failed: {e}")),
-                });
-            }
-        }
-    }
 
-    #[cfg(not(feature = "liter-llm"))]
     if config.structured_extraction.is_some() {
         result.processing_warnings.push(crate::types::ProcessingWarning {
             source: std::borrow::Cow::Borrowed("structured_extraction"),
             message: std::borrow::Cow::Borrowed("Structured extraction requires the 'liter-llm' feature"),
-        });
-    }
-
-    #[cfg(all(feature = "liter-llm", target_arch = "wasm32"))]
-    if config.structured_extraction.is_some() {
-        result.processing_warnings.push(crate::types::ProcessingWarning {
-            source: std::borrow::Cow::Borrowed("structured_extraction"),
-            message: std::borrow::Cow::Borrowed("Structured extraction is not available on wasm builds"),
         });
     }
 
@@ -933,14 +665,7 @@ async fn run_pipeline_impl(
 /// - Async post-processors
 /// - Async validators
 #[cfg(not(feature = "tokio-runtime"))]
-#[cfg_attr(feature = "otel", tracing::instrument(
-    skip(doc, config),
-    fields(
-        { crate::telemetry::conventions::OPERATION } = crate::telemetry::conventions::operations::PIPELINE,
-        content.element_count = doc.elements.len(),
-    )
-))]
-#[cfg_attr(alef, alef(skip))]
+
 pub fn run_pipeline_sync(mut doc: InternalDocument, config: &ExtractionConfig) -> Result<ExtractedDocument> {
     (doc.ocr_text_only, doc.append_ocr_text) = image_ocr_text_rendering(config);
     doc.escape_markdown = config.escape_markdown;
@@ -1357,155 +1082,6 @@ fn apply_element_transform(result: &mut ExtractedDocument, config: &ExtractionCo
     }
 }
 
-/// Put the OCR text of each embedded picture where every later step reads it.
-///
-/// An OCR text anchor (`InternalElement::image_ocr_text_anchor`) becomes a paragraph that
-/// holds the text, at the same position. With no text it is removed, together with a page
-/// break that only it gave a reason for. The text of a picture with an anchor or an image
-/// element is also added to the prebuilt content of its page: an extractor writes those
-/// pages before the pictures are sent to OCR. Runs before any renderer, so `content`, the
-/// page content and the chunks all come from the same elements (GH#2068). ~keep
-#[cfg(all(test, feature = "pdf", feature = "ocr", feature = "tokio-runtime"))]
-fn fold_embedded_image_ocr_text(doc: &mut InternalDocument) {
-    fold_embedded_image_ocr_text_with_gap(
-        doc,
-        #[cfg(all(
-            feature = "pdf",
-            feature = "ocr",
-            feature = "tokio-runtime",
-            not(target_arch = "wasm32")
-        ))]
-        None,
-    );
-}
-
-#[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-fn fold_embedded_image_ocr_text_with_gap(
-    doc: &mut InternalDocument,
-    #[cfg(all(
-        feature = "pdf",
-        feature = "ocr",
-        feature = "tokio-runtime",
-        not(target_arch = "wasm32")
-    ))]
-    image_gap_text: Option<(u32, &str)>,
-) {
-    use crate::types::internal::{ElementKind, InternalElement, RelationshipTarget};
-
-    // A paragraph with a page tag in a document whose other elements have none would be the
-    // only member of its page, and a formatted page is rendered from its members alone. ~keep
-    let pages_are_tagged = doc
-        .elements
-        .iter()
-        .any(|element| element.page.is_some() && element.image_ocr_text_anchor_index().is_none());
-
-    let mut keep = vec![true; doc.elements.len()];
-    for (index, kept) in keep.iter_mut().enumerate() {
-        let element = &doc.elements[index];
-        let anchored_image = element.image_ocr_text_anchor_index();
-        let image_index = match (anchored_image, element.kind) {
-            (Some(image_index), _) | (None, ElementKind::Image { image_index }) => image_index,
-            _ => continue,
-        };
-        let (page_number, depth) = (element.page, element.depth);
-        let text = doc
-            .images
-            .get(image_index as usize)
-            .and_then(|image| image.ocr_result.as_ref())
-            .map(|result| result.content.as_str())
-            .filter(|content| !content.is_empty() && element.should_render_image_ocr());
-        #[cfg(all(
-            feature = "pdf",
-            feature = "ocr",
-            feature = "tokio-runtime",
-            not(target_arch = "wasm32")
-        ))]
-        let text = match (anchored_image, page_number, text, image_gap_text) {
-            (Some(0), Some(page), Some(_), Some((gap_page, addition))) if page == gap_page => Some(addition),
-            _ => text,
-        };
-
-        if let (Some(text), Some(page_number)) = (text, page_number)
-            && let Some(page) = doc
-                .prebuilt_pages
-                .as_mut()
-                .and_then(|pages| pages.iter_mut().find(|page| page.page_number == page_number))
-        {
-            if !page.content.is_empty() {
-                page.content.push_str("\n\n");
-            }
-            page.content.push_str(text);
-            if !doc.ocr_text_pages.contains(&page_number) {
-                doc.ocr_text_pages.push(page_number);
-            }
-        }
-
-        if anchored_image.is_none() {
-            continue;
-        }
-        let Some(text) = text else {
-            *kept = false;
-            continue;
-        };
-        let mut paragraph = InternalElement::text(ElementKind::Paragraph, text, depth);
-        paragraph.page = page_number.filter(|_| pages_are_tagged);
-        doc.elements[index] = paragraph.with_index(index as u32);
-    }
-
-    // A run of elements between two page breaks that is empty only because its anchors were
-    // removed takes one of the two breaks with it: without the picture, the extractor would
-    // not have counted that page as content. ~keep
-    let run_ends: Vec<usize> = doc
-        .elements
-        .iter()
-        .enumerate()
-        .filter(|(_, element)| element.kind == ElementKind::PageBreak)
-        .map(|(index, _)| index)
-        .chain(std::iter::once(doc.elements.len()))
-        .collect();
-    let mut run_start = 0;
-    for boundary in run_ends {
-        if run_start < boundary && keep[run_start..boundary].iter().all(|kept| !kept) {
-            if run_start > 0 {
-                keep[run_start - 1] = false;
-            } else if boundary < doc.elements.len() {
-                keep[boundary] = false;
-            }
-        }
-        run_start = boundary + 1;
-    }
-
-    if keep.iter().all(|kept| *kept) {
-        return;
-    }
-    // `Relationship` holds raw positions in `elements`, so a removal moves every later one. ~keep
-    let mut next_index = 0u32;
-    let old_to_new: Vec<Option<u32>> = keep
-        .iter()
-        .map(|kept| {
-            kept.then(|| {
-                next_index += 1;
-                next_index - 1
-            })
-        })
-        .collect();
-    let mut kept = keep.iter().copied();
-    doc.elements.retain(|_| kept.next().unwrap_or(true));
-    doc.relationships.retain_mut(|relationship| {
-        let Some(source) = old_to_new.get(relationship.source as usize).copied().flatten() else {
-            return false;
-        };
-        relationship.source = source;
-        if let RelationshipTarget::Index(target) = &mut relationship.target {
-            let Some(remapped) = old_to_new.get(*target as usize).copied().flatten() else {
-                return false;
-            };
-            *target = remapped;
-        }
-        true
-    });
-}
-
 /// How the OCR text of a picture is rendered: `(ocr_text_only, append_ocr_text)`.
 ///
 /// A missing `images` block reads as the default block, the same way the gate that sends
@@ -1524,9 +1100,6 @@ fn image_ocr_text_rendering(config: &ExtractionConfig) -> (bool, bool) {
 fn images_without_an_element(doc: &InternalDocument) -> Vec<usize> {
     let mut has_element = vec![false; doc.images.len()];
     for element in &doc.elements {
-        #[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-        let anchored_image = element.image_ocr_text_anchor_index();
-        #[cfg(not(all(feature = "ocr", feature = "tokio-runtime")))]
         let anchored_image: Option<u32> = None;
         let image_index = match element.kind {
             crate::types::internal::ElementKind::Image { image_index } => Some(image_index),

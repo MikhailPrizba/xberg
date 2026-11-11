@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Configuration for markdown footnote and citation parsing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct FootnoteConfig {
     /// Whether to parse the structured citation block (default: true).
     ///

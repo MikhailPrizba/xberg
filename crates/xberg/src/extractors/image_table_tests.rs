@@ -646,18 +646,10 @@ async fn pdf_pipeline_preserves_cell_only_sidecars_without_image_canonicalizatio
     let parsed = xberg_native_pdf::PdfDocument::from_bytes(pdf.clone()).expect("valid synthetic PDF");
     assert_eq!(parsed.page_count().unwrap(), 1);
     let images = [image::DynamicImage::new_rgb8(16, 16)];
-    let (text, tables, _, document, _, _, _, _, _, _) = crate::extractors::pdf::ocr::run_ocr_pipeline(
-        Some(&pdf),
-        Some(&images),
-        #[cfg(feature = "layout-detection")]
-        None,
-        &config,
-        &pipeline,
-        None,
-        None,
-    )
-    .await
-    .expect("PDF-backed pipeline preserves its existing table handoff");
+    let (text, tables, _, document, _, _, _, _, _, _) =
+        crate::extractors::pdf::ocr::run_ocr_pipeline(Some(&pdf), Some(&images), &config, &pipeline, None, None)
+            .await
+            .expect("PDF-backed pipeline preserves its existing table handoff");
     assert_eq!(invocations.load(Ordering::SeqCst), 1);
     assert_eq!(text, "");
     assert_eq!(tables.len(), 1);

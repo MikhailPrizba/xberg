@@ -171,10 +171,13 @@ fn should_attach_after_refinement_without_changing_existing_line_or_paragraph_se
     assert_eq!(result[0].dominant_font_size, original.dominant_font_size);
     assert_eq!(result[0].lines[0].baseline_y, original.lines[0].baseline_y);
     assert_eq!(
-        result[0].lines[0].dominant_font_size,
-        original.lines[0].dominant_font_size
+        result[0].lines[0].segments[0].font_size,
+        original.lines[0].segments[0].font_size
     );
-    assert_eq!(result[0].lines[0].is_bold, original.lines[0].is_bold);
+    assert_eq!(
+        result[0].lines[0].segments[0].is_bold,
+        original.lines[0].segments[0].is_bold
+    );
     assert_eq!(result[0].lines[0].is_monospace, original.lines[0].is_monospace);
     assert!(result[0].text.is_empty(), "assembly must read the updated records");
     assert_eq!(result[0].word_count, 2);

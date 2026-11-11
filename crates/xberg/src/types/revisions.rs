@@ -18,7 +18,6 @@ use serde::{Deserialize, Serialize};
 /// reference it unconditionally, without requiring the `diff` Cargo feature.
 /// `crate::diff` re-exports this type verbatim.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(tag = "kind", content = "text", rename_all = "snake_case")]
 pub enum DiffLine {
     /// Unchanged context line.
@@ -42,7 +41,7 @@ impl Default for DiffLine {
 /// reference it unconditionally, without requiring the `diff` Cargo feature.
 /// `crate::diff` re-exports this type verbatim.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct CellChange {
     /// Zero-based row index.
     pub row: usize,
@@ -61,7 +60,7 @@ pub struct CellChange {
 /// them; either side may be absent when the format only records one side of the
 /// change.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct PropertyChange {
     /// Property name, such as `"bold"`, `"italic"`, `"font_size"`, or `"font_color"`.
     pub name: String,
@@ -78,7 +77,7 @@ pub struct PropertyChange {
 /// extractor defaults to `ExtractedDocument.revisions = None` until a
 /// format-specific implementation is added.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct DocumentRevision {
     /// Format-specific revision identifier.
     ///
@@ -114,7 +113,6 @@ pub struct DocumentRevision {
 
 /// Semantic classification of a tracked change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RevisionKind {
     /// Text or content was inserted.
@@ -129,7 +127,6 @@ pub enum RevisionKind {
 
 /// Best-effort document location for a revision.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum RevisionAnchor {
     /// Body paragraph, identified by its zero-based index in the document flow.
@@ -179,7 +176,7 @@ impl Default for RevisionAnchor {
 /// changes, `property_changes` carries normalized before/after formatting
 /// values when the source document exposes them.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct RevisionDelta {
     /// Line-level content changes for this revision.
     pub content: Vec<DiffLine>,

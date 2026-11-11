@@ -53,25 +53,6 @@ impl NgramRange {
     }
 }
 
-#[cfg(feature = "api")]
-impl utoipa::PartialSchema for NgramRange {
-    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
-        use utoipa::openapi::schema::{ObjectBuilder, Type};
-
-        let positive_integer = ObjectBuilder::new().schema_type(Type::Integer).minimum(Some(1)).build();
-
-        ObjectBuilder::new()
-            .property("min", positive_integer.clone())
-            .required("min")
-            .property("max", positive_integer)
-            .required("max")
-            .into()
-    }
-}
-
-#[cfg(feature = "api")]
-impl utoipa::ToSchema for NgramRange {}
-
 impl From<(usize, usize)> for NgramRange {
     fn from((min, max): (usize, usize)) -> Self {
         Self { min, max }
@@ -94,7 +75,7 @@ impl Default for NgramRange {
 #[cfg(feature = "keywords-yake")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-#[cfg_attr(all(feature = "api", feature = "keywords-yake"), derive(utoipa::ToSchema))]
+
 pub struct YakeParams {
     /// Window size for co-occurrence analysis (default: 2).
     ///
@@ -113,7 +94,7 @@ impl Default for YakeParams {
 #[cfg(feature = "keywords-rake")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-#[cfg_attr(all(feature = "api", feature = "keywords-rake"), derive(utoipa::ToSchema))]
+
 pub struct RakeParams {
     /// Minimum word length to consider (default: 1).
     pub min_word_length: usize,
@@ -135,7 +116,7 @@ impl Default for RakeParams {
 /// Keyword extraction configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct KeywordConfig {
     /// Algorithm to use for extraction.
     #[serde(default)]
@@ -168,13 +149,11 @@ pub struct KeywordConfig {
     /// YAKE-specific tuning parameters.
     #[cfg(feature = "keywords-yake")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub yake_params: Option<YakeParams>,
 
     /// RAKE-specific tuning parameters.
     #[cfg(feature = "keywords-rake")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub rake_params: Option<RakeParams>,
 }
 
@@ -275,25 +254,6 @@ impl KeywordConfig {
 mod binding_value_serde_tests {
     use super::{KeywordConfig, NgramRange};
     use serde_json::json;
-
-    #[cfg(feature = "api")]
-    fn assert_named_object_schema<T: utoipa::PartialSchema>(expected: serde_json::Value) {
-        let schema = serde_json::to_value(T::schema()).expect("schema must serialize");
-        assert_eq!(schema, expected);
-    }
-
-    #[cfg(feature = "api")]
-    #[test]
-    fn should_describe_ngram_range_as_named_object_schema() {
-        assert_named_object_schema::<NgramRange>(json!({
-            "type": "object",
-            "required": ["min", "max"],
-            "properties": {
-                "min": {"type": "integer", "minimum": 1},
-                "max": {"type": "integer", "minimum": 1}
-            }
-        }));
-    }
 
     #[test]
     fn should_serialize_ngram_range_as_named_object() {

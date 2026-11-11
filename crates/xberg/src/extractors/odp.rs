@@ -54,7 +54,7 @@ const DRAWING_NS: &str = "urn:oasis:names:tc:opendocument:xmlns:drawing:1.0";
 const XLINK_NS: &str = "http://www.w3.org/1999/xlink";
 
 /// Native Rust extractor for OpenDocument Presentation (`.odp`) files.
-#[cfg_attr(alef, alef(skip))]
+
 pub struct OdpExtractor;
 
 impl OdpExtractor {
@@ -413,16 +413,6 @@ fn push_frame_image(
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl InternalDocumentExtractor for OdpExtractor {
-    #[cfg_attr(
-        feature = "otel",
-        tracing::instrument(
-            skip(self, content, config),
-            fields(
-                extractor.name = self.name(),
-                content.size_bytes = content.len(),
-            )
-        )
-    )]
     async fn extract_content(
         &self,
         content: &[u8],

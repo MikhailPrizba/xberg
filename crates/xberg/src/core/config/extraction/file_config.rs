@@ -48,7 +48,6 @@ use super::types::{
 pub struct FileExtractionConfig {
     /// ~keep: Override MIME inference policy for this file.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub mime_detection_policy: Option<MimeDetectionPolicy>,
 
     /// Override quality post-processing for this file.
@@ -158,7 +157,7 @@ pub struct FileExtractionConfig {
     pub timeout_secs: Option<u64>,
 
     /// Override tree-sitter configuration for this file.
-    #[cfg(any(feature = "tree-sitter", feature = "tree-sitter-types"))]
+    #[cfg(feature = "tree-sitter-types")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tree_sitter: Option<super::super::tree_sitter::TreeSitterConfig>,
 

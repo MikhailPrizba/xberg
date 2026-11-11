@@ -30,26 +30,6 @@ async fn test_truncated_pdf() {
     );
 }
 
-/// Test corrupted ZIP - malformed archive.
-#[tokio::test]
-#[cfg(feature = "archives")]
-async fn test_corrupted_zip() {
-    let config = ExtractionConfig::default();
-
-    let corrupted_zip = vec![0x50, 0x4B, 0x03, 0x04, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00];
-
-    let result = extract_bytes_document(&corrupted_zip, "application/zip", &config).await;
-
-    assert!(result.is_err(), "Corrupted ZIP should fail gracefully");
-
-    let error = result.unwrap_err();
-    assert!(
-        matches!(error, xberg::XbergError::Parsing { .. }),
-        "Corrupted ZIP should produce Parsing error, got: {:?}",
-        error
-    );
-}
-
 /// Test invalid XML - bad XML syntax.
 #[tokio::test]
 #[cfg(feature = "xml")]
@@ -75,33 +55,6 @@ async fn test_invalid_xml() {
             assert!(
                 matches!(error, xberg::XbergError::Parsing { .. }),
                 "Invalid XML error should be Parsing type, got: {:?}",
-                error
-            );
-        }
-    }
-}
-
-/// Test corrupted image - invalid image data.
-#[tokio::test]
-#[cfg(feature = "ocr")]
-async fn test_corrupted_image() {
-    let config = ExtractionConfig::default();
-
-    let corrupted_png = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0xFF, 0xFF, 0xFF, 0xFF];
-
-    let result = extract_bytes_document(&corrupted_png, "image/png", &config).await;
-
-    match result {
-        Ok(extraction) => {
-            assert!(
-                extraction.chunks.is_none(),
-                "Chunks should be None without chunking config"
-            );
-        }
-        Err(error) => {
-            assert!(
-                matches!(error, xberg::XbergError::Parsing { .. }) || matches!(error, xberg::XbergError::Ocr { .. }),
-                "Corrupted image error should be Parsing or OCR type, got: {:?}",
                 error
             );
         }

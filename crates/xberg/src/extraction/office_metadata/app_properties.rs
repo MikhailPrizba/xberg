@@ -131,7 +131,7 @@ pub(crate) const DOC_SECURITY_KEY: &str = "doc_security";
 ///
 /// Returns `(key, value)` pairs; the keys are stable strings suitable for use in a
 /// `Metadata::additional` map.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn decode_doc_security_flags(raw: i32) -> [(&'static str, bool); 4] {
     const PASSWORD_PROTECTED_BIT: i32 = 1;
     const READ_ONLY_RECOMMENDED_BIT: i32 = 2;
@@ -155,7 +155,7 @@ pub fn decode_doc_security_flags(raw: i32) -> [(&'static str, bool); 4] {
 /// Extract DOCX application properties from an Office Open XML document
 ///
 /// Parses `docProps/app.xml` and extracts Word-specific metadata.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn extract_docx_app_properties<R: Read + std::io::Seek>(archive: &mut ZipArchive<R>) -> Result<DocxAppProperties> {
     let xml_content = match super::read_zip_entry_to_string(archive, "docProps/app.xml", "app.xml")? {
         Some(content) => content,
@@ -190,7 +190,7 @@ pub fn extract_docx_app_properties<R: Read + std::io::Seek>(archive: &mut ZipArc
 /// Extract XLSX application properties from an Office Open XML document
 ///
 /// Parses `docProps/app.xml` and extracts Excel-specific metadata including worksheet names.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn extract_xlsx_app_properties<R: Read + std::io::Seek>(archive: &mut ZipArchive<R>) -> Result<XlsxAppProperties> {
     let xml_content = match super::read_zip_entry_to_string(archive, "docProps/app.xml", "app.xml")? {
         Some(content) => content,
@@ -220,7 +220,7 @@ pub fn extract_xlsx_app_properties<R: Read + std::io::Seek>(archive: &mut ZipArc
 /// Extract PPTX application properties from an Office Open XML document
 ///
 /// Parses `docProps/app.xml` and extracts PowerPoint-specific metadata including slide information.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn extract_pptx_app_properties<R: Read + std::io::Seek>(archive: &mut ZipArchive<R>) -> Result<PptxAppProperties> {
     let xml_content = match super::read_zip_entry_to_string(archive, "docProps/app.xml", "app.xml")? {
         Some(content) => content,

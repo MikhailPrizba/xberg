@@ -6,14 +6,7 @@
 //! Format information is centralized in the `FORMATS` registry. All extension-to-MIME
 //! mappings and supported MIME type validation are derived from this single source of truth.
 
-#[cfg(any(
-    feature = "office",
-    feature = "hwpx",
-    feature = "iwork",
-    feature = "archives",
-    feature = "hwp",
-    feature = "email"
-))]
+#[cfg(any(feature = "office", feature = "email"))]
 use crate::extractors::security::SecurityLimits;
 use crate::{Result, XbergError};
 use serde::{Deserialize, Serialize};
@@ -26,7 +19,7 @@ use std::sync::LazyLock;
 ///
 /// Represents a file extension and its corresponding MIME type that Xberg can process.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct SupportedFormat {
     /// File extension (without leading dot), e.g., "pdf", "docx"
     pub extension: String,
@@ -43,7 +36,7 @@ const GEOPACKAGE_APPLICATION_ID: &[u8; SQLITE_APPLICATION_ID_LENGTH] = b"GPKG";
 const GEOPACKAGE_LEGACY_APPLICATION_ID: &[u8; SQLITE_APPLICATION_ID_LENGTH] = b"GP10";
 const J2C_CODESTREAM_MAGIC: &[u8; 4] = b"\xFF\x4F\xFF\x51";
 /// MS-CFB (compound binary file) signature, shared by legacy .doc/.xls/.ppt.
-#[cfg(any(feature = "office", feature = "hwp", feature = "email"))]
+#[cfg(any(feature = "office", feature = "email"))]
 const OLE2_MAGIC: [u8; 8] = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -281,7 +274,7 @@ pub(crate) const LEGACY_POWERPOINT_MIME_TYPE: &str = "application/vnd.ms-powerpo
 /// Only reachable from `detect_ole2_package`, which is gated on the feature set that pulls in
 /// the `cfb` crate; without one of those features nothing names this constant and `-D warnings`
 /// rejects it as dead code. Gate must track that function's. ~keep
-#[cfg(any(feature = "office", feature = "hwp", feature = "email"))]
+#[cfg(any(feature = "office", feature = "email"))]
 pub(crate) const LEGACY_EXCEL_MIME_TYPE: &str = "application/vnd.ms-excel";
 
 pub(crate) const PST_MIME_TYPE: &str = "application/vnd.ms-outlook-pst";
@@ -310,11 +303,9 @@ pub(crate) const ODG_FLAT_MIME_TYPE: &str = "application/vnd.oasis.opendocument.
 /// element of a flat ODF document is actually `office:document` before
 /// trusting its `office:mimetype` attribute. ~keep
 const ODF_OFFICE_NAMESPACE: &str = "urn:oasis:names:tc:opendocument:xmlns:office:1.0";
-#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+#[cfg(feature = "office")]
 const ZIP_MIME_TYPE: &str = "application/zip";
 
-#[cfg(feature = "hwpx")]
-pub(crate) const HWPX_MIME_TYPE: &str = "application/haansofthwpx";
 pub(crate) const IWORK_PAGES_MIME_TYPE: &str = "application/x-iwork-pages-sffpages";
 pub(crate) const IWORK_NUMBERS_MIME_TYPE: &str = "application/x-iwork-numbers-sffnumbers";
 pub(crate) const IWORK_KEYNOTE_MIME_TYPE: &str = "application/x-iwork-keynote-sffkey";
@@ -946,11 +937,11 @@ const fn count_unique_extensions() -> usize {
 }
 
 /// Number of formats in Xberg's static MIME registry. ~keep
-#[cfg_attr(alef, alef(skip))]
+
 pub const SUPPORTED_FORMAT_COUNT: usize = FORMATS.len();
 
 /// Number of unique file extensions in Xberg's static MIME registry. ~keep
-#[cfg_attr(alef, alef(skip))]
+
 pub const SUPPORTED_EXTENSION_COUNT: usize = count_unique_extensions();
 
 /// Extension to MIME type mapping, derived from [`FORMATS`].
@@ -1014,17 +1005,6 @@ pub fn detect_mime_type(path: impl AsRef<Path>, check_exists: bool) -> Result<St
         return Ok(mime_type.to_string());
     }
 
-    #[cfg(feature = "tree-sitter")]
-    {
-        if let Some(ext) = &extension {
-            let lang = tree_sitter_language_pack::detect_language_from_extension(ext);
-            tracing::debug!(ext = %ext, detected_language = ?lang, "tree-sitter extension detection");
-            if lang.is_some() {
-                return Ok(SOURCE_CODE_MIME_TYPE.to_string());
-            }
-        }
-    }
-
     let guess = mime_guess::from_path(path).first();
     tracing::debug!(guess = ?guess, "mime_guess fallback");
     if let Some(mime) = guess {
@@ -1071,7 +1051,7 @@ pub fn detect_mime_type(path: impl AsRef<Path>, check_exists: bool) -> Result<St
 /// # Errors
 ///
 /// Returns `XbergError::UnsupportedFormat` if not supported.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn validate_mime_type(mime_type: &str) -> Result<String> {
     let parsed = mime_type.trim().parse::<mime::Mime>().map_err(|_| {
         tracing::debug!(mime_type = %mime_type, "MIME type has invalid syntax");
@@ -1247,20 +1227,7 @@ pub(crate) async fn resolve_owned_bytes_mime(
     Ok((content, detected))
 }
 
-#[cfg(feature = "tree-sitter")]
-fn is_plain_graphviz_dot(path: Option<&Path>, content_mime: &str) -> bool {
-    content_mime == PLAIN_TEXT_MIME_TYPE
-        && path
-            .and_then(Path::extension)
-            .and_then(|extension| extension.to_str())
-            .is_some_and(|extension| extension.eq_ignore_ascii_case("dot"))
-}
-
 fn prefer_content_mime(extension_mime: &str, content_mime: &str, _path: Option<&Path>) -> Result<String> {
-    #[cfg(feature = "tree-sitter")]
-    if is_plain_graphviz_dot(_path, content_mime) {
-        return Ok(SOURCE_CODE_MIME_TYPE.to_string());
-    }
     let extension_supported = SUPPORTED_MIME_TYPES.contains(extension_mime);
     if extension_supported
         && (content_mime == PLAIN_TEXT_MIME_TYPE
@@ -1305,10 +1272,6 @@ fn resolve_file_mime(path: &Path, path_detection: Result<String>, file: Option<&
 fn magic_override(file: &mut std::fs::File, extension_mime: &str, _path: &Path) -> Option<String> {
     let from_magic = detect_mime_type_from_file_content(file, PackageInspection::FullArchive)?;
 
-    #[cfg(feature = "tree-sitter")]
-    if is_plain_graphviz_dot(Some(_path), &from_magic) {
-        return Some(SOURCE_CODE_MIME_TYPE.to_string());
-    }
     if from_magic == PLAIN_TEXT_MIME_TYPE && SUPPORTED_MIME_TYPES.contains(extension_mime) {
         return None;
     }
@@ -1362,7 +1325,7 @@ fn detect_mime_type_from_file_content(
             // sectors that are not present in `header` (#1590). Escape to a
             // structure-aware read over the file the same way the ZIP branch below
             // escapes to `detect_zip_package` for an inconclusive archive header. ~keep
-            #[cfg(any(feature = "office", feature = "hwp", feature = "email"))]
+            #[cfg(any(feature = "office", feature = "email"))]
             if package_inspection == PackageInspection::FullArchive && header.starts_with(&OLE2_MAGIC[..]) {
                 return detect_ole2_package(&mut *file, &SecurityLimits::default());
             }
@@ -1372,7 +1335,7 @@ fn detect_mime_type_from_file_content(
     if matches!(from_magic.as_str(), PLAIN_TEXT_MIME_TYPE | OCTET_STREAM_MIME_TYPE) && json_candidate {
         from_magic = JSON_MIME_TYPE.to_string();
     }
-    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    #[cfg(feature = "office")]
     if package_inspection == PackageInspection::FullArchive
         && (from_magic == ZIP_MIME_TYPE || from_magic.starts_with("application/vnd.oasis.opendocument."))
         && let Some(package_mime) = detect_zip_package(&mut *file)
@@ -1507,7 +1470,7 @@ fn detect_mime_type_from_bytes_with_inspection(
     if let Some(kind) = infer::get(content) {
         let mime_type = kind.mime_type();
 
-        #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+        #[cfg(feature = "office")]
         if mime_type.starts_with("application/vnd.oasis.opendocument.") {
             if package_inspection == PackageInspection::HeaderOnly {
                 return Ok(ZIP_MIME_TYPE.to_string());
@@ -1581,11 +1544,6 @@ fn detect_mime_type_from_bytes_with_inspection(
 
         if trimmed.starts_with("%PDF") {
             return Ok(PDF_MIME_TYPE.to_string());
-        }
-
-        #[cfg(feature = "tree-sitter")]
-        if tree_sitter_language_pack::detect_language_from_content(trimmed).is_some() {
-            return Ok(SOURCE_CODE_MIME_TYPE.to_string());
         }
 
         return Ok(PLAIN_TEXT_MIME_TYPE.to_string());
@@ -1685,16 +1643,9 @@ fn detect_office_format_from_zip(content: &[u8], _package_inspection: PackageIns
     const KEYNOTE_MARKER: &[u8] = b"Index/Presentation.iwa";
     const KEYNOTE_SLIDE_MARKERS: &[&[u8]] = &[b"Index/Slide-", b"Index/Slide_"];
 
-    #[cfg(feature = "hwpx")]
-    const HWPX_MARKER: &[u8] = b"Contents/content.hpf";
-    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    #[cfg(feature = "office")]
     if _package_inspection == PackageInspection::FullArchive {
         return detect_zip_package(std::io::Cursor::new(content));
-    }
-
-    #[cfg(feature = "hwpx")]
-    if contains_subsequence(content, HWPX_MARKER) {
-        return Some(HWPX_MIME_TYPE);
     }
 
     // A Numbers package carries `Index/Document.iwa` as well, so the
@@ -1737,13 +1688,9 @@ fn detect_office_format_from_zip(content: &[u8], _package_inspection: PackageIns
 /// `detect_office_format_from_zip` searches raw bytes, so it only sees the part
 /// of the archive it was given. A caller that reads a fixed-size header misses
 /// every part written after it.
-#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+#[cfg(feature = "office")]
 fn detect_office_format_from_archive<R: Read + Seek>(archive: &mut zip::ZipArchive<R>) -> Option<&'static str> {
     let has = |archive: &mut zip::ZipArchive<R>, name: &str| archive.index_for_name(name).is_some();
-    #[cfg(feature = "hwpx")]
-    if has(archive, "Contents/content.hpf") {
-        return Some(HWPX_MIME_TYPE);
-    }
     if has(archive, "word/document.xml") {
         return Some(DOCX_MIME_TYPE);
     }
@@ -1786,7 +1733,7 @@ fn detect_office_format_from_archive<R: Read + Seek>(archive: &mut zip::ZipArchi
 /// `limits.max_archive_size` still bounds the file this is attempted
 /// against, mirroring the bound `zip_central_directory_within_limits` applies
 /// before it opens a ZIP central directory.
-#[cfg(any(feature = "office", feature = "hwp", feature = "email"))]
+#[cfg(any(feature = "office", feature = "email"))]
 fn detect_ole2_package<R: Read + Seek>(mut reader: R, limits: &SecurityLimits) -> Option<String> {
     let length = reader.seek(SeekFrom::End(0)).ok()?;
     if length > limits.max_archive_size as u64 {
@@ -1803,7 +1750,7 @@ fn detect_ole2_package<R: Read + Seek>(mut reader: R, limits: &SecurityLimits) -
     Some(mime_type.to_string())
 }
 
-#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+#[cfg(feature = "office")]
 fn detect_zip_package<R: Read + Seek>(mut reader: R) -> Option<&'static str> {
     let limits = SecurityLimits::default();
     if !zip_central_directory_within_limits(&mut reader, &limits) {
@@ -1924,11 +1871,8 @@ fn spreadsheet_package_mime(content_type: &str) -> Option<&'static str> {
 }
 
 /// Read the `mimetype` entry a ZIP-based document package declares.
-#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+#[cfg(feature = "office")]
 fn detect_zip_mimetype_entry<R: Read + Seek>(archive: &mut zip::ZipArchive<R>) -> Option<&'static str> {
-    /// The value an HWPX package stores in its `mimetype` entry.
-    #[cfg(feature = "hwpx")]
-    const HWPX_PACKAGE_MIMETYPE: &[u8] = b"application/hwp+zip";
     const MAX_MIMETYPE_LENGTH: u64 = ODP_MIME_TYPE.len() as u64;
 
     let mut mimetype_index = None;
@@ -1938,9 +1882,6 @@ fn detect_zip_mimetype_entry<R: Read + Seek>(archive: &mut zip::ZipArchive<R>) -
             return None;
         }
     }
-
-    #[cfg(feature = "hwpx")]
-    let has_hwpx_manifest = archive.index_for_name("Contents/content.hpf").is_some();
 
     let mimetype = archive.by_index(mimetype_index?).ok()?;
     if mimetype.size() > MAX_MIMETYPE_LENGTH {
@@ -1957,20 +1898,18 @@ fn detect_zip_mimetype_entry<R: Read + Seek>(archive: &mut zip::ZipArchive<R>) -
         // ZIP routing and its members stay readable. The entry is looked up in
         // the archive directory, because Hangul writes it near the end of the
         // file, past any header a caller may have truncated to.
-        #[cfg(feature = "hwpx")]
-        value if value == HWPX_PACKAGE_MIMETYPE && has_hwpx_manifest => Some(HWPX_MIME_TYPE),
         _ => None,
     }
 }
 
-#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+#[cfg(feature = "office")]
 struct ZipCentralDirectory {
     offset: u64,
     size: usize,
     entries: u16,
 }
 
-#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+#[cfg(feature = "office")]
 fn read_zip_central_directory<R: Read + Seek>(reader: &mut R, limits: &SecurityLimits) -> Option<ZipCentralDirectory> {
     const EOCD_SIGNATURE: &[u8; 4] = b"PK\x05\x06";
     const EOCD_MIN_LENGTH: u64 = 22;
@@ -2012,7 +1951,7 @@ fn read_zip_central_directory<R: Read + Seek>(reader: &mut R, limits: &SecurityL
     is_valid.then_some(ZipCentralDirectory { offset, size, entries })
 }
 
-#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+#[cfg(feature = "office")]
 fn read_central_directory_entry<R: Read + Seek>(reader: &mut R) -> Option<(Vec<u8>, usize)> {
     const HEADER_SIGNATURE: &[u8; 4] = b"PK\x01\x02";
     const HEADER_LENGTH: usize = 46;
@@ -2037,7 +1976,7 @@ fn read_central_directory_entry<R: Read + Seek>(reader: &mut R) -> Option<(Vec<u
     Some((name, entry_length))
 }
 
-#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+#[cfg(feature = "office")]
 fn central_directory_has_unique_mimetype<R: Read + Seek>(reader: &mut R, directory: &ZipCentralDirectory) -> bool {
     if reader.seek(SeekFrom::Start(directory.offset)).is_err() {
         return false;
@@ -2067,7 +2006,7 @@ fn central_directory_has_unique_mimetype<R: Read + Seek>(reader: &mut R, directo
     true
 }
 
-#[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+#[cfg(feature = "office")]
 fn zip_central_directory_within_limits<R: Read + Seek>(reader: &mut R, limits: &SecurityLimits) -> bool {
     read_zip_central_directory(reader, limits)
         .is_some_and(|directory| central_directory_has_unique_mimetype(reader, &directory))
@@ -2247,35 +2186,6 @@ mod tests {
         .await;
     }
 
-    #[cfg(feature = "hwpx")]
-    #[test]
-    fn should_detect_hwpx_without_a_content_hpf_from_its_mimetype_entry() {
-        // Real Hangul packages carry `version.xml` and `Contents/section0.xml`
-        // but no `Contents/content.hpf`, so only the `mimetype` entry names them.
-        let mut buffer = Vec::new();
-        {
-            let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut buffer));
-            let stored = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
-            writer.start_file("mimetype", stored).unwrap();
-            std::io::Write::write_all(&mut writer, b"application/hwp+zip").unwrap();
-            writer
-                .start_file("Contents/section0.xml", zip::write::SimpleFileOptions::default())
-                .unwrap();
-            std::io::Write::write_all(&mut writer, b"<hs:sec/>").unwrap();
-            // Written last, as Hangul does, so a truncated header cannot see it.
-            writer
-                .start_file("Contents/content.hpf", zip::write::SimpleFileOptions::default())
-                .unwrap();
-            std::io::Write::write_all(&mut writer, b"<opf:package/>").unwrap();
-            writer.finish().unwrap();
-        }
-
-        assert_eq!(
-            detect_mime_type_from_bytes(&buffer).unwrap(),
-            "application/haansofthwpx"
-        );
-    }
-
     #[test]
     fn should_detect_docbook_by_namespace_when_extension_is_plain_xml() {
         // Real DocBook ships as `.xml`, so only the namespace identifies it.
@@ -2320,28 +2230,6 @@ mod tests {
             detected, "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             "the deck is identified by its parts, not by its name"
         );
-    }
-
-    #[cfg(feature = "hwpx")]
-    #[test]
-    fn should_keep_zip_routing_for_an_hwpx_package_without_its_manifest() {
-        // `unhwp` needs `Contents/content.hpf`. Without it the HWPX extractor
-        // fails outright, so the package stays on the ZIP route and its members
-        // remain readable.
-        let mut buffer = Vec::new();
-        {
-            let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut buffer));
-            let stored = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
-            writer.start_file("mimetype", stored).unwrap();
-            std::io::Write::write_all(&mut writer, b"application/hwp+zip").unwrap();
-            writer
-                .start_file("Contents/section0.xml", zip::write::SimpleFileOptions::default())
-                .unwrap();
-            std::io::Write::write_all(&mut writer, b"<hs:sec/>").unwrap();
-            writer.finish().unwrap();
-        }
-
-        assert_eq!(detect_mime_type_from_bytes(&buffer).unwrap(), "application/zip");
     }
 
     #[test]
@@ -2852,7 +2740,7 @@ mod tests {
         ));
     }
 
-    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    #[cfg(feature = "office")]
     #[test]
     fn should_limit_unknown_zip_fallback_to_the_bounded_header() {
         const PADDING: &[u8] = &[b'x'; MIME_SNIFF_LENGTH + 1];
@@ -3187,7 +3075,7 @@ mod tests {
             "Should detect PPTX from ZIP with ppt/presentation.xml"
         );
 
-        #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+        #[cfg(feature = "office")]
         {
             for expected_mime in [ODT_MIME_TYPE, ODP_MIME_TYPE, ODS_MIME_TYPE] {
                 let open_document_bytes = build_zip(&[("mimetype", expected_mime.as_bytes())]);
@@ -3245,7 +3133,7 @@ mod tests {
         );
     }
 
-    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    #[cfg(feature = "office")]
     #[test]
     fn full_zip_inspection_does_not_treat_payload_text_as_an_office_part() {
         let archive = build_zip(&[("notes.txt", b"the string word/document.xml is not a part name")]);
@@ -3320,7 +3208,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    #[cfg(feature = "office")]
     fn reordered_open_document_mimetype_routes_by_exact_entry() {
         const PADDING: &[u8] = &[b'x'; 5_000];
         let dir = tempdir().unwrap();
@@ -3336,7 +3224,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    #[cfg(feature = "office")]
     fn odf_detection_rejects_decoys_and_invalid_mimetype_entries() {
         let generic_zip = build_zip(&[("decoy.txt", ODT_MIME_TYPE.as_bytes())]);
         assert_eq!(detect_mime_type_from_bytes(&generic_zip).unwrap(), ZIP_MIME_TYPE);
@@ -3370,7 +3258,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    #[cfg(feature = "office")]
     fn odf_zip_preflight_rejects_excessive_entry_count() {
         let archive = build_zip(&[("content.txt", b"content")]);
         let default_limits = SecurityLimits::default();
@@ -3390,7 +3278,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(feature = "office", feature = "hwpx", feature = "iwork", feature = "archives"))]
+    #[cfg(feature = "office")]
     fn odf_extension_does_not_override_generic_zip_content() {
         let dir = tempdir().unwrap();
         let path = dir.path().join("not-an-open-document.odt");
@@ -3450,7 +3338,7 @@ mod tests {
         assert!(extensions.contains(&"txt"), "Should include txt");
         assert!(extensions.contains(&"csv"), "Should include csv");
         assert!(extensions.contains(&"json"), "Should include json");
-        #[cfg(any(feature = "excel", feature = "excel-wasm"))]
+        #[cfg(feature = "excel")]
         assert!(extensions.contains(&"xlsx"), "Should include xlsx");
     }
 
@@ -3514,7 +3402,6 @@ mod tests {
         assert!(SUPPORTED_MIME_TYPES.contains("text/x-julia"), "Julia source alias");
     }
 
-    #[cfg(not(feature = "tree-sitter"))]
     const LEGACY_SOURCE_MIME_ALIASES: [&str; 5] = [
         "text/x-python",
         "text/x-r-source",
@@ -3539,7 +3426,7 @@ mod tests {
         crate::extractors::ensure_initialized().expect("failed to initialize default extractors");
         let registry = crate::plugins::registry::get_document_extractor_registry();
         let registry = registry.read();
-        #[cfg(not(feature = "tree-sitter"))]
+
         let mut checked_legacy_aliases = 0;
         let mut unclaimed = Vec::new();
         for format in FORMATS {
@@ -3547,7 +3434,6 @@ mod tests {
                 continue;
             };
             for alias in format.aliases {
-                #[cfg(not(feature = "tree-sitter"))]
                 if format.mime_type == SOURCE_CODE_MIME_TYPE && LEGACY_SOURCE_MIME_ALIASES.contains(alias) {
                     assert_eq!(validate_mime_type(alias).unwrap(), *alias);
                     assert!(
@@ -3573,7 +3459,6 @@ mod tests {
             }
         }
 
-        #[cfg(not(feature = "tree-sitter"))]
         assert_eq!(checked_legacy_aliases, LEGACY_SOURCE_MIME_ALIASES.len());
         assert!(
             unclaimed.is_empty(),

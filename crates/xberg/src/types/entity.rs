@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 /// A single named entity detected in the extracted text.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct Entity {
     /// Canonical category the entity belongs to (PERSON, ORG, LOCATION, etc.).
     pub category: EntityCategory,
@@ -30,7 +30,6 @@ pub struct Entity {
 /// The `Custom(String)` variant lets caller-supplied categories (e.g. LLM
 /// schemas) flow through without losing fidelity to the consumer.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum EntityCategory {
     /// A person's name.

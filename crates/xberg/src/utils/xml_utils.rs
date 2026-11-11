@@ -1,4 +1,4 @@
-#[cfg(any(feature = "xml", feature = "office", feature = "hwpx"))]
+#[cfg(any(feature = "xml", feature = "office"))]
 use std::borrow::Cow;
 
 #[cfg(any(feature = "xml", feature = "office"))]
@@ -62,18 +62,18 @@ pub(crate) fn xml_tag_name(name: &str) -> Cow<'_, str> {
 ///
 /// Reader-level `trim_text` must stay off (the default) — trimming individual
 /// fragments before coalescing would destroy the whitespace around references.
-#[cfg(any(feature = "xml", feature = "office", feature = "hwpx"))]
+#[cfg(any(feature = "xml", feature = "office"))]
 pub(crate) struct EntityReader<'x> {
     reader: quick_xml::Reader<&'x [u8]>,
     pending: Option<quick_xml::events::Event<'x>>,
 }
 
-#[cfg(any(feature = "xml", feature = "office", feature = "hwpx"))]
+#[cfg(any(feature = "xml", feature = "office"))]
 // `from_str`, `config_mut`, and `buffer_position` are used only by some of the
 // xml/office/docx extractor paths; in feature combos that enable one of `xml`/`office`
 // but not the callers (e.g. the default `xberg-ffi` surface), they are unused. They are
 // live in other builds, so allow the conditional dead code rather than misgate per method.
-#[allow(dead_code)]
+
 impl<'x> EntityReader<'x> {
     pub(crate) fn from_str(content: &'x str) -> Self {
         Self {
@@ -139,7 +139,7 @@ impl<'x> EntityReader<'x> {
 /// entity that real-world FB2/DocBook files use without declaring) resolves to
 /// U+00A0, and undeclared DTD entities resolve to an empty string: extraction
 /// is best-effort, so an unresolvable reference must not fail the document.
-#[cfg(any(feature = "xml", feature = "office", feature = "hwpx"))]
+#[cfg(any(feature = "xml", feature = "office"))]
 pub(crate) fn resolve_general_ref(reference: &quick_xml::events::BytesRef<'_>) -> String {
     if let Ok(Some(ch)) = reference.resolve_char_ref() {
         return ch.to_string();

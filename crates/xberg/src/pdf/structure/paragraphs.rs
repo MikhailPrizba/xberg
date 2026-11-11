@@ -325,8 +325,6 @@ fn text_to_paragraph(text: &str, font_size: f32, is_bold: bool, is_list_item: bo
         native_scripts: Vec::new(),
         segments,
         baseline_y: 0.0,
-        dominant_font_size: font_size,
-        is_bold,
         is_monospace: false,
     };
 
@@ -378,8 +376,6 @@ mod tests {
             native_scripts: Vec::new(),
             segments,
             baseline_y: 700.0,
-            dominant_font_size: font_size,
-            is_bold: false,
             is_monospace: false,
         }];
         let word_count = PdfParagraph::compute_word_count("", &lines);
@@ -867,8 +863,6 @@ mod tests {
             native_scripts: Vec::new(),
             segments,
             baseline_y,
-            dominant_font_size: 12.0,
-            is_bold: true,
             is_monospace: false,
         }];
         let word_count = PdfParagraph::compute_word_count("", &lines);

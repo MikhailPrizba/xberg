@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 
 /// Formula recognition model selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum FormulaModel {
     /// RapidLaTeXOCR (MIT, pix2tex-derived): resizer + encoder + decoder ONNX,
@@ -220,19 +219,7 @@ impl fmt::Display for LayoutDetectionModel {
 /// is enabled for PDF extraction.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-#[cfg_attr(
-    alef,
-    alef(legacy_constructor_fields = [
-        "strategy",
-        "confidence_threshold",
-        "apply_heuristics",
-        "table_model",
-        "formula_model",
-        "table_overlap_preference",
-        "acceleration",
-        "enable_chart_understanding"
-    ])
-)]
+
 pub struct LayoutDetectionConfig {
     /// Which pages the layout model runs on.
     ///
@@ -323,7 +310,6 @@ impl LayoutDetectionConfig {
     /// layout runner is compiled out, so accepting the selection would silently skip layout.
     #[cfg(feature = "layout-types")]
     pub(crate) fn validate_backend(&self) -> Result<(), crate::XbergError> {
-        #[cfg(not(feature = "layout-detection"))]
         if self.model == LayoutDetectionModel::PpDocLayoutV3 {
             return Err(crate::XbergError::validation(
                 "layout.model = pp_doc_layout_v3 requires the ORT-backed `layout-detection` feature; \

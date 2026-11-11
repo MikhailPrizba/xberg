@@ -2,404 +2,6 @@ use super::*;
 use crate::pdf::hierarchy::SegmentData;
 use crate::pdf::structure::types::{PdfLine, PdfParagraph};
 
-#[cfg(feature = "layout-detection")]
-#[test]
-fn should_preserve_repeated_margin_body_text_with_deferred_model_classification_gh2304() {
-    let text = "Repeated body text near the page edge";
-    let pages = (0..3)
-        .map(|page| {
-            let mut segments = vec![seg_heuristic(text, 9.0, 760.0)];
-            for row in 0..6 {
-                segments.push(seg_heuristic(
-                    &format!("Body paragraph on page {page} row {row} preserves the complete document content."),
-                    11.0,
-                    650.0 - row as f32 * 25.0,
-                ));
-            }
-            segments
-        })
-        .collect::<Vec<_>>();
-    let hints = vec![
-        vec![LayoutHint {
-            class_name: LayoutHintClass::Text,
-            confidence: 0.99,
-            left: 0.0,
-            bottom: 745.0,
-            right: 612.0,
-            top: 780.0
-        }];
-        3
-    ];
-    let document = build_document_structure(
-        pages,
-        SegmentStructureConfig {
-            k_clusters: 3,
-            tables: &[],
-            outline_entries: &[],
-            strip_repeating_text: true,
-            include_headers: false,
-            include_footers: false,
-            include_footnotes: false,
-            include_watermarks: false,
-            used_structure_tree: false,
-            ocr_text: false,
-            image_positions: &[],
-            images: None,
-            inject_placeholders: false,
-            layout_hints: Some(&hints),
-            allow_single_column: true,
-            cancel_token: None,
-            layout_images: None,
-            layout_results: None,
-            table_model: crate::core::config::layout::TableModel::Disabled,
-            table_overlap_preference: crate::core::config::layout::TableOverlapPreference::Content,
-            acceleration: None,
-            session_thread_budget: 1,
-        },
-        NO_TABLE_MODELS,
-    )
-    .unwrap();
-    let retained = document
-        .elements
-        .iter()
-        .filter(|element| element.text == text)
-        .collect::<Vec<_>>();
-    assert_eq!(
-        retained.len(),
-        3,
-        "a positive model body classification must veto margin suppression"
-    );
-    assert!(
-        retained
-            .iter()
-            .all(|element| element.layer == crate::types::ContentLayer::Body)
-    );
-}
-
-#[cfg(feature = "layout-detection")]
-#[test]
-fn native_chart_legend_yields_to_real_page_layout_hints() {
-    use sha2::{Digest, Sha256};
-
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../test_documents/pdf/regression_pages/ntrs-19940027557-p18.pdf");
-    let bytes = std::fs::read(&path).unwrap_or_else(|error| panic!("read {path:?}: {error}"));
-    assert_eq!(
-        hex::encode(Sha256::digest(&bytes)),
-        "76b68c133220c3fc1cc8e2fe2c6a0187d5eae2a154dff57dd6db06c6bd11001b"
-    );
-    let mut native = crate::pdf::native::NativeDocument::open_bytes(&bytes).expect("verified NASA page parses");
-    let (pages, used_structure_tree) = crate::pdf::native::hierarchy::extract_all_segments(
-        &mut native,
-        crate::pdf::native::hierarchy::ArtifactRetention::default(),
-    )
-    .expect("native chart segments");
-    assert!(!used_structure_tree);
-    assert_eq!(pages.len(), 1);
-
-    let hint_pages = [vec![LayoutHint {
-        class_name: LayoutHintClass::Text,
-        confidence: 0.99,
-        left: 430.0,
-        bottom: 570.0,
-        right: 505.0,
-        top: 683.0,
-    }]];
-    for (hints, expect_join) in [(None, true), (Some(hint_pages.as_slice()), false)] {
-        let document = build_document_structure(
-            pages.clone(),
-            SegmentStructureConfig {
-                k_clusters: 3,
-                tables: &[],
-                outline_entries: &[],
-                strip_repeating_text: false,
-                include_headers: true,
-                include_footers: true,
-                include_footnotes: true,
-                include_watermarks: true,
-                used_structure_tree,
-                ocr_text: false,
-                image_positions: &[],
-                images: None,
-                inject_placeholders: false,
-                layout_hints: hints,
-                allow_single_column: true,
-                cancel_token: None,
-                layout_images: None,
-                layout_results: None,
-                table_model: crate::core::config::layout::TableModel::Disabled,
-                table_overlap_preference: crate::core::config::layout::TableOverlapPreference::Content,
-                acceleration: None,
-                session_thread_budget: 1,
-            },
-            NO_TABLE_MODELS,
-        )
-        .expect("build native chart document");
-        let joined = document
-            .elements
-            .iter()
-            .filter(|element| element.text == "B 5, Balance")
-            .count();
-        let split = document
-            .elements
-            .windows(2)
-            .filter(|pair| pair[0].text == "B" && pair[1].text == "5, Balance")
-            .count();
-        assert_eq!((joined, split), if expect_join { (1, 0) } else { (0, 1) });
-    }
-}
-
-#[cfg(feature = "layout-detection")]
-#[test]
-fn table_model_preflight_uses_selected_slanet_variant() {
-    use crate::core::config::layout::TableModel;
-
-    assert_eq!(
-        slanet_variant_for_table_model(TableModel::SlanetWired),
-        Some("slanet_wired")
-    );
-    assert_eq!(
-        slanet_variant_for_table_model(TableModel::SlanetWireless),
-        Some("slanet_wireless")
-    );
-    assert_eq!(
-        slanet_variant_for_table_model(TableModel::SlanetPlus),
-        Some("slanet_plus")
-    );
-    assert_eq!(
-        slanet_variant_for_table_model(TableModel::SlanetAuto),
-        Some("slanet_wired")
-    );
-    assert_eq!(slanet_variant_for_table_model(TableModel::Tatr), None);
-    assert_eq!(slanet_variant_for_table_model(TableModel::Disabled), None);
-}
-
-#[cfg(feature = "layout-detection")]
-fn table_hint_page(heading: &str, body: &str, rows: &[[&str; 3]]) -> Vec<SegmentData> {
-    let mut page = heading_page(heading, 18.0, body);
-    for (row_index, row) in rows.iter().enumerate() {
-        let baseline_y = 260.0 - row_index as f32 * 20.0;
-        for (column_index, cell) in row.iter().enumerate() {
-            let mut segment = seg(cell, 50.0 + column_index as f32 * 200.0, 30.0);
-            segment.y = baseline_y;
-            segment.baseline_y = baseline_y;
-            page.push(segment);
-        }
-    }
-    page
-}
-
-#[cfg(feature = "layout-detection")]
-const NO_TABLE_MODELS: TableModelLoaders = TableModelLoaders {
-    available: |_, _, _| false,
-    tatr: |_, _| None,
-    slanet: |_, _, _| None,
-};
-
-/// The preflight finds the model, but every later load fails.
-#[cfg(feature = "layout-detection")]
-const LOADS_FAIL_AFTER_PREFLIGHT: TableModelLoaders = TableModelLoaders {
-    available: |_, _, _| true,
-    ..NO_TABLE_MODELS
-};
-
-#[cfg(feature = "layout-detection")]
-fn table_hint_document(
-    table_model: crate::core::config::layout::TableModel,
-    hint_class: LayoutHintClass,
-) -> crate::types::internal::InternalDocument {
-    table_hint_document_with(table_model, hint_class, NO_TABLE_MODELS, false)
-}
-
-#[cfg(feature = "layout-detection")]
-fn table_hint_document_with(
-    table_model: crate::core::config::layout::TableModel,
-    hint_class: LayoutHintClass,
-    loaders: TableModelLoaders,
-    with_layout_rasters: bool,
-) -> crate::types::internal::InternalDocument {
-    let pages = vec![
-        table_hint_page(
-            "Quarterly results overview",
-            "Revenue grew in every region this quarter.",
-            &[
-                ["AA", "DD", "GG"],
-                ["BB", "EE", "HH"],
-                ["CC", "FF", "II"],
-                ["AB", "DE", "GH"],
-                ["BC", "EF", "HI"],
-            ],
-        ),
-        table_hint_page(
-            "Regional breakdown by market",
-            "Each region is listed in the table below.",
-            &[
-                ["JJ", "MM", "PP"],
-                ["KK", "NN", "QQ"],
-                ["LL", "OO", "RR"],
-                ["JK", "MN", "PQ"],
-                ["KL", "NO", "QR"],
-            ],
-        ),
-    ];
-    let table_hint = LayoutHint {
-        class_name: hint_class,
-        confidence: 0.95,
-        left: 0.0,
-        bottom: 100.0,
-        right: 500.0,
-        top: 300.0,
-    };
-    let layout_hints = vec![vec![table_hint.clone()], vec![table_hint]];
-    let layout_images = vec![image::RgbImage::new(612, 792); 2];
-    let layout_results = vec![
-        crate::pdf::structure::types::PageLayoutResult {
-            page_width_pts: 612.0,
-            page_height_pts: 792.0,
-        };
-        2
-    ];
-
-    build_document_structure(
-        pages,
-        SegmentStructureConfig {
-            k_clusters: 4,
-            tables: &[],
-            outline_entries: &[],
-            strip_repeating_text: false,
-            include_headers: true,
-            include_footers: true,
-            include_footnotes: true,
-            include_watermarks: true,
-            used_structure_tree: false,
-            ocr_text: false,
-            image_positions: &[],
-            images: None,
-            inject_placeholders: false,
-            layout_hints: Some(&layout_hints),
-            allow_single_column: true,
-            cancel_token: None,
-            layout_images: with_layout_rasters.then_some(layout_images.as_slice()),
-            layout_results: with_layout_rasters.then_some(layout_results.as_slice()),
-            table_model,
-            table_overlap_preference: crate::core::config::layout::TableOverlapPreference::Content,
-            acceleration: None,
-            session_thread_budget: 0,
-        },
-        loaders,
-    )
-    .expect("a missing table model must not fail the structure pass")
-}
-
-#[cfg(feature = "layout-detection")]
-#[test]
-fn unavailable_table_model_warns_and_keeps_document_structure() {
-    use crate::core::config::layout::TableModel;
-
-    let document = table_hint_document(TableModel::Tatr, LayoutHintClass::Table);
-    let expected = table_hint_document(TableModel::Disabled, LayoutHintClass::Table);
-
-    // Two table pages, so a warning raised per page rather than per document shows up as a second one.
-    let table_warnings: Vec<_> = document
-        .processing_warnings
-        .iter()
-        .filter(|warning| warning.source == "pdf_tables")
-        .collect();
-    assert_eq!(table_warnings.len(), 1, "got {:?}", document.processing_warnings);
-    assert!(
-        table_warnings[0].message.contains("TATR"),
-        "got {:?}",
-        table_warnings[0]
-    );
-
-    assert!(
-        expected.processing_warnings.is_empty(),
-        "a disabled table model must not warn: got {:?}",
-        expected.processing_warnings
-    );
-
-    // Without the empty check, two documents that both dropped their tables would compare equal.
-    assert!(
-        !expected.tables.is_empty(),
-        "the heuristic path must read the hinted grid as a table"
-    );
-    assert_eq!(table_contents(&document), table_contents(&expected));
-    assert_eq!(document.elements, expected.elements);
-    assert!(matches!(
-        element_kind_for(&document, "Quarterly results overview"),
-        Some(crate::types::internal::ElementKind::Heading { .. })
-    ));
-}
-
-#[cfg(feature = "layout-detection")]
-fn table_contents(document: &crate::types::internal::InternalDocument) -> Vec<(u32, Vec<Vec<String>>, String)> {
-    document
-        .tables
-        .iter()
-        .map(|table| (table.page_number, table.cells.clone(), table.markdown.clone()))
-        .collect()
-}
-
-#[cfg(feature = "layout-detection")]
-fn table_warnings(document: &crate::types::internal::InternalDocument) -> Vec<&str> {
-    document
-        .processing_warnings
-        .iter()
-        .filter(|warning| warning.source == "pdf_tables")
-        .map(|warning| warning.message.as_ref())
-        .collect()
-}
-
-/// Layout is on but no region is a table, so a missing table model has nothing to degrade.
-#[cfg(feature = "layout-detection")]
-#[test]
-fn unavailable_table_model_without_table_hints_does_not_warn() {
-    use crate::core::config::layout::TableModel;
-
-    let document = table_hint_document(TableModel::Tatr, LayoutHintClass::Text);
-    let auto = table_hint_document_with(
-        TableModel::SlanetAuto,
-        LayoutHintClass::Text,
-        LOADS_FAIL_AFTER_PREFLIGHT,
-        true,
-    );
-
-    for document in [&document, &auto] {
-        assert!(
-            table_warnings(document).is_empty(),
-            "got {:?}",
-            document.processing_warnings
-        );
-    }
-}
-
-#[cfg(feature = "layout-detection")]
-#[test]
-fn should_warn_and_keep_structure_when_the_table_model_fails_to_load_after_the_preflight() {
-    use crate::core::config::layout::TableModel;
-
-    let expected = table_hint_document(TableModel::Disabled, LayoutHintClass::Table);
-    assert!(!expected.tables.is_empty());
-    for (table_model, model_name) in [
-        (TableModel::Tatr, "TATR"),
-        (TableModel::SlanetWired, "SLANeXT"),
-        (TableModel::SlanetWireless, "SLANeXT"),
-        (TableModel::SlanetPlus, "SLANeXT"),
-        (TableModel::SlanetAuto, "SLANeXT (auto)"),
-    ] {
-        let document = table_hint_document_with(table_model, LayoutHintClass::Table, LOADS_FAIL_AFTER_PREFLIGHT, true);
-
-        let warnings = table_warnings(&document);
-        assert_eq!(warnings.len(), 1, "{table_model:?}: got {warnings:?}");
-        assert!(
-            warnings[0].contains(&format!("the {model_name} table model could not be loaded for a page")),
-            "{table_model:?}: got {warnings:?}"
-        );
-        assert_eq!(table_contents(&document), table_contents(&expected), "{table_model:?}");
-        assert_eq!(document.elements, expected.elements, "{table_model:?}");
-    }
-}
-
 /// Helper: a table at `bbox` on `page` whose only content is `markdown`
 /// (so content weight == markdown length; empty cells).
 fn ov_table(page: u32, bbox: (f64, f64, f64, f64), markdown: &str) -> crate::types::Table {
@@ -1955,21 +1557,7 @@ fn built_table_count(tables: &[crate::types::Table], page: Vec<Vec<SegmentData>>
             layout_hints: None,
             allow_single_column: true,
             cancel_token: None,
-            #[cfg(feature = "layout-detection")]
-            layout_images: None,
-            #[cfg(feature = "layout-detection")]
-            layout_results: None,
-            #[cfg(feature = "layout-detection")]
-            table_model: crate::core::config::layout::TableModel::Disabled,
-            #[cfg(feature = "layout-detection")]
-            table_overlap_preference: crate::core::config::layout::TableOverlapPreference::Content,
-            #[cfg(feature = "layout-detection")]
-            acceleration: None,
-            #[cfg(feature = "layout-detection")]
-            session_thread_budget: 1,
         },
-        #[cfg(feature = "layout-detection")]
-        NO_TABLE_MODELS,
     )
     .expect("the document structure builds");
     document.tables.len()
@@ -2522,28 +2110,6 @@ fn empty_table_does_not_displace_valid_overlap() {
 
     assert_eq!(emitted_tables.len(), 1);
     assert_eq!(emitted_tables[0].markdown, "| valid |");
-}
-
-#[cfg(feature = "layout-detection")]
-#[test]
-fn missing_wrapper_validation_is_treated_as_skipped() {
-    use super::super::regions::layout_validation::RegionValidation;
-
-    let hint = |class_name| LayoutHint {
-        class_name,
-        confidence: 0.9,
-        left: 0.0,
-        bottom: 0.0,
-        right: 100.0,
-        top: 100.0,
-    };
-    let hints = vec![
-        hint(LayoutHintClass::Picture),
-        hint(LayoutHintClass::Form),
-        hint(LayoutHintClass::Text),
-    ];
-    let ownership = wrapper_ownership_by_hint(&hints, &[RegionValidation::Empty]);
-    assert_eq!(ownership, [false, true, true]);
 }
 
 #[test]
@@ -5076,8 +4642,6 @@ fn line(segments: Vec<SegmentData>) -> PdfLine {
         native_scripts: Vec::new(),
         segments,
         baseline_y: 0.0,
-        dominant_font_size: 12.0,
-        is_bold: false,
         is_monospace: false,
     }
 }
@@ -5121,8 +4685,6 @@ fn body_size_paragraph(text: &str, is_bold: bool, heading_level: Option<u8>) -> 
     paragraph.is_bold = is_bold;
     paragraph.heading_level = heading_level;
     for line in &mut paragraph.lines {
-        line.dominant_font_size = 12.0;
-        line.is_bold = is_bold;
         for segment in &mut line.segments {
             segment.font_size = 12.0;
             segment.is_bold = is_bold;
@@ -5208,18 +4770,6 @@ fn extract_heading_test_document(
             layout_hints: None,
             allow_single_column: true,
             cancel_token: None,
-            #[cfg(feature = "layout-detection")]
-            layout_images: None,
-            #[cfg(feature = "layout-detection")]
-            layout_results: None,
-            #[cfg(feature = "layout-detection")]
-            table_model: crate::core::config::layout::TableModel::Disabled,
-            #[cfg(feature = "layout-detection")]
-            table_overlap_preference: crate::core::config::layout::TableOverlapPreference::Content,
-            #[cfg(feature = "layout-detection")]
-            acceleration: None,
-            #[cfg(feature = "layout-detection")]
-            session_thread_budget: 0,
         },
     )
     .expect("document structure extraction must succeed")
@@ -5245,18 +4795,6 @@ fn ligature_space_document(pages: Vec<Vec<SegmentData>>, ocr_text: bool) -> crat
             layout_hints: None,
             allow_single_column: true,
             cancel_token: None,
-            #[cfg(feature = "layout-detection")]
-            layout_images: None,
-            #[cfg(feature = "layout-detection")]
-            layout_results: None,
-            #[cfg(feature = "layout-detection")]
-            table_model: crate::core::config::layout::TableModel::Disabled,
-            #[cfg(feature = "layout-detection")]
-            table_overlap_preference: crate::core::config::layout::TableOverlapPreference::Content,
-            #[cfg(feature = "layout-detection")]
-            acceleration: None,
-            #[cfg(feature = "layout-detection")]
-            session_thread_budget: 0,
         },
     )
     .expect("document structure extraction must succeed")
@@ -5297,7 +4835,7 @@ fn extracted_pdf_text_with_a_tight_ligature_stays_joined() {
 /// OCR places no glyph geometry, so a ligature emitted as its own word is rejoined.
 ///
 /// Neutralisation that must break this test: ignore `ocr_text` in `fused_text_repairs`.
-#[cfg(any(feature = "ocr", feature = "ocr-pipeline"))]
+#[cfg(feature = "ocr-pipeline")]
 #[test]
 fn ocr_segments_rejoin_a_ligature_emitted_as_its_own_word() {
     let mut paragraph = para_with_font_size(12.0);
@@ -5398,34 +4936,6 @@ fn table_dominant_cleanup_requires_minimum_body_rows() {
 
     assert_eq!(pages[0].len(), 1);
     assert_eq!(paragraph_text_raw(&pages[0][0]), "Keep this title");
-}
-
-#[cfg(feature = "layout-detection")]
-#[test]
-fn deferred_layout_caption_survives_table_dominant_cleanup() {
-    let caption_text = "2024 2025 2026 2027 2028 2029 2030 2031 2032 2033 2034 2035 2036";
-    let mut caption = outline_para(caption_text);
-    caption.block_bbox = Some((10.0, 350.0, 490.0, 390.0));
-    let mut pages = vec![vec![caption]];
-    let hints = vec![LayoutHint {
-        class_name: LayoutHintClass::Caption,
-        confidence: 0.99,
-        left: 0.0,
-        bottom: 340.0,
-        right: 500.0,
-        top: 400.0,
-    }];
-    let tables = vec![table_with_body_rows(
-        TABLE_DOMINANT_MIN_BODY_ROWS,
-        "long-table-value-1234567890-long-table-value-1234567890-long-table-value-1234567890",
-    )];
-
-    crate::pdf::structure::layout_classify::annotate_layout_classes(&mut pages[0], &hints, 0.5, 0.2);
-    suppress_table_dominant_paragraph_spill(&mut pages, &tables);
-
-    assert_eq!(pages[0].len(), 1);
-    assert_eq!(paragraph_text_raw(&pages[0][0]), caption_text);
-    assert_eq!(pages[0][0].layout_class, Some(LayoutHintClass::Caption));
 }
 
 #[test]
@@ -5684,10 +5194,6 @@ fn process_heuristic_segments(segments: Vec<SegmentData>) -> Vec<PdfParagraph> {
             table_bboxes: Vec::new(),
             preserve_native_semantics: false,
             use_layout_reading_order: false,
-            #[cfg(feature = "layout-detection")]
-            hint_validations: Vec::new(),
-            #[cfg(feature = "layout-detection")]
-            page_width_pts: None,
             needs_classify: false,
             paragraph_gap_ys: Vec::new(),
             include_headers: true,
@@ -5698,279 +5204,6 @@ fn process_heuristic_segments(segments: Vec<SegmentData>) -> Vec<PdfParagraph> {
         None,
         &TextRepairWitnesses::default(),
     )
-}
-
-#[cfg(feature = "layout-detection")]
-#[test]
-fn empty_or_ineligible_layout_hints_use_legacy_page_processing() {
-    let segments = vec![
-        heuristic_segment("First paragraph.", 700.0, 220.0, false),
-        heuristic_segment("Second paragraph.", 600.0, 220.0, false),
-    ];
-    let paragraph_gap_ys = compute_paragraph_gap_ys(&segments);
-    let process = |page_hints| {
-        process_single_page(
-            PageInput {
-                page_index: 0,
-                struct_paragraphs: None,
-                heuristic_segments: segments.clone(),
-                page_hints,
-                table_bboxes: Vec::new(),
-                preserve_native_semantics: false,
-                use_layout_reading_order: false,
-                hint_validations: Vec::new(),
-                page_width_pts: None,
-                needs_classify: false,
-                paragraph_gap_ys: paragraph_gap_ys.clone(),
-                include_headers: true,
-                include_footers: true,
-                include_footnotes: false,
-            },
-            &[],
-            None,
-            &TextRepairWitnesses::default(),
-        )
-    };
-
-    let legacy = process(None);
-    let empty = process(Some(Vec::new()));
-    let invalid = process(Some(vec![LayoutHint {
-        class_name: crate::pdf::structure::types::LayoutHintClass::Text,
-        confidence: 0.9,
-        left: 0.0,
-        bottom: 0.0,
-        right: f32::INFINITY,
-        top: 100.0,
-    }]));
-    let non_overlapping = process(Some(vec![LayoutHint {
-        class_name: crate::pdf::structure::types::LayoutHintClass::Text,
-        confidence: 0.9,
-        left: 400.0,
-        bottom: 0.0,
-        right: 500.0,
-        top: 100.0,
-    }]));
-
-    assert_eq!(format!("{empty:?}"), format!("{legacy:?}"));
-    assert_eq!(format!("{invalid:?}"), format!("{legacy:?}"));
-    assert_eq!(format!("{non_overlapping:?}"), format!("{legacy:?}"));
-}
-
-#[cfg(feature = "layout-detection")]
-#[test]
-fn page_width_reaches_layout_reading_order_graph() {
-    let positioned_segment = |text: &str, x: f32, y: f32| {
-        let mut segment = heuristic_segment(text, y + 10.0, 10.0, false);
-        segment.x = x;
-        segment.y = y;
-        segment.height = 10.0;
-        segment
-    };
-    let mut segments = vec![
-        positioned_segment("bottom-left", 10.0, 205.0),
-        positioned_segment("top-left", 90.0, 305.0),
-        positioned_segment("top-right", 200.0, 305.0),
-        positioned_segment("bottom-right", 250.0, 205.0),
-    ];
-    for (index, segment) in segments.iter_mut().enumerate() {
-        segment.assigned_role = Some(if index % 2 == 0 { 2 } else { 3 });
-    }
-    let hint = |left, bottom, right, top| LayoutHint {
-        class_name: crate::pdf::structure::types::LayoutHintClass::Text,
-        confidence: 0.95,
-        left,
-        bottom,
-        right,
-        top,
-    };
-    let hints = vec![
-        hint(0.0, 200.0, 120.0, 220.0),
-        hint(80.0, 300.0, 160.0, 320.0),
-        hint(120.0, 300.0, 240.0, 320.0),
-        hint(160.0, 200.0, 280.0, 220.0),
-    ];
-    let process = |page_width_pts, table_bboxes, _has_emitted_table| {
-        let mut pages = vec![process_single_page(
-            PageInput {
-                page_index: 0,
-                struct_paragraphs: None,
-                heuristic_segments: segments.clone(),
-                page_hints: Some(hints.clone()),
-                table_bboxes,
-                preserve_native_semantics: true,
-                use_layout_reading_order: true,
-                hint_validations: Vec::new(),
-                page_width_pts,
-                needs_classify: false,
-                paragraph_gap_ys: Vec::new(),
-                include_headers: true,
-                include_footers: true,
-                include_footnotes: false,
-            },
-            &[],
-            None,
-            &TextRepairWitnesses::default(),
-        )];
-        reorder_pages_by_layout_region(&mut pages);
-        pages[0].iter().map(paragraph_text).collect::<Vec<_>>()
-    };
-
-    assert_eq!(
-        process(None, Vec::new(), false),
-        ["top-left", "bottom-left", "top-right", "bottom-right"]
-    );
-    assert_eq!(
-        process(Some(400.0), Vec::new(), false),
-        ["top-left", "top-right", "bottom-left", "bottom-right"],
-        "the actual page width must reach layout graph dilation"
-    );
-    assert_eq!(
-        process(
-            Some(400.0),
-            vec![TableCoverage::from_rows(
-                crate::types::BoundingBox {
-                    x0: 0.0,
-                    y0: 0.0,
-                    x1: 50.0,
-                    y1: 50.0,
-                },
-                []
-            )],
-            true,
-        ),
-        ["top-left", "top-right", "bottom-left", "bottom-right"],
-        "an emitted table must not disable layout reading order for surrounding prose"
-    );
-}
-
-#[cfg(feature = "layout-detection")]
-#[test]
-fn stacked_layout_groups_preserve_native_paragraph_assembly() {
-    let segments = vec![
-        heuristic_segment("One continuous", 700.0, 120.0, false),
-        heuristic_segment("paragraph.", 688.0, 100.0, false),
-    ];
-    let hints = vec![
-        LayoutHint {
-            class_name: LayoutHintClass::Text,
-            confidence: 0.99,
-            left: 0.0,
-            bottom: 685.0,
-            right: 200.0,
-            top: 705.0,
-        },
-        LayoutHint {
-            class_name: LayoutHintClass::Text,
-            confidence: 0.99,
-            left: 0.0,
-            bottom: 673.0,
-            right: 200.0,
-            top: 693.0,
-        },
-    ];
-    let output = process_single_page(
-        PageInput {
-            page_index: 0,
-            struct_paragraphs: None,
-            heuristic_segments: segments,
-            page_hints: Some(hints),
-            table_bboxes: Vec::new(),
-            preserve_native_semantics: true,
-            use_layout_reading_order: false,
-            hint_validations: Vec::new(),
-            page_width_pts: Some(612.0),
-            needs_classify: false,
-            paragraph_gap_ys: Vec::new(),
-            include_headers: true,
-            include_footers: true,
-            include_footnotes: false,
-        },
-        &[],
-        None,
-        &TextRepairWitnesses::default(),
-    );
-
-    assert_eq!(output.len(), 1);
-    assert_eq!(paragraph_text(&output[0]), "One continuous paragraph.");
-}
-
-#[cfg(feature = "layout-detection")]
-#[test]
-fn bboxless_emitted_table_page_preserves_native_semantics_and_layout_class() {
-    let segment = heuristic_segment("Ordinary prose.", 700.0, 220.0, false);
-    let paragraph_gap_ys = compute_paragraph_gap_ys(std::slice::from_ref(&segment));
-    let output = process_single_page(
-        PageInput {
-            page_index: 0,
-            struct_paragraphs: None,
-            heuristic_segments: vec![segment],
-            page_hints: Some(vec![LayoutHint {
-                class_name: LayoutHintClass::Title,
-                confidence: 0.99,
-                left: 0.0,
-                bottom: 680.0,
-                right: 300.0,
-                top: 720.0,
-            }]),
-            table_bboxes: Vec::new(),
-            preserve_native_semantics: true,
-            use_layout_reading_order: true,
-            hint_validations: Vec::new(),
-            page_width_pts: Some(612.0),
-            needs_classify: false,
-            paragraph_gap_ys,
-            include_headers: true,
-            include_footers: true,
-            include_footnotes: false,
-        },
-        &[],
-        None,
-        &TextRepairWitnesses::default(),
-    );
-
-    assert_eq!(output.len(), 1);
-    assert_eq!(paragraph_text(&output[0]), "Ordinary prose.");
-    assert_eq!(output[0].heading_level, None);
-    assert_eq!(output[0].layout_class, Some(LayoutHintClass::Title));
-}
-
-#[cfg(feature = "layout-detection")]
-#[test]
-fn emitted_table_page_annotates_caption_without_overriding_native_semantics() {
-    let segment = heuristic_segment("Source: annual filing", 100.0, 220.0, false);
-    let output = process_single_page(
-        PageInput {
-            page_index: 0,
-            struct_paragraphs: None,
-            heuristic_segments: vec![segment],
-            page_hints: Some(vec![LayoutHint {
-                class_name: LayoutHintClass::Caption,
-                confidence: 0.99,
-                left: 0.0,
-                bottom: 80.0,
-                right: 300.0,
-                top: 120.0,
-            }]),
-            table_bboxes: Vec::new(),
-            preserve_native_semantics: true,
-            use_layout_reading_order: true,
-            hint_validations: Vec::new(),
-            page_width_pts: Some(612.0),
-            needs_classify: false,
-            paragraph_gap_ys: Vec::new(),
-            include_headers: true,
-            include_footers: true,
-            include_footnotes: false,
-        },
-        &[],
-        None,
-        &TextRepairWitnesses::default(),
-    );
-
-    assert_eq!(output.len(), 1);
-    assert_eq!(paragraph_text(&output[0]), "Source: annual filing");
-    assert_eq!(output[0].heading_level, None);
-    assert_eq!(output[0].layout_class, Some(LayoutHintClass::Caption));
 }
 
 #[test]
@@ -6044,10 +5277,6 @@ fn test_structure_tree_page_runs_text_repair_before_assembly() {
             table_bboxes: Vec::new(),
             preserve_native_semantics: false,
             use_layout_reading_order: false,
-            #[cfg(feature = "layout-detection")]
-            hint_validations: Vec::new(),
-            #[cfg(feature = "layout-detection")]
-            page_width_pts: None,
             needs_classify: false,
             paragraph_gap_ys: Vec::new(),
             include_headers: true,
@@ -6092,10 +5321,6 @@ fn assigned_sal_heading_survives_merge_when_layout_confirms_it() {
             table_bboxes: Vec::new(),
             preserve_native_semantics: false,
             use_layout_reading_order: false,
-            #[cfg(feature = "layout-detection")]
-            hint_validations: Vec::new(),
-            #[cfg(feature = "layout-detection")]
-            page_width_pts: Some(612.0),
             needs_classify: false,
             paragraph_gap_ys: Vec::new(),
             include_headers: true,
@@ -6782,18 +6007,6 @@ fn should_preserve_eight_distinct_body_paragraphs_through_native_structure() {
             layout_hints: None,
             allow_single_column: true,
             cancel_token: None,
-            #[cfg(feature = "layout-detection")]
-            layout_images: None,
-            #[cfg(feature = "layout-detection")]
-            layout_results: None,
-            #[cfg(feature = "layout-detection")]
-            table_model: crate::core::config::layout::TableModel::Disabled,
-            #[cfg(feature = "layout-detection")]
-            table_overlap_preference: crate::core::config::layout::TableOverlapPreference::Content,
-            #[cfg(feature = "layout-detection")]
-            acceleration: None,
-            #[cfg(feature = "layout-detection")]
-            session_thread_budget: 0,
         },
     )
     .expect("native structure extraction succeeds");
@@ -7674,10 +6887,6 @@ fn should_classify_untagged_bold_body_size_paragraphs_on_tagged_pages() {
             table_bboxes: Vec::new(),
             preserve_native_semantics: true,
             use_layout_reading_order: false,
-            #[cfg(feature = "layout-detection")]
-            hint_validations: Vec::new(),
-            #[cfg(feature = "layout-detection")]
-            page_width_pts: None,
             needs_classify: true,
             paragraph_gap_ys: Vec::new(),
             include_headers: true,
@@ -8507,10 +7716,6 @@ fn test_heuristic_path_merges_font_split_continuation() {
             table_bboxes: vec![],
             preserve_native_semantics: false,
             use_layout_reading_order: false,
-            #[cfg(feature = "layout-detection")]
-            hint_validations: vec![],
-            #[cfg(feature = "layout-detection")]
-            page_width_pts: None,
             needs_classify: false,
             paragraph_gap_ys: vec![],
             include_headers: true,
@@ -8563,10 +7768,6 @@ fn test_heuristic_path_does_not_merge_terminated_sentences() {
             table_bboxes: vec![],
             preserve_native_semantics: false,
             use_layout_reading_order: false,
-            #[cfg(feature = "layout-detection")]
-            hint_validations: vec![],
-            #[cfg(feature = "layout-detection")]
-            page_width_pts: None,
             needs_classify: false,
             paragraph_gap_ys: vec![],
             include_headers: true,

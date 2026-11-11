@@ -14,7 +14,7 @@ use crate::types::internal_builder::InternalDocumentBuilder;
 use crate::types::uri::{ExtractedUri, classify_uri};
 use async_trait::async_trait;
 use jotdown::{Container, Event, Parser};
-#[cfg_attr(alef, alef(skip))]
+
 /// Djot markup extractor with metadata and table support.
 ///
 /// Parses Djot documents with YAML frontmatter, extracting:
@@ -810,16 +810,6 @@ impl Plugin for DjotExtractor {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl InternalDocumentExtractor for DjotExtractor {
-    #[cfg_attr(
-        feature = "otel",
-        tracing::instrument(
-            skip(self, content, config),
-            fields(
-                extractor.name = self.name(),
-                content.size_bytes = content.len(),
-            )
-        )
-    )]
     async fn extract_content(
         &self,
         content: &[u8],

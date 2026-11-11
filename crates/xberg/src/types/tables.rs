@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 /// Represents a table detected and extracted from a document (PDF, image, etc.).
 /// Tables are converted to both structured cell data and Markdown format.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct Table {
     /// Table cells as a 2D vector (rows × columns)
     pub cells: Vec<Vec<String>>,
@@ -38,7 +38,6 @@ pub struct Table {
     ///   passed through unchanged.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(default)]
-    #[cfg_attr(feature = "api", schema(nullable = false))]
     pub bounding_box: Option<BoundingBox>,
 
     /// Stable identifier shared by every `tables[]` entry that represents a
@@ -106,7 +105,7 @@ impl Table {
 /// Flat rather than a nested `Vec<Vec<Option<..>>>`: the nested shape marshals badly across the
 /// FFI bindings, and the data is sparse anyway. See [`Table::cell_styles`]. ~keep
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct TableCellStyle {
     /// Zero-indexed row of the cell this style belongs to.
     pub row: u32,
@@ -124,7 +123,7 @@ pub struct TableCellStyle {
 ///
 /// Future extension point for rich table support with cell-level metadata.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct TableCell {
     /// Cell content as text
     pub content: String,

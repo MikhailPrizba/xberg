@@ -15,7 +15,7 @@ use async_trait::async_trait;
 
 #[cfg(feature = "office")]
 use biblib::{Author, Citation, CitationParser, EndNoteXmlParser, PubMedParser, RisParser};
-#[cfg_attr(alef, alef(skip))]
+
 /// Citation format extractor for RIS, PubMed/MEDLINE, and EndNote XML formats.
 ///
 /// Parses citation files and extracts structured bibliography data including
@@ -65,13 +65,6 @@ impl Plugin for CitationExtractor {
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl InternalDocumentExtractor for CitationExtractor {
-    #[cfg_attr(feature = "otel", tracing::instrument(
-        skip(self, content, _config),
-        fields(
-            extractor.name = self.name(),
-            content.size_bytes = content.len(),
-        )
-    ))]
     async fn extract_content(
         &self,
         content: &[u8],
@@ -92,8 +85,6 @@ impl InternalDocumentExtractor for CitationExtractor {
         let accumulation = match parse_result {
             Ok(citations) => process_parsed_citations(&citations, &mut builder),
             Err(_err) => {
-                #[cfg(feature = "otel")]
-                tracing::warn!("Citation parsing failed, returning raw content: {}", _err);
                 builder.add_warning(crate::core::diagnostics::warning(
                     "citation",
                     "Citation parsing failed; returning raw text as a fallback",

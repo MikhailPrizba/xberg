@@ -162,31 +162,6 @@ fn level_two_columns_keep_their_existing_paragraphs() {
     assert!(document.tables.is_empty());
 }
 
-#[cfg(feature = "layout-detection")]
-#[test]
-fn an_explicit_reading_order_request_keeps_normal_paragraph_assembly() {
-    let (bytes, _) = helpers::pdf_panels::issue_2323_panels(1.0, 2);
-    let config = ExtractionConfig {
-        output_format: OutputFormat::Markdown,
-        disable_ocr: true,
-        use_cache: false,
-        enable_quality_processing: false,
-        pdf_options: Some(xberg::PdfConfig {
-            reading_order: true,
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-    let document = extract_bytes_document_blocking(&bytes, "application/pdf", &config).unwrap();
-    assert_eq!(
-        document.content.lines().filter(|line| !line.trim().is_empty()).count(),
-        2,
-        "{}",
-        document.content
-    );
-    assert!(document.tables.is_empty());
-}
-
 fn panels_with_metadata(tagged: bool) -> Vec<u8> {
     use lopdf::{Document, Object, dictionary};
     let (bytes, _) = helpers::pdf_panels::issue_2323_panels(1.0, 2);

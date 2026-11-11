@@ -12,7 +12,7 @@ use ahash::AHashMap;
 use async_trait::async_trait;
 use std::borrow::Cow;
 use std::path::Path;
-#[cfg_attr(alef, alef(skip))]
+
 /// PowerPoint presentation extractor.
 ///
 /// Supports: .pptx, .pptm, .ppsx
@@ -146,19 +146,6 @@ impl PptxExtractor {
         Ok(())
     }
 
-    /// Add the OCR text anchor of a picture that gets no placeholder.
-    ///
-    /// Only the pipeline step that follows OCR of the embedded pictures turns an anchor into
-    /// text, so a build without that step adds none. ~keep
-    #[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-    fn push_image_ocr_text_anchor(builder: &mut InternalDocumentBuilder, image_index: u32, slide_number: u32) {
-        builder.push_element(crate::types::internal::InternalElement::image_ocr_text_anchor(
-            image_index,
-            Some(slide_number),
-        ));
-    }
-
-    #[cfg(not(all(feature = "ocr", feature = "tokio-runtime")))]
     fn push_image_ocr_text_anchor(_builder: &mut InternalDocumentBuilder, _image_index: u32, _slide_number: u32) {}
 
     fn build_internal_document(
@@ -625,12 +612,6 @@ impl InternalDocumentExtractor for PptxExtractor {
         Ok(doc)
     }
 
-    #[cfg_attr(feature = "otel", tracing::instrument(
-        skip(self, path, config),
-        fields(
-            extractor.name = self.name(),
-        )
-    ))]
     async fn extract_path(&self, path: &Path, mime_type: &str, config: &ExtractionConfig) -> Result<InternalDocument> {
         let path_str = path
             .to_str()
@@ -1850,75 +1831,6 @@ mod tests {
             err_msg.contains(&default_limit.to_string()),
             "error should mention the default limit ({default_limit}), got: {err_msg}"
         );
-    }
-
-    /// A picture with no placeholder keeps an anchor for its OCR text, and only when the
-    /// embedded pictures go to OCR.
-    #[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-    #[tokio::test]
-    async fn test_plain_picture_gets_an_ocr_text_anchor_only_when_embedded_image_ocr_runs() {
-        use crate::core::config::{ExtractionConfig, ImageExtractionConfig, OcrConfig, OutputFormat};
-        use crate::plugins::InternalDocumentExtractor;
-
-        let slide_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
-<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
-       xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
-       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-    <p:cSld><p:spTree>
-        <p:sp><p:txBody><a:p><a:r><a:t>Stock list</a:t></a:r></a:p></p:txBody></p:sp>
-        <p:pic>
-            <p:nvPicPr><p:cNvPr id="2" name="Picture 1"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
-            <p:blipFill><a:blip r:embed="rId2"/></p:blipFill>
-            <p:spPr><a:xfrm><a:off x="0" y="2000000"/><a:ext cx="1000000" cy="1000000"/></a:xfrm></p:spPr>
-        </p:pic>
-    </p:spTree></p:cSld>
-</p:sld>"#;
-        let slide_rels_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-    <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image1.png"/>
-</Relationships>"#;
-        let pptx = crate::extraction::pptx::tests::build_single_slide_pptx(
-            slide_xml,
-            Some(slide_rels_xml),
-            &[("ppt/media/image1.png", b"picture bytes")],
-        );
-        let mime = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
-        let anchors = |document: &InternalDocument| -> Vec<(Option<u32>, Option<u32>)> {
-            document
-                .elements
-                .iter()
-                .filter_map(|element| {
-                    element
-                        .image_ocr_text_anchor_index()
-                        .map(|image_index| (Some(image_index), element.page))
-                })
-                .collect()
-        };
-
-        let with_ocr = ExtractionConfig {
-            ocr: Some(OcrConfig::default()),
-            output_format: OutputFormat::Plain,
-            ..Default::default()
-        };
-        let document = PptxExtractor::new()
-            .extract_content(&pptx, mime, &with_ocr)
-            .await
-            .expect("the deck extracts");
-        assert_eq!(document.images.len(), 1);
-        assert_eq!(anchors(&document), vec![(Some(0), Some(1))]);
-
-        let without_ocr = ExtractionConfig {
-            images: Some(ImageExtractionConfig::default()),
-            output_format: OutputFormat::Plain,
-            ..Default::default()
-        };
-        let reference = PptxExtractor::new()
-            .extract_content(&pptx, mime, &without_ocr)
-            .await
-            .expect("the deck extracts");
-        assert_eq!(reference.images.len(), 1, "the picture is read without OCR too");
-        assert_eq!(anchors(&reference), vec![]);
-        assert_eq!(reference.elements.len() + 1, document.elements.len());
     }
 
     /// A picture with no placeholder is one step of the iteration limit, the same as a

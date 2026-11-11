@@ -10,7 +10,7 @@ use crate::extraction::ooxml_constants::WORDPROCESSINGML_NAMESPACE;
 // --- Types ---
 
 /// The type of a style definition in DOCX.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum StyleType {
     /// Style applied to an entire paragraph (`<w:style w:type="paragraph">`).
@@ -26,7 +26,7 @@ pub enum StyleType {
 ///
 /// All fields are `Option` so that inheritance resolution can distinguish
 /// "not set" (`None`) from "explicitly set" (`Some`).
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct RunProperties {
     /// Bold formatting.
@@ -80,7 +80,7 @@ pub struct RunProperties {
     /// Theme color shade modification (hex value).
     pub theme_shade: Option<String>,
 }
-#[cfg_attr(alef, alef(skip))]
+
 /// Paragraph-level formatting properties (alignment, spacing, indentation, etc.).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ParagraphProperties {
@@ -141,7 +141,7 @@ pub struct ParagraphProperties {
 }
 
 /// A single style definition parsed from `<w:style>` in `word/styles.xml`.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone)]
 pub struct StyleDefinition {
     /// The style ID (`w:styleId` attribute).
@@ -163,7 +163,7 @@ pub struct StyleDefinition {
 }
 
 /// Fully resolved (flattened) style after walking the inheritance chain.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ResolvedStyle {
     /// Fully-inherited paragraph formatting properties.
@@ -173,7 +173,7 @@ pub struct ResolvedStyle {
 }
 
 /// Catalog of all styles parsed from `word/styles.xml`, plus document defaults.
-#[cfg_attr(alef, alef(skip))]
+
 #[derive(Debug, Clone, Default)]
 pub struct StyleCatalog {
     /// All named style definitions keyed by their style ID.

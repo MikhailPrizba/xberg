@@ -47,7 +47,7 @@ use std::borrow::Cow;
 /// # Returns
 ///
 /// A vector of `Element`s in the extractor's native reading order.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn convert_internal_elements_to_elements(doc: &InternalDocument, filename: &Option<String>) -> Vec<Element> {
     let mut elements: Vec<Element> = Vec::with_capacity(doc.elements.len());
 
@@ -181,7 +181,7 @@ fn resolve_internal_element_text(doc: &InternalDocument, internal_elem: &Interna
 /// # Returns
 ///
 /// A vector of Elements with proper semantic types and metadata.
-#[cfg_attr(alef, alef(skip))]
+
 pub fn transform_extraction_result_to_elements(result: &ExtractedDocument) -> Vec<Element> {
     if let Some(ref doc) = result.internal_document {
         return convert_internal_elements_to_elements(doc, &result.metadata.title);

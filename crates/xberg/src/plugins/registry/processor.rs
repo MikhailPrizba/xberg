@@ -8,7 +8,7 @@ use std::sync::Arc;
 /// Registry for post-processor plugins.
 ///
 /// Manages post-processors organized by processing stage.
-#[cfg_attr(alef, alef(skip))]
+
 pub struct PostProcessorRegistry {
     processors: HashMap<ProcessingStage, BTreeMap<i32, Vec<Arc<dyn PostProcessor>>>>,
     name_index: HashMap<String, (ProcessingStage, i32)>,
@@ -105,18 +105,7 @@ impl PostProcessorRegistry {
         Ok(())
     }
 
-    #[cfg(any(
-        test,
-        feature = "quality",
-        feature = "classification",
-        feature = "summarization",
-        feature = "translation",
-        feature = "captioning",
-        feature = "qr-codes",
-        feature = "ner",
-        feature = "keywords-yake",
-        feature = "keywords-rake"
-    ))]
+    #[cfg(any(test, feature = "quality", feature = "keywords-yake", feature = "keywords-rake"))]
     pub(crate) fn register_if_absent(&mut self, processor: Arc<dyn PostProcessor>) -> Result<bool> {
         if self.name_index.contains_key(processor.name()) {
             return Ok(false);
@@ -301,7 +290,6 @@ mod tests {
         priority: i32,
     }
 
-    #[allow(dead_code)]
     impl MockPostProcessor {
         fn new(name: impl Into<String>, stage: ProcessingStage, priority: i32) -> Self {
             Self {

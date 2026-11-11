@@ -806,7 +806,7 @@ pub(crate) fn push_html_text(out: &mut String, input: &str) {
 /// The target of a link a reader can open outside the document, in the URL parser's
 /// percent-encoded form. Fragment and relative links have no such target, so a binary
 /// format keeps their text and drops the link.
-#[allow(dead_code)]
+
 pub(crate) fn external_link_target(url: &str) -> Option<String> {
     let parsed = url::Url::parse(url).ok()?;
     matches!(parsed.scheme(), "http" | "https" | "mailto" | "ftp").then(|| parsed.into())

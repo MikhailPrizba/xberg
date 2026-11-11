@@ -409,7 +409,7 @@ fn is_registered_ocr_backend(backend: &str) -> bool {
 /// assert!(validate_language_code("deu").is_ok());
 /// assert!(validate_language_code("invalid").is_err());
 /// ```
-#[cfg_attr(alef, alef(skip))]
+
 pub(crate) fn validate_language_code(code: &str) -> Result<()> {
     let code_lower = code.to_lowercase();
     let code_normalized = code_lower.replace('_', "-");
@@ -818,7 +818,7 @@ pub(crate) fn validate_csv_delimiter(delimiter: &str) -> Result<()> {
 /// assert!(!layout_wastes_plain_output(true, &OutputFormat::Markdown));
 /// assert!(!layout_wastes_plain_output(false, &OutputFormat::Plain));
 /// ```
-#[cfg_attr(alef, alef(skip))]
+
 pub fn layout_wastes_plain_output(layout_enabled: bool, output_format: &crate::OutputFormat) -> bool {
     layout_enabled && *output_format == crate::OutputFormat::Plain
 }

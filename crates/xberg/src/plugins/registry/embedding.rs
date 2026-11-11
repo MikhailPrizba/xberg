@@ -20,7 +20,7 @@ use std::sync::Arc;
 /// `backend.dimensions()` on each dispatch so that a backend returning an
 /// inconsistent dimension post-registration cannot slip through shape
 /// validation mid-session.
-#[cfg_attr(alef, alef(skip))]
+
 pub struct EmbeddingBackendRegistry {
     pub(super) backends: AHashMap<String, RegisteredBackend>,
 }

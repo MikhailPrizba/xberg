@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 /// pre-redaction `content` and are intended for audit reconstruction only — the original
 /// bytes are dropped at the end of the pipeline.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct RedactionReport {
     /// Individual redaction findings in original-source byte order.
     pub findings: Vec<RedactionFinding>,
@@ -30,7 +30,7 @@ pub struct RedactionReport {
 
 /// One redaction event: which span was rewritten, why, and with what.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct RedactionFinding {
     /// Byte-offset start in the original (pre-redaction) `ExtractedDocument::content`.
     pub start: u32,
@@ -47,7 +47,6 @@ pub struct RedactionFinding {
 
 /// Strategy applied when a PII match is rewritten.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RedactionStrategy {
     /// Replace the matched span with a fixed mask token (default `"[REDACTED]"`).
@@ -65,7 +64,6 @@ pub enum RedactionStrategy {
 
 /// PII categories the pattern engine recognises.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum PiiCategory {
     /// Email address (e.g. `user@example.com`).

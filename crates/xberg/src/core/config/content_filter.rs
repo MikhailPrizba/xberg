@@ -53,7 +53,6 @@ pub struct ContentFilterConfig {
     /// Default: `false` (footnotes are stripped), matching the existing
     /// `include_headers` / `include_footers` defaults.
     #[serde(default)]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub include_footnotes: bool,
 
     /// Enable the heuristic cross-page repeating text detector.

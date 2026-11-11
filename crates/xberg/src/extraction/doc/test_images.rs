@@ -288,49 +288,6 @@ async fn should_extract_two_uid_png_without_returning_uid_bytes() {
     assert_eq!(doc.images[0].data.as_ref(), png.as_slice());
 }
 
-#[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-#[tokio::test]
-async fn should_ocr_doc_pictures_through_public_pipeline_and_respect_flags() {
-    // Locally rendered synthetic text; only PNG IHDR/IDAT/IEND chunks. ~keep
-    let png = include_bytes!("test_images/marker.png");
-    let bytes = picture_doc_with_png("BEFORE\r\x01\rAFTER\r", true, png);
-    for (extract_images, embedded, disabled, force, expected_ocr) in [
-        (false, true, false, false, true),
-        (true, true, false, false, true),
-        (true, false, false, false, false),
-        (true, true, true, false, false),
-        (false, true, false, true, true),
-    ] {
-        let config: ExtractionConfig = serde_json::from_value(serde_json::json!({
-            "use_cache": false, "disable_ocr": disabled, "force_ocr": force,
-            "ocr_embedded_images": embedded,
-            "images": {"extract_images": extract_images},
-            "ocr": {"backend": "tesseract", "language": "eng", "tesseract_config": {
-                "language": "eng", "use_cache": false, "output_format": "text"
-            }}
-        }))
-        .expect("OCR configuration");
-        let output = crate::extract(
-            crate::ExtractInput::from_bytes(bytes.clone(), "application/msword", None),
-            &config,
-        )
-        .await
-        .expect("public DOC extraction");
-        assert_eq!(output.errors.len(), 0, "{:?}", output.errors);
-        assert_eq!(output.results.len(), 1);
-        let result = &output.results[0];
-        assert_eq!(result.content.contains("DOC IMAGE MARKER ALPHA BRAVO"), expected_ocr);
-        assert_eq!(result.images.as_ref().map_or(0, Vec::len), usize::from(extract_images));
-        let before = result.content.find("BEFORE").expect("native before");
-        let after = result.content.find("AFTER").expect("native after");
-        assert!(before < after);
-        if expected_ocr {
-            let marker = result.content.find("DOC IMAGE MARKER ALPHA BRAVO").expect("OCR marker");
-            assert!(before < marker && marker < after);
-        }
-    }
-}
-
 #[tokio::test]
 async fn should_not_read_a_picture_from_an_fkp_outside_its_bte_range() {
     let (bytes, _) = picture_doc("BEFORE\r\x01\rAFTER\r", true);
@@ -352,36 +309,6 @@ async fn should_not_read_a_picture_from_an_fkp_outside_its_bte_range() {
             .collect::<Vec<_>>(),
         ["BEFORE", "AFTER"]
     );
-}
-
-#[cfg(all(feature = "ocr", feature = "tokio-runtime"))]
-#[tokio::test]
-async fn should_ocr_image_only_doc_without_placeholders_or_retained_bytes() {
-    let png = include_bytes!("test_images/marker.png");
-    for extract_images in [false, true] {
-        let config: ExtractionConfig = serde_json::from_value(serde_json::json!({
-            "use_cache": false,
-            "images": {"extract_images": extract_images, "inject_placeholders": false},
-            "ocr": {"backend": "tesseract", "language": "eng", "tesseract_config": {
-                "language": "eng", "use_cache": false, "output_format": "text"
-            }}
-        }))
-        .expect("image-only OCR config");
-        let bytes = picture_doc_with_png("\x01\r", true, png);
-        let output = crate::extract(
-            crate::ExtractInput::from_bytes(bytes, "application/msword", None),
-            &config,
-        )
-        .await
-        .expect("image-only extraction");
-        assert_eq!(output.errors.len(), 0, "{:?}", output.errors);
-        assert_eq!(output.results.len(), 1);
-        assert!(output.results[0].content.contains("DOC IMAGE MARKER ALPHA BRAVO"));
-        assert_eq!(
-            output.results[0].images.as_ref().map_or(0, Vec::len),
-            usize::from(extract_images)
-        );
-    }
 }
 
 #[tokio::test]

@@ -60,7 +60,7 @@ static AT_CITE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(^|[\s(])@([A
 const TYPST_WARNING_SOURCE: &str = "typst";
 
 /// Typst document extractor
-#[cfg_attr(alef, alef(skip))]
+
 #[cfg(feature = "office")]
 pub struct TypstExtractor;
 

@@ -19,7 +19,7 @@ task_local! {
 /// Check if we're currently in batch processing mode.
 ///
 /// Returns `false` if the task-local is not set (single-file mode).
-#[cfg(any(feature = "office", feature = "excel", feature = "excel-wasm", feature = "iwork"))]
+#[cfg(any(feature = "office", feature = "excel"))]
 pub(crate) fn is_batch_mode() -> bool {
     BATCH_MODE.try_with(|cell| cell.get()).unwrap_or(false)
 }
@@ -35,11 +35,7 @@ where
     BATCH_MODE.scope(Cell::new(true), future).await
 }
 
-#[cfg(all(
-    test,
-    not(target_arch = "wasm32"),
-    any(feature = "office", feature = "excel", feature = "excel-wasm", feature = "iwork")
-))]
+#[cfg(all(test, not(target_arch = "wasm32"), any(feature = "office", feature = "excel")))]
 mod tests {
     use super::*;
 

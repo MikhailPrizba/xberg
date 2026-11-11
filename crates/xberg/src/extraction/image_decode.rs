@@ -1,16 +1,6 @@
 use std::io::Cursor;
 
-#[cfg(any(
-    test,
-    feature = "ocr",
-    feature = "ocr-wasm",
-    feature = "ocr-pipeline",
-    feature = "qr-codes",
-    layout_detection,
-    auto_rotate,
-    sceptre_ocr,
-    feature = "sceptre-wasm"
-))]
+#[cfg(any(test, feature = "ocr-pipeline"))]
 use image::ColorType;
 use image::{ImageDecoder, ImageFormat, ImageReader};
 
@@ -75,39 +65,6 @@ pub(crate) fn decoded_byte_count(width: u32, height: u32, bytes_per_pixel: u64) 
         .ok_or_else(|| image_dimension_error(width, height, u64::MAX, u64::MAX))
 }
 
-#[cfg(feature = "heic")]
-pub(crate) fn copy_decoded_rows(
-    data: &[u8],
-    stride: usize,
-    width: u32,
-    height: u32,
-    bytes_per_pixel: u64,
-) -> Result<Vec<u8>> {
-    let row_bytes = usize::try_from(decoded_byte_count(width, 1, bytes_per_pixel)?)
-        .map_err(|error| XbergError::parsing(format!("Decoded image row size is not addressable: {error}")))?;
-    let buffer_bytes = usize::try_from(decoded_byte_count(width, height, bytes_per_pixel)?)
-        .map_err(|error| XbergError::parsing(format!("Decoded image buffer size is not addressable: {error}")))?;
-    let row_count = usize::try_from(height)
-        .map_err(|error| XbergError::parsing(format!("Decoded image height is not addressable: {error}")))?;
-    let mut packed = Vec::new();
-    packed
-        .try_reserve_exact(buffer_bytes)
-        .map_err(|error| XbergError::parsing(format!("Failed to reserve decoded image buffer: {error}")))?;
-    for row in 0..row_count {
-        let start = row
-            .checked_mul(stride)
-            .ok_or_else(|| XbergError::parsing("Decoded image row offset overflowed".to_string()))?;
-        let end = start
-            .checked_add(row_bytes)
-            .ok_or_else(|| XbergError::parsing("Decoded image row end overflowed".to_string()))?;
-        let row = data.get(start..end).ok_or_else(|| {
-            XbergError::parsing("Decoded image plane is shorter than declared dimensions".to_string())
-        })?;
-        packed.extend_from_slice(row);
-    }
-    Ok(packed)
-}
-
 fn image_decode_limits(budget: ImageDecodeBudget) -> image::Limits {
     let mut limits = image::Limits::default();
     limits.max_alloc = Some(budget.max_decoded_bytes);
@@ -119,17 +76,7 @@ struct StandardImageProbe {
     width: u32,
     height: u32,
     format: ImageFormat,
-    #[cfg(any(
-        test,
-        feature = "ocr",
-        feature = "ocr-wasm",
-        feature = "ocr-pipeline",
-        feature = "qr-codes",
-        layout_detection,
-        auto_rotate,
-        sceptre_ocr,
-        feature = "sceptre-wasm"
-    ))]
+    #[cfg(any(test, feature = "ocr-pipeline"))]
     color_type: ColorType,
     decoded_bytes: u64,
 }
@@ -170,53 +117,19 @@ fn probe_standard_image(
         width,
         height,
         format,
-        #[cfg(any(
-            test,
-            feature = "ocr",
-            feature = "ocr-wasm",
-            feature = "ocr-pipeline",
-            feature = "qr-codes",
-            layout_detection,
-            auto_rotate,
-            sceptre_ocr,
-            feature = "sceptre-wasm"
-        ))]
+        #[cfg(any(test, feature = "ocr-pipeline"))]
         color_type: decoder.color_type(),
         decoded_bytes,
     })
 }
 
-#[cfg(any(
-    all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")),
-    all(feature = "liter-llm", not(target_arch = "wasm32")),
-    feature = "candle-trocr",
-    feature = "candle-paddleocr-vl",
-    all(
-        not(target_arch = "wasm32"),
-        any(feature = "candle-glm-ocr", feature = "candle-deepseek-ocr")
-    )
-))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(crate) fn probe_standard_image_with_security_limits(
     bytes: &[u8],
     limits: &SecurityLimits,
 ) -> Result<(u32, u32, image::ImageFormat)> {
     let probe = probe_standard_image(bytes, ImageDecodeBudget::from_security_limits(limits), None)?;
     Ok((probe.width, probe.height, probe.format))
-}
-
-#[cfg(any(
-    all(feature = "liter-llm", not(target_arch = "wasm32")),
-    feature = "candle-trocr",
-    feature = "candle-paddleocr-vl",
-    all(
-        not(target_arch = "wasm32"),
-        any(feature = "candle-glm-ocr", feature = "candle-deepseek-ocr")
-    )
-))]
-pub(crate) fn probe_standard_image_with_default_security_limits(
-    bytes: &[u8],
-) -> Result<(u32, u32, image::ImageFormat)> {
-    probe_standard_image_with_security_limits(bytes, &SecurityLimits::default())
 }
 
 #[cfg(feature = "image-encode")]
@@ -233,14 +146,7 @@ pub(crate) fn decode_standard_image_with_format_and_security_limits(
 // `extraction::image` (`ocr`/`ocr-wasm`/`ocr-pipeline`) -- so an ungated definition is dead code
 // in any combination that selects none of them (e.g. CI's `--no-default-features --features
 // layout-tract`, which denies warnings). `test` keeps `decode_for_encode_under_test` compiling. ~keep
-#[cfg(any(
-    test,
-    feature = "image-encode",
-    feature = "pdf",
-    feature = "ocr",
-    feature = "ocr-wasm",
-    feature = "ocr-pipeline"
-))]
+#[cfg(any(test, feature = "image-encode", feature = "pdf", feature = "ocr-pipeline"))]
 pub(crate) fn decode_standard_image_with_security_limits(
     bytes: &[u8],
     limits: &SecurityLimits,
@@ -251,14 +157,7 @@ pub(crate) fn decode_standard_image_with_security_limits(
 // Same reasoning as `decode_standard_image_with_security_limits` above; this one is additionally
 // reached from `clone_dynamic_image_to_rgb8_with_security_limits`, whose own gate
 // (`layout-detection` + `pdf` + `ocr`/`ocr-wasm`) is already covered by the `pdf` arm here. ~keep
-#[cfg(any(
-    test,
-    feature = "image-encode",
-    feature = "pdf",
-    feature = "ocr",
-    feature = "ocr-wasm",
-    feature = "ocr-pipeline"
-))]
+#[cfg(any(test, feature = "image-encode", feature = "pdf", feature = "ocr-pipeline"))]
 pub(crate) fn validate_dynamic_image_additional_live_bytes(
     image: &image::DynamicImage,
     limits: &SecurityLimits,
@@ -288,28 +187,8 @@ pub(crate) fn validate_image_live_bytes(
     ImageDecodeBudget::from_security_limits(limits).validate(width, height, peak_bytes)
 }
 
-#[cfg(all(
-    feature = "layout-detection",
-    feature = "pdf",
-    any(feature = "ocr", feature = "ocr-wasm")
-))]
-pub(crate) fn clone_dynamic_image_to_rgb8_with_security_limits(
-    image: &image::DynamicImage,
-    limits: &SecurityLimits,
-) -> Result<image::RgbImage> {
-    validate_dynamic_image_additional_live_bytes(image, limits, u64::from(ColorType::Rgb8.bytes_per_pixel()), 0)?;
-    Ok(image.to_rgb8())
-}
-
 // Private helper behind both public decode wrappers, so it is live exactly when either is. ~keep
-#[cfg(any(
-    test,
-    feature = "image-encode",
-    feature = "pdf",
-    feature = "ocr",
-    feature = "ocr-wasm",
-    feature = "ocr-pipeline"
-))]
+#[cfg(any(test, feature = "image-encode", feature = "pdf", feature = "ocr-pipeline"))]
 fn decode_standard_image(
     bytes: &[u8],
     limits: &SecurityLimits,
@@ -329,17 +208,7 @@ fn decode_standard_image(
     reader.decode().map_err(map_image_decode_error)
 }
 
-#[cfg(any(
-    test,
-    feature = "ocr",
-    feature = "ocr-wasm",
-    feature = "ocr-pipeline",
-    feature = "qr-codes",
-    layout_detection,
-    auto_rotate,
-    sceptre_ocr,
-    feature = "sceptre-wasm"
-))]
+#[cfg(any(test, feature = "ocr-pipeline"))]
 fn conversion_peak_bytes(
     probe: StandardImageProbe,
     target: ColorType,
@@ -364,16 +233,7 @@ fn conversion_peak_bytes(
         .ok_or_else(|| image_dimension_error(probe.width, probe.height, u64::MAX, u64::MAX))
 }
 
-#[cfg(any(
-    test,
-    feature = "ocr",
-    feature = "ocr-wasm",
-    feature = "ocr-pipeline",
-    layout_detection,
-    auto_rotate,
-    sceptre_ocr,
-    feature = "sceptre-wasm"
-))]
+#[cfg(any(test, feature = "ocr-pipeline"))]
 fn decode_standard_rgb8(bytes: &[u8], limits: &SecurityLimits, additional_live_bytes: u64) -> Result<image::RgbImage> {
     let budget = ImageDecodeBudget::from_security_limits(limits);
     let probe = probe_standard_image(bytes, budget, None)?;
@@ -389,16 +249,7 @@ fn decode_standard_rgb8(bytes: &[u8], limits: &SecurityLimits, additional_live_b
         .map(image::DynamicImage::into_rgb8)
 }
 
-#[cfg(any(
-    test,
-    feature = "ocr",
-    feature = "ocr-wasm",
-    feature = "ocr-pipeline",
-    layout_detection,
-    auto_rotate,
-    sceptre_ocr,
-    feature = "sceptre-wasm"
-))]
+#[cfg(any(test, feature = "ocr-pipeline"))]
 pub(crate) fn decode_standard_rgb8_with_security_limits(
     bytes: &[u8],
     limits: &SecurityLimits,
@@ -406,16 +257,7 @@ pub(crate) fn decode_standard_rgb8_with_security_limits(
     decode_standard_rgb8(bytes, limits, 0)
 }
 
-#[cfg(any(layout_detection, auto_rotate, sceptre_ocr, feature = "sceptre-wasm"))]
-pub(crate) fn decode_standard_rgb8_with_default_security_limits(bytes: &[u8]) -> Result<image::RgbImage> {
-    decode_standard_rgb8_with_security_limits(bytes, &SecurityLimits::default())
-}
-
-#[cfg(any(
-    feature = "ocr",
-    feature = "ocr-wasm",
-    all(feature = "pdf", any(feature = "ocr-pipeline", feature = "layout-detection"))
-))]
+#[cfg(all(feature = "pdf", feature = "ocr-pipeline"))]
 pub(crate) fn decode_standard_rgb8_with_additional_live_bytes_and_security_limits(
     bytes: &[u8],
     limits: &SecurityLimits,
@@ -424,23 +266,7 @@ pub(crate) fn decode_standard_rgb8_with_additional_live_bytes_and_security_limit
     decode_standard_rgb8(bytes, limits, additional_live_bytes)
 }
 
-#[cfg(any(feature = "ocr", feature = "ocr-wasm"))]
-pub(crate) fn decode_standard_rgb8_with_additional_live_bytes_and_default_security_limits(
-    bytes: &[u8],
-    additional_live_bytes: u64,
-) -> Result<image::RgbImage> {
-    decode_standard_rgb8_with_additional_live_bytes_and_security_limits(
-        bytes,
-        &SecurityLimits::default(),
-        additional_live_bytes,
-    )
-}
-
-#[cfg(any(
-    feature = "qr-codes",
-    all(feature = "pdf", any(feature = "ocr", feature = "ocr-pipeline")),
-    test
-))]
+#[cfg(any(all(feature = "pdf", feature = "ocr-pipeline"), test))]
 pub(crate) fn decode_standard_luma8_with_security_limits(
     bytes: &[u8],
     limits: &SecurityLimits,
@@ -457,37 +283,6 @@ pub(crate) fn decode_standard_luma8_with_security_limits(
         .decode()
         .map_err(map_image_decode_error)
         .map(image::DynamicImage::into_luma8)
-}
-
-#[cfg(feature = "qr-codes")]
-pub(crate) fn decode_standard_luma8_with_default_security_limits(bytes: &[u8]) -> Result<image::GrayImage> {
-    decode_standard_luma8_with_security_limits(bytes, &SecurityLimits::default())
-}
-
-#[cfg(all(feature = "layout-detection", any(feature = "ocr", feature = "ocr-wasm")))]
-pub(crate) fn standard_image_is_single_frame(bytes: &[u8], mime_type: &str) -> bool {
-    let cursor = Cursor::new(bytes);
-    match mime_type {
-        "image/png" => image::codecs::png::PngDecoder::new(cursor)
-            .and_then(|decoder| decoder.is_apng())
-            .is_ok_and(|is_animated| !is_animated),
-        "image/webp" => image::codecs::webp::WebPDecoder::new(cursor).is_ok_and(|decoder| !decoder.has_animation()),
-        #[cfg(feature = "ocr")]
-        "image/tiff" | "image/x-tiff" => {
-            tiff::decoder::Decoder::new(cursor).is_ok_and(|decoder| !decoder.more_images())
-        }
-        _ => false,
-    }
-}
-
-#[cfg(feature = "candle-glm-ocr")]
-pub(crate) fn validate_standard_image_with_default_security_limits(bytes: &[u8]) -> Result<()> {
-    validate_standard_image_with_security_limits(bytes, &SecurityLimits::default())
-}
-
-#[cfg(feature = "candle-glm-ocr")]
-fn validate_standard_image_with_security_limits(bytes: &[u8], limits: &SecurityLimits) -> Result<()> {
-    probe_standard_image(bytes, ImageDecodeBudget::from_security_limits(limits), None).map(|_| ())
 }
 
 #[cfg(test)]

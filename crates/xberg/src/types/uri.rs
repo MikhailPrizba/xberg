@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 /// The `kind` field classifies the URI semantically, while `label` carries
 /// optional human-readable display text.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct ExtractedUri {
     /// The URL or path string.
     pub url: String,
@@ -27,7 +27,6 @@ pub struct ExtractedUri {
 
 /// Semantic classification of an extracted URI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum UriKind {
     /// A clickable hyperlink (web URL, file link).
@@ -96,7 +95,7 @@ impl ExtractedUri {
 
     /// Create a new anchor/cross-reference URI.
     #[cfg(any(feature = "pdf", feature = "xml"))]
-    #[allow(dead_code)]
+
     pub(crate) fn anchor(url: impl Into<String>, label: Option<String>) -> Self {
         Self {
             url: url.into(),

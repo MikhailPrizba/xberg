@@ -370,7 +370,7 @@ async fn extract_regular_entry(
 /// Only compiled when the `cfb` dependency is guaranteed active (via `office`, `hwp`, or
 /// `email`); other feature combinations (e.g. `excel` alone, which also calls this
 /// module) keep the pre-existing warn-and-skip behavior.
-#[cfg(any(feature = "office", feature = "hwp", feature = "email"))]
+#[cfg(any(feature = "office", feature = "email"))]
 pub(crate) fn extract_ole_embedded_object(data: &[u8]) -> Option<(Vec<u8>, String)> {
     let mut compound_file = cfb::CompoundFile::open(Cursor::new(data)).ok()?;
 
@@ -401,7 +401,7 @@ pub(crate) fn extract_ole_embedded_object(data: &[u8]) -> Option<(Vec<u8>, Strin
 /// Fallback used when the `cfb` dependency isn't active for the enabled feature set
 /// (e.g. `excel` without `office`/`hwp`/`email`): OLE objects are always reported as
 /// unidentifiable rather than attempting extraction.
-#[cfg(not(any(feature = "office", feature = "hwp", feature = "email")))]
+#[cfg(not(any(feature = "office", feature = "email")))]
 pub(crate) fn extract_ole_embedded_object(_data: &[u8]) -> Option<(Vec<u8>, String)> {
     None
 }

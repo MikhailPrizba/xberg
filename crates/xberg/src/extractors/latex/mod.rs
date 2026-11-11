@@ -73,7 +73,7 @@ static HEADING_LEVELS_NO_CHAPTERS: LazyLock<ahash::AHashMap<&'static str, u8>> =
 const LATEX_WARNING_SOURCE: &str = "latex";
 
 /// LaTeX document extractor
-#[cfg_attr(alef, alef(skip))]
+
 pub struct LatexExtractor;
 
 impl LatexExtractor {

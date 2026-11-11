@@ -11,8 +11,6 @@ pub(crate) mod version;
 
 pub use cleanup::{clear_cache_directory, get_cache_metadata};
 pub use core::{CacheStats, GenericCache};
-#[cfg(feature = "ocr")]
-pub(crate) use utilities::blake3_hash_bytes;
 pub(crate) use utilities::blake3_hash_file;
 #[cfg(test)]
 pub(crate) use utilities::{fast_hash, generate_cache_key, validate_cache_key};

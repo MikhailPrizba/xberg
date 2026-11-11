@@ -43,7 +43,7 @@ const PENALTY_MAX: f64 = 2.0;
 /// credentials in [`BedrockConfig`] are never printed.
 #[derive(Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
+
 pub struct LlmConfig {
     /// Provider/model string using liter-llm routing format.
     ///
@@ -87,7 +87,6 @@ pub struct LlmConfig {
     /// parameter like `temperature`/`max_tokens` above, not a client-level
     /// setting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub top_p: Option<f64>,
 
     /// Stop sequence(s) that halt token generation, applied to individual requests
@@ -102,7 +101,6 @@ pub struct LlmConfig {
     /// `StopSequence::Multiple` at each request-building call site; see
     /// `llm::client::to_stop_sequence`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub stop: Option<Vec<String>>,
 
     /// Random seed for reproducible outputs, applied to individual requests built
@@ -110,7 +108,6 @@ pub struct LlmConfig {
     ///
     /// Mirrors liter-llm's `ChatCompletionRequest::seed`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub seed: Option<i64>,
 
     /// Presence penalty for generation tasks, applied to individual requests
@@ -120,7 +117,6 @@ pub struct LlmConfig {
     ///
     /// Mirrors liter-llm's `ChatCompletionRequest::presence_penalty`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub presence_penalty: Option<f64>,
 
     /// Frequency penalty for generation tasks, applied to individual requests
@@ -130,7 +126,6 @@ pub struct LlmConfig {
     ///
     /// Mirrors liter-llm's `ChatCompletionRequest::frequency_penalty`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub frequency_penalty: Option<f64>,
 
     /// Reasoning effort level for extended-thinking models, applied to individual
@@ -146,7 +141,6 @@ pub struct LlmConfig {
     /// feature is disabled. See `llm::client::parse_reasoning_effort` for the
     /// conversion into `liter_llm::ReasoningEffort`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub reasoning_effort: Option<String>,
 
     /// Provider-specific extra parameters merged into the request body (guardrails,
@@ -156,7 +150,6 @@ pub struct LlmConfig {
     /// Mirrors liter-llm's `ChatCompletionRequest::extra_body`. A request-time
     /// parameter like `temperature`/`max_tokens` above, not a client-level setting.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub extra_body: Option<serde_json::Value>,
 
     /// Whether liter-llm should load provider credentials from environment variables.
@@ -178,7 +171,6 @@ pub struct LlmConfig {
     /// Mirrors liter-llm's `LlmConfig::providers`, for OpenAI-compatible gateways
     /// and self-hosted model servers that are not in the built-in provider catalog.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub providers: Option<Vec<LlmProviderConfig>>,
 
     /// Response cache configuration.
@@ -192,7 +184,6 @@ pub struct LlmConfig {
     /// variant to 480 bytes and tripped `clippy::large_enum_variant` on the
     /// `--features full` leg. ~keep
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub cache: Option<Box<LlmCacheConfig>>,
 
     /// Budget enforcement configuration.
@@ -200,7 +191,6 @@ pub struct LlmConfig {
     /// Mirrors liter-llm's `LlmConfig::budget`. Only takes effect when liter-llm's
     /// `tower` feature is compiled in; otherwise the value is accepted but unused.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub budget: Option<Box<LlmBudgetConfig>>,
 
     /// Per-model rate limiting configuration.
@@ -208,7 +198,6 @@ pub struct LlmConfig {
     /// Mirrors liter-llm's `LlmConfig::rate_limit`. Only takes effect when liter-llm's
     /// `tower` feature is compiled in; otherwise the value is accepted but unused.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub rate_limit: Option<Box<LlmRateLimitConfig>>,
 
     /// Enable per-request cost tracking.
@@ -217,7 +206,6 @@ pub struct LlmConfig {
     /// liter-llm's `tower` feature is compiled in; otherwise the value is accepted
     /// but unused.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub cost_tracking: Option<bool>,
 
     /// Enable OpenTelemetry-compatible tracing spans.
@@ -225,7 +213,6 @@ pub struct LlmConfig {
     /// Mirrors liter-llm's `LlmConfig::tracing`. Only takes effect when liter-llm's
     /// `tower` feature is compiled in; otherwise the value is accepted but unused.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub tracing: Option<bool>,
 
     /// Cooldown duration after transient errors, in seconds.
@@ -234,7 +221,6 @@ pub struct LlmConfig {
     /// liter-llm's `tower` feature is compiled in; otherwise the value is accepted
     /// but unused.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub cooldown_secs: Option<u64>,
 
     /// Background health check interval, in seconds.
@@ -243,7 +229,6 @@ pub struct LlmConfig {
     /// liter-llm's `tower` feature is compiled in; otherwise the value is accepted
     /// but unused.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub health_check_secs: Option<u64>,
 
     /// AWS Bedrock settings (region, cross-region routing, explicit credentials).
@@ -252,7 +237,6 @@ pub struct LlmConfig {
     /// individual field inside it is `None` — liter-llm falls back to the standard
     /// AWS environment variables and the default credential chain.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub bedrock: Option<Box<BedrockConfig>>,
 
     /// Managed OAuth2/STS credential provider for auth modes liter-llm cannot express via a
@@ -276,7 +260,6 @@ pub struct LlmConfig {
     /// call `xberg::llm::client::create_client_with_credential_provider` directly with a
     /// `liter-llm` dependency of their own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub credential_provider: Option<Box<CredentialProviderConfig>>,
 
     /// Maximum number of simultaneously in-flight requests to the LLM provider this
@@ -304,7 +287,6 @@ pub struct LlmConfig {
     /// This field is intentionally last to preserve positional constructor
     /// compatibility in generated language bindings.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
     pub max_concurrency: Option<usize>,
 
     /// Maximum size, in bytes, of a single HTTP response body read from the LLM
@@ -322,7 +304,6 @@ pub struct LlmConfig {
     /// [`LlmConfig::validate`] rather than reaching liter-llm, which would refuse it
     /// at client-build time with the same complaint.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[cfg_attr(feature = "alef-meta", alef(since = "1.2.3"))]
     pub max_response_bytes: Option<usize>,
 }
 
@@ -417,8 +398,7 @@ fn validate_sampling_range(field_name: &str, value: f64, min: f64, max: f64) -> 
 /// token itself.
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+
 pub enum CredentialProviderConfig {
     /// Azure AD OAuth2 client-credentials flow (Azure OpenAI / Azure Cognitive Services).
     AzureAd {
@@ -516,8 +496,7 @@ impl std::fmt::Debug for CredentialProviderConfig {
 /// Mirrors liter-llm's `LlmProviderConfig`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+
 pub struct LlmProviderConfig {
     /// Provider name, used to key model prefix matching.
     pub name: String,
@@ -541,8 +520,7 @@ pub struct LlmProviderConfig {
 /// but is not consulted at request time.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+
 pub struct LlmCacheConfig {
     /// Maximum number of cached entries.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -568,8 +546,7 @@ pub struct LlmCacheConfig {
 /// but is not enforced at request time.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+
 pub struct LlmBudgetConfig {
     /// Global spend limit in USD.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -591,8 +568,7 @@ pub struct LlmBudgetConfig {
 /// configuration but is not enforced at request time.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+
 pub struct LlmRateLimitConfig {
     /// Requests per minute limit.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -630,8 +606,7 @@ pub struct LlmRateLimitConfig {
 /// `Debug` is implemented by hand so the three credential fields are never printed.
 #[derive(Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
-#[cfg_attr(feature = "alef-meta", alef(since = "1.1.0"))]
+
 pub struct BedrockConfig {
     /// AWS region (e.g. `"us-east-1"`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -780,7 +755,6 @@ impl StructuredExtractionConfig {
 /// runtime-only decision enum with skip and fallback states; this 3-variant
 /// type is the stable, serializable surface presets and bindings depend on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum CallMode {
     /// Use the extracted text only.
@@ -798,7 +772,6 @@ pub enum CallMode {
 /// structured pipeline's post-processing. There is intentionally only one merge
 /// type across the crate — do not introduce a second.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[cfg_attr(feature = "api", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum MergeMode {
     /// Deep-merge JSON objects field by field (later calls fill missing fields).

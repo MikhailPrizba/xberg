@@ -15,15 +15,3 @@
 //! `init_prometheus` is gated behind the `prometheus` feature.
 
 pub mod conventions;
-
-#[cfg(feature = "otel")]
-pub mod metrics;
-
-#[cfg(feature = "otel")]
-pub mod spans;
-
-#[cfg(feature = "prometheus")]
-mod prometheus_exporter;
-
-#[cfg(feature = "prometheus")]
-pub use prometheus_exporter::init_prometheus;
