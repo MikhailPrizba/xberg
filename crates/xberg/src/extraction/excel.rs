@@ -95,7 +95,9 @@ use package_metadata::{
 };
 
 mod datetime;
+mod display;
 mod table_budget;
+mod xls_display;
 use table_budget::SkippedSheets;
 
 /// Format dispatch and the `read_excel_file`/`read_excel_bytes` entry points, split out to
@@ -169,11 +171,26 @@ fn process_xlsx_sheet_safe<RS: Read + Seek>(
     sheet_name: &str,
     warnings: &mut Vec<ProcessingWarning>,
 ) -> Result<ExcelSheet> {
-    match classify_xlsx_sheet_shape(workbook, sheet_name)? {
+    let styles = workbook
+        .worksheet_style(sheet_name)
+        .map_err(|e| XbergError::parsing(format!("Cannot read styles for sheet {sheet_name}: {e}")))?;
+    match classify_xlsx_sheet_shape(workbook, sheet_name, warnings)? {
         XlsxSheetShape::Empty => return Ok(empty_excel_sheet(sheet_name)),
         XlsxSheetShape::Dense => {}
         XlsxSheetShape::Sparse => {
-            let (cells, row_min, row_max, col_min, col_max) = collect_xlsx_sheet_cells(workbook, sheet_name)?;
+            let (mut cells, row_min, row_max, col_min, col_max) = collect_xlsx_sheet_cells(workbook, sheet_name)?;
+            for (position, data) in &mut cells {
+                if let Some(format) = styles.get(*position).and_then(|s| s.number_format.as_ref()) {
+                    let value = match data {
+                        Data::Float(n) => Some(*n),
+                        Data::Int(n) => Some(*n as f64),
+                        _ => None,
+                    };
+                    if let Some(value) = value {
+                        *data = Data::String(display::number(value, &format.format_code)?);
+                    }
+                }
+            }
             if cells.is_empty() {
                 return Ok(empty_excel_sheet(sheet_name));
             }
@@ -187,10 +204,11 @@ fn process_xlsx_sheet_safe<RS: Read + Seek>(
         }
     }
 
-    let range = workbook
+    let mut range = workbook
         .worksheet_range(sheet_name)
         .map_err(|e| XbergError::parsing(format!("Failed to parse sheet '{}': {}", sheet_name, e)))?;
 
+    display::apply(&mut range, &styles)?;
     Ok(process_sheet(sheet_name, &range, warnings))
 }
 
@@ -204,28 +222,50 @@ enum XlsxSheetShape {
 fn classify_xlsx_sheet_shape<RS: Read + Seek>(
     workbook: &mut calamine::Xlsx<RS>,
     sheet_name: &str,
+    warnings: &mut Vec<ProcessingWarning>,
 ) -> Result<XlsxSheetShape> {
-    let mut cell_reader = workbook
+    let mut reader = workbook
         .worksheet_cells_reader(sheet_name)
-        .map_err(|e| XbergError::parsing(format!("Failed to read sheet '{}': {}", sheet_name, e)))?;
+        .map_err(|e| XbergError::parsing(format!("Failed to read sheet '{sheet_name}': {e}")))?;
     let mut bounds: Option<(u32, u32, u32, u32)> = None;
-
-    while let Ok(Some(cell)) = cell_reader.next_cell() {
-        let (row, col) = cell.get_position();
-        let (row_min, row_max, col_min, col_max) = bounds.get_or_insert((row, row, col, col));
-        *row_min = (*row_min).min(row);
-        *row_max = (*row_max).max(row);
-        *col_min = (*col_min).min(col);
-        *col_max = (*col_max).max(col);
-
-        let row_count = u64::from(*row_max - *row_min + 1);
-        let col_count = u64::from(*col_max - *col_min + 1);
-        if row_count.saturating_mul(col_count) > MAX_BOUNDING_BOX_CELLS {
-            return Ok(XlsxSheetShape::Sparse);
+    let mut missing = 0usize;
+    let mut examples = Vec::new();
+    let mut sparse = false;
+    while let Some(cell) = reader
+        .next_cell_with_formula_metadata()
+        .map_err(|e| XbergError::parsing(format!("Failed to read sheet '{sheet_name}': {e}")))?
+    {
+        if cell.formula.is_some() && matches!(cell.value, DataRef::Empty) {
+            missing += 1;
+            if examples.len() < 10 {
+                examples.push(cell_reference(cell.pos.0, cell.pos.1));
+            }
         }
+        if matches!(cell.value, DataRef::Empty) {
+            continue;
+        }
+        let (row, col) = cell.pos;
+        let (r0, r1, c0, c1) = bounds.get_or_insert((row, row, col, col));
+        *r0 = (*r0).min(row);
+        *r1 = (*r1).max(row);
+        *c0 = (*c0).min(col);
+        *c1 = (*c1).max(col);
+        sparse |= u64::from(*r1 - *r0 + 1).saturating_mul(u64::from(*c1 - *c0 + 1)) > MAX_BOUNDING_BOX_CELLS;
     }
-
-    Ok(if bounds.is_some() {
+    if missing > 0 {
+        let message = format!(
+            "Sheet '{sheet_name}' has {missing} formula(s) without cached values ({}); open and save the workbook in Excel or LibreOffice before extraction",
+            examples.join(", ")
+        );
+        crate::core::diagnostics::push_warning_deduped(
+            warnings,
+            crate::core::diagnostics::warning("excel", message)
+                .with_diagnostic("excel.formula_cache_missing", "incomplete"),
+        );
+    }
+    Ok(if sparse {
+        XlsxSheetShape::Sparse
+    } else if bounds.is_some() {
         XlsxSheetShape::Dense
     } else {
         XlsxSheetShape::Empty
@@ -525,6 +565,21 @@ fn process_named_sheets<RS, R>(
     skipped: &SkippedSheets,
 ) -> (Vec<ExcelSheet>, HashMap<String, String>)
 where
+    RS: Read + Seek,
+    R: Reader<RS>,
+    R::Error: std::fmt::Display,
+{
+    process_named_sheets_with_display(workbook, sheet_names, warnings, skipped, None)
+}
+
+fn process_named_sheets_with_display<RS, R>(
+    workbook: &mut R,
+    sheet_names: &[String],
+    warnings: &mut Vec<ProcessingWarning>,
+    skipped: &SkippedSheets,
+    display: Option<&[xls_display::SheetFormats]>,
+) -> (Vec<ExcelSheet>, HashMap<String, String>)
+where
     RS: std::io::Read + std::io::Seek,
     R: Reader<RS>,
     // The warning names the failure cause, so the reader's error type has to be
@@ -540,7 +595,31 @@ where
             continue;
         }
         match workbook.worksheet_range(name) {
-            Ok(range) => sheets.push(process_sheet(name, &range, warnings)),
+            Ok(mut range) => {
+                if display.is_some() {
+                    if let Err(error) = check_formula_cache(workbook, name, &range, warnings) {
+                        push_warning(warnings, "excel", error.to_string());
+                    }
+                }
+                match workbook.worksheet_style(name) {
+                    Ok(styles) => {
+                        if let Err(error) = display::apply(&mut range, &styles) {
+                            push_warning(warnings, "excel", error.to_string());
+                        }
+                    }
+                    Err(error) => push_warning(
+                        warnings,
+                        "excel",
+                        format!("Cannot read styles for sheet {name}: {error}"),
+                    ),
+                }
+                if let Some(formats) = display.and_then(|sheets| sheets.get(index)) {
+                    if let Err(error) = xls_display::apply(&mut range, formats) {
+                        push_warning(warnings, "excel", error.to_string());
+                    }
+                }
+                sheets.push(process_sheet(name, &range, warnings));
+            }
             Err(e) => {
                 tracing::warn!("Failed to read worksheet range '{}': {}", name, e);
                 push_warning(
@@ -560,6 +639,48 @@ where
 }
 
 #[inline]
+
+fn check_formula_cache<RS: Read + Seek, R: Reader<RS>>(
+    workbook: &mut R,
+    name: &str,
+    values: &Range<Data>,
+    warnings: &mut Vec<ProcessingWarning>,
+) -> Result<()>
+where
+    R::Error: std::fmt::Display,
+{
+    let formulas = workbook
+        .worksheet_formula(name)
+        .map_err(|e| XbergError::parsing(format!("Cannot inspect formulas on sheet '{name}': {e}")))?;
+    let start = formulas.start().unwrap_or((0, 0));
+    let missing: Vec<_> = formulas
+        .used_cells()
+        .filter_map(|(row, col, formula)| {
+            if formula.is_empty() {
+                return None;
+            }
+            let position = (start.0 + row as u32, start.1 + col as u32);
+            if matches!(values.get_value(position), None | Some(Data::Empty)) {
+                Some(cell_reference(position.0, position.1))
+            } else {
+                None
+            }
+        })
+        .collect();
+    if !missing.is_empty() {
+        push_warning(
+            warnings,
+            "excel",
+            format!(
+                "Sheet '{name}' has {} formula(s) without cached values ({}); open and save the workbook in Excel or LibreOffice before extraction",
+                missing.len(),
+                missing.iter().take(10).cloned().collect::<Vec<_>>().join(", ")
+            ),
+        );
+    }
+    Ok(())
+}
+
 fn process_sheet(name: &str, range: &Range<Data>, warnings: &mut Vec<ProcessingWarning>) -> ExcelSheet {
     let (rows, cols) = range.get_size();
     let cell_count = range.used_cells().count();
@@ -1021,3 +1142,23 @@ pub fn excel_to_markdown(workbook: &ExcelWorkbook) -> String {
 
 #[cfg(test)]
 mod tests;
+
+fn process_xls_workbook<RS: Read + Seek>(
+    mut workbook: calamine::Xls<RS>,
+    data: &[u8],
+    office_metadata: Option<HashMap<String, String>>,
+    warnings: &mut Vec<ProcessingWarning>,
+    skipped: &SkippedSheets,
+    limits: &SecurityLimits,
+) -> Result<ExcelWorkbook> {
+    let styles = xls_display::read(data, limits)?;
+    let names = workbook.sheet_names();
+    let (sheets, extra) = process_named_sheets_with_display(&mut workbook, &names, warnings, skipped, Some(&styles));
+    let mut metadata = extract_metadata(&workbook, &names, office_metadata);
+    metadata.extend(extra);
+    Ok(ExcelWorkbook {
+        sheets,
+        metadata,
+        revisions: None,
+    })
+}

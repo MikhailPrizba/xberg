@@ -48,6 +48,8 @@ pub(crate) fn extract_form_fields(doc: &mut NativeDocument) -> (Vec<PdfFormField
             // failure, not the (very common) absence of a form. ~keep
             tracing::debug!("AcroForm extraction failed: {e}");
             warnings.push(ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: std::borrow::Cow::Borrowed("pdf_forms"),
                 message: std::borrow::Cow::Owned(format!("AcroForm field extraction failed: {e}")),
             });
@@ -92,6 +94,8 @@ fn extract_xfa_fields(doc: &mut NativeDocument) -> Result<Option<Vec<PdfFormFiel
             }
             tracing::debug!("XFA extraction failed: {e}");
             return Err(ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: std::borrow::Cow::Borrowed("pdf_forms"),
                 message: std::borrow::Cow::Owned(format!(
                     "XFA form data was present but could not be extracted: {e}; XFA fields were skipped"
@@ -106,6 +110,8 @@ fn extract_xfa_fields(doc: &mut NativeDocument) -> Result<Option<Vec<PdfFormFiel
         Err(e) => {
             tracing::debug!("XFA parsing failed: {e}");
             return Err(ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: std::borrow::Cow::Borrowed("pdf_forms"),
                 message: std::borrow::Cow::Owned(format!(
                     "XFA form data was present but could not be parsed: {e}; XFA fields were skipped"

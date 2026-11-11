@@ -178,6 +178,8 @@ fn extract_from_store(
         Ok(e) => e,
         Err(e) => {
             warnings.push(ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: Cow::Borrowed("pst_extraction"),
                 message: Cow::Owned(format!("Failed to locate IPM (mail) sub-tree in PST store: {e}")),
             });
@@ -189,6 +191,8 @@ fn extract_from_store(
         Ok(f) => f,
         Err(e) => {
             warnings.push(ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: Cow::Borrowed("pst_extraction"),
                 message: Cow::Owned(format!("Failed to open IPM (mail) sub-tree root folder: {e}")),
             });
@@ -267,18 +271,24 @@ fn resolve_root_hierarchy_table(
         .properties()
         .make_entry_id(NID_ROOT_FOLDER)
         .map_err(|e| ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: Cow::Borrowed("pst_extraction"),
             message: Cow::Owned(format!(
                 "Failed to build entry ID for PST root folder while enumerating non-IPM top-level folders: {e}"
             )),
         })?;
     let root_folder = store.open_folder(&root_entry_id).map_err(|e| ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: Cow::Borrowed("pst_extraction"),
         message: Cow::Owned(format!(
             "Failed to open PST root folder while enumerating non-IPM top-level folders: {e}"
         )),
     })?;
     root_folder.hierarchy_table().cloned().ok_or_else(|| ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: Cow::Borrowed("pst_extraction"),
         message: Cow::Owned(
             "PST root folder has no hierarchy table; cannot enumerate non-IPM top-level folders".to_string(),
@@ -294,6 +304,8 @@ fn open_non_ipm_top_level_folder(
 ) -> std::result::Result<PstFolderSeed, ProcessingWarning> {
     let node = NodeId::from(id);
     let entry_id = store.properties().make_entry_id(node).map_err(|e| ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: Cow::Borrowed("pst_extraction"),
         message: Cow::Owned(format!(
             "Failed to create entry ID for non-IPM top-level folder node {:?}: {}; folder skipped",
@@ -301,6 +313,8 @@ fn open_non_ipm_top_level_folder(
         )),
     })?;
     let top_folder = store.open_folder(&entry_id).map_err(|e| ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: Cow::Borrowed("pst_extraction"),
         message: Cow::Owned(format!(
             "Failed to open non-IPM top-level folder (node {:?}): {}; folder skipped",
@@ -332,6 +346,8 @@ fn discover_non_ipm_top_level_folders(
     let (top_level_ids, truncated) = collect_row_ids(root_table.as_ref());
     if truncated {
         warnings.push(ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: Cow::Borrowed("pst_extraction"),
             message: Cow::Owned(format!(
                 "PST store root exceeds the maximum top-level folder limit ({MAX_TABLE_ROWS}); remaining top-level folders skipped"
@@ -403,6 +419,8 @@ fn extract_folder_messages(
     let (ids, truncated) = collect_row_ids(contents);
     if truncated {
         warnings.push(ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: Cow::Borrowed("pst_extraction"),
             message: Cow::Owned(format!(
                 "Folder '{folder_path}' contents table exceeds the maximum row limit ({MAX_TABLE_ROWS}); remaining messages skipped"
@@ -415,6 +433,8 @@ fn extract_folder_messages(
             Ok(e) => e,
             Err(e) => {
                 warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed("pst_extraction"),
                     message: Cow::Owned(format!("Failed to create entry ID for message node {:?}: {}", node, e)),
                 });
@@ -425,6 +445,8 @@ fn extract_folder_messages(
             Ok(m) => m,
             Err(e) => {
                 warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed("pst_extraction"),
                     message: Cow::Owned(format!("Failed to open message {:?}: {}", entry_id, e)),
                 });
@@ -451,6 +473,8 @@ fn enqueue_subfolders(
     let (ids, truncated) = collect_row_ids(hierarchy);
     if truncated {
         warnings.push(ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: Cow::Borrowed("pst_extraction"),
             message: Cow::Owned(format!(
                 "Folder '{folder_path}' hierarchy table exceeds the maximum row limit ({MAX_TABLE_ROWS}); remaining subfolders skipped"
@@ -463,6 +487,8 @@ fn enqueue_subfolders(
             Ok(e) => e,
             Err(e) => {
                 warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed("pst_extraction"),
                     message: Cow::Owned(format!("Failed to create entry ID for folder node {:?}: {}", node, e)),
                 });
@@ -473,6 +499,8 @@ fn enqueue_subfolders(
             Ok(f) => f,
             Err(e) => {
                 warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed("pst_extraction"),
                     message: Cow::Owned(format!("Failed to open folder {:?}: {}", entry_id, e)),
                 });
@@ -498,6 +526,8 @@ fn walk_folder_tree(
     while let Some((folder, depth, folder_path)) = folder_stack.pop() {
         if depth > 50 {
             warnings.push(ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: Cow::Borrowed("pst_extraction"),
                 message: Cow::Owned(format!(
                     "Folder '{folder_path}' exceeds maximum traversal depth (50); subtree truncated"

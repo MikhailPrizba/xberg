@@ -249,3 +249,48 @@ fn trim_html_spaces(bytes: &[u8]) -> &[u8] {
 fn html_space(byte: u8) -> bool {
     matches!(byte, b'\t' | b'\n' | b'\x0c' | b'\r' | b' ')
 }
+
+/// Decode HTML bytes before parsing. BOMs take precedence over stale meta declarations.
+pub(super) fn decode_html(content: &[u8]) -> (String, bool) {
+    let utf32 = if content.starts_with(&[0xff, 0xfe, 0, 0]) {
+        Some(true)
+    } else if content.starts_with(&[0, 0, 0xfe, 0xff]) {
+        Some(false)
+    } else {
+        None
+    };
+    if let Some(little) = utf32 {
+        let mut text = String::new();
+        let mut errors = (content.len() - 4) % 4 != 0;
+        for chunk in content[4..].chunks_exact(4) {
+            let bytes: [u8; 4] = chunk.try_into().expect("four bytes");
+            let point = if little {
+                u32::from_le_bytes(bytes)
+            } else {
+                u32::from_be_bytes(bytes)
+            };
+            text.push(char::from_u32(point).unwrap_or_else(|| {
+                errors = true;
+                char::REPLACEMENT_CHARACTER
+            }));
+        }
+        return (text, errors);
+    }
+    if let Some(encoding) = declared_html_encoding(content) {
+        if Encoding::for_bom(content).is_none() && std::str::from_utf8(content).is_ok() {
+            return (String::from_utf8_lossy(content).into_owned(), false);
+        }
+        let (text, _, errors) = encoding.decode(content);
+        if !errors || Encoding::for_bom(content).is_some() {
+            return (text.into_owned(), errors);
+        }
+    }
+    if let Ok(text) = std::str::from_utf8(content) {
+        return (text.to_owned(), false);
+    }
+    let mut detector = chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Deny);
+    detector.feed(content, true);
+    let encoding = detector.guess(None, chardetng::Utf8Detection::Allow);
+    let (text, _, errors) = encoding.decode(content);
+    (text.into_owned(), errors)
+}

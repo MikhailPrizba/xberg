@@ -8,7 +8,7 @@ requires = [
 
 [project]
 name = "xberg"
-version = "1.4.0"
+version = "1.4.0+textractor.1"
 description = "High-performance document intelligence library"
 keywords = [
     "document",

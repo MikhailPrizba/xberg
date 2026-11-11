@@ -27,6 +27,8 @@ mod markdown;
 #[cfg(feature = "pdf")]
 mod pdf;
 mod plain;
+mod literal_markdown;
+pub(crate) use literal_markdown::render_literal_markdown;
 #[cfg(feature = "redaction")]
 mod redaction_projection;
 pub(crate) mod table_math;

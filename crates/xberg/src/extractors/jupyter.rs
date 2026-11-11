@@ -284,6 +284,8 @@ impl JupyterExtractor {
 
             let Some((mime_type, value)) = supported else {
                 warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed("jupyter"),
                     message: Cow::Owned(format!(
                         "Cell {} attachment '{}' has no supported image MIME type; skipped",
@@ -297,6 +299,8 @@ impl JupyterExtractor {
             let cleaned = base64_str.replace(['\n', '\r'], "");
             let Some(decoded) = Self::decode_base64_bounded(&cleaned, budget)? else {
                 warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed("jupyter"),
                     message: Cow::Owned(format!(
                         "Cell {} attachment '{}' could not be base64-decoded; skipped",

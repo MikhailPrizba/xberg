@@ -179,6 +179,7 @@ email = [
     "html",
 ]
 html = [
+    "dep:chardetng",
     "dep:html-to-markdown-rs",
     "dep:v_htmlescape",
 ]
@@ -194,6 +195,7 @@ image-metadata = [
 ]
 ocr-pipeline = [
     "image-metadata",
+    "dep:tiff",
     "dep:image",
     "image-encode",
     "dep:fast_image_resize",
@@ -725,3 +727,7 @@ required-features = [
 
 [lints]
 workspace = true
+
+[dependencies.tiff]
+version = "0.11.3"
+optional = true

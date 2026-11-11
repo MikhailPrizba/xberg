@@ -334,6 +334,8 @@ fn color_to_hex(components: &[f64]) -> Option<String> {
 /// itself could not be determined, so no page could even be attempted.
 pub(crate) fn page_count_failure_warning(error: &xberg_native_pdf::Error) -> ProcessingWarning {
     ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: std::borrow::Cow::Borrowed("pdf_annotations"),
         message: std::borrow::Cow::Owned(format!(
             "annotation extraction failed: could not determine page count ({error}); no annotations were extracted"
@@ -345,6 +347,8 @@ pub(crate) fn page_count_failure_warning(error: &xberg_native_pdf::Error) -> Pro
 /// page could not be read, but the rest of the document is still processed.
 fn page_annotations_failure_warning(page_number: u32, error: &xberg_native_pdf::Error) -> ProcessingWarning {
     ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: std::borrow::Cow::Borrowed("pdf_annotations"),
         message: std::borrow::Cow::Owned(format!(
             "annotation extraction failed for page {page_number}: {error}; annotations on this page were skipped"
@@ -354,6 +358,8 @@ fn page_annotations_failure_warning(page_number: u32, error: &xberg_native_pdf::
 
 fn page_geometry_failure_warning(page_number: u32, error: &xberg_native_pdf::Error) -> ProcessingWarning {
     ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: std::borrow::Cow::Borrowed("pdf_annotations"),
         message: std::borrow::Cow::Owned(format!(
             "annotation visibility could not be determined for page {page_number}: {error}; \

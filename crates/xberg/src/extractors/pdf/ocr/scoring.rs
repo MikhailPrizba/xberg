@@ -1222,6 +1222,8 @@ pub(super) fn ocr_noise_warning(
         "its text was retained. Set discard_suspected_ocr_noise to true to discard suspected noise."
     };
     crate::types::ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: std::borrow::Cow::Borrowed("ocr"),
         message: format!(
             "Page {} produced suspected OCR recognition noise ({}); {disposition}",

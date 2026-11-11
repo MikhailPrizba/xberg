@@ -439,6 +439,8 @@ mod tests {
             ..Default::default()
         };
         let warning = crate::types::ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: Cow::Borrowed("ocr"),
             message: Cow::Borrowed("Page 4 was rejected and its text was discarded."),
         };

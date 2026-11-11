@@ -3772,7 +3772,9 @@ class PresetSummary:
 class ProcessingWarning:
     source: str
     message: str
-    def __init__(self, source: str, message: str) -> None: ...
+    code: str
+    severity: str
+    def __init__(self, source: str, message: str, code: str = "extraction.incomplete", severity: str = "incomplete") -> None: ...
     @staticmethod
     def from_json(json_str: str) -> ProcessingWarning: ...
 

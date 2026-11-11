@@ -15746,16 +15746,23 @@ pub struct ProcessingWarning {
     /// Human-readable description of what went wrong.
     #[pyo3(get)]
     pub message: String,
+    #[pyo3(get)]
+    #[serde(default = "default_diagnostic_code")]
+    pub code: String,
+    #[pyo3(get)]
+    #[serde(default = "default_diagnostic_severity")]
+    pub severity: String,
+
 }
 
 #[pymethods]
 impl ProcessingWarning {
     #[allow(clippy::too_many_arguments)]
     #[must_use]
-    #[pyo3(signature = (source, message))]
+    #[pyo3(signature = (source, message, code="extraction.incomplete".to_owned(), severity="incomplete".to_owned()))]
     #[new]
-    pub fn new(source: String, message: String) -> Self {
-        Self { source, message }
+    pub fn new(source: String, message: String, code: String, severity: String) -> Self {
+        Self { source, message, code, severity }
     }
 
     #[staticmethod]
@@ -40572,6 +40579,8 @@ impl From<xberg::PresetSummary> for PresetSummary {
 impl From<ProcessingWarning> for xberg::ProcessingWarning {
     fn from(val: ProcessingWarning) -> Self {
         Self {
+            code: val.code.into(),
+            severity: val.severity.into(),
             source: val.source.into(),
             message: val.message.into(),
         }
@@ -40581,6 +40590,8 @@ impl From<ProcessingWarning> for xberg::ProcessingWarning {
 impl From<xberg::ProcessingWarning> for ProcessingWarning {
     fn from(val: xberg::ProcessingWarning) -> Self {
         Self {
+            code: val.code.to_string(),
+            severity: val.severity.to_string(),
             source: val.source.to_string(),
             message: val.message.to_string(),
         }
@@ -44122,3 +44133,6 @@ pub fn _xberg(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     Ok(())
 }
+
+fn default_diagnostic_code() -> String { "extraction.incomplete".to_owned() }
+fn default_diagnostic_severity() -> String { "incomplete".to_owned() }

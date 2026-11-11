@@ -786,6 +786,8 @@ fn record_implausible_text_pages(
         crate::core::diagnostics::push_warning_deduped(
             warnings,
             crate::types::ProcessingWarning {
+                code: "pdf.language_unchecked".into(),
+                severity: "info".into(),
                 source: std::borrow::Cow::Borrowed("ocr"),
                 message: std::borrow::Cow::Owned(format!(
                     "No page of this document holds enough prose to read, so the language check \
@@ -821,6 +823,8 @@ fn record_implausible_text_pages(
         crate::core::diagnostics::push_warning_deduped(
             warnings,
             crate::types::ProcessingWarning {
+                code: "pdf.ocr_required".into(),
+                severity: "info".into(),
                 source: std::borrow::Cow::Borrowed("ocr"),
                 message: std::borrow::Cow::Owned(format!(
                     "Page(s) {implausible_pages:?} do not read as any real detectable language, \
@@ -1763,6 +1767,8 @@ impl PdfExtractor {
                             bounds,
                         ));
                         ocr_fallback_warnings.push(crate::types::ProcessingWarning {
+                            code: "extraction.incomplete".into(),
+                            severity: "incomplete".into(),
                             source: std::borrow::Cow::Borrowed("ocr"),
                             message: std::borrow::Cow::Owned(format!(
                                 "Automatic OCR of detected scanned pages {scanned_pages:?} failed ({e}); those \
@@ -2003,6 +2009,8 @@ impl PdfExtractor {
                                      using the whole-document read"
                                 );
                                 ocr_fallback_warnings.push(crate::types::ProcessingWarning {
+                                    code: "extraction.incomplete".into(),
+                                    severity: "incomplete".into(),
                                     source: std::borrow::Cow::Borrowed("ocr"),
                                     message: std::borrow::Cow::Owned(format!(
                                         "Pages {dropped_pages:?} are in a script that the OCR read did not \
@@ -2025,6 +2033,8 @@ impl PdfExtractor {
                             );
                             ensure_pdf_not_cancelled(config)?;
                             ocr_fallback_warnings.push(crate::types::ProcessingWarning {
+                                code: "extraction.incomplete".into(),
+                                severity: "incomplete".into(),
                                 source: std::borrow::Cow::Borrowed("ocr"),
                                 message: std::borrow::Cow::Owned(format!(
                                     "Pages {dropped_pages:?} are in a script that the OCR read did not produce, \
@@ -2150,6 +2160,8 @@ impl PdfExtractor {
                                 }
                                 let e = &failed_run.error;
                                 ocr_fallback_warnings.push(crate::types::ProcessingWarning {
+                                    code: "extraction.incomplete".into(),
+                                    severity: "incomplete".into(),
                                     source: std::borrow::Cow::Borrowed("ocr"),
                                     message: std::borrow::Cow::Owned(format!(
                                         "OCR fallback failed ({e}); returning native text that was below the \
@@ -2198,6 +2210,8 @@ impl PdfExtractor {
                                     bounds,
                                 ));
                                 ocr_fallback_warnings.push(crate::types::ProcessingWarning {
+                                    code: "extraction.incomplete".into(),
+                                    severity: "incomplete".into(),
                                     source: std::borrow::Cow::Borrowed("ocr"),
                                     message: std::borrow::Cow::Owned(format!(
                                         "Targeted OCR fallback failed ({e}) for pages {pages:?}; those pages \
@@ -2224,6 +2238,8 @@ impl PdfExtractor {
                             });
                         }
                         ocr_fallback_warnings.push(crate::types::ProcessingWarning {
+                            code: "extraction.incomplete".into(),
+                            severity: "incomplete".into(),
                             source: std::borrow::Cow::Borrowed("ocr"),
                             message: std::borrow::Cow::Owned(format!(
                                 "Targeted OCR was required for pages {pages:?} but no page boundaries were \
@@ -2630,6 +2646,8 @@ impl PdfExtractor {
             && config.images.as_ref().is_some_and(|c| c.include_page_rasters)
         {
             doc.processing_warnings.push(crate::types::ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: std::borrow::Cow::Borrowed("page_rasters"),
                 message: std::borrow::Cow::Borrowed(
                     "include_page_rasters is set but no page rasters were produced; \

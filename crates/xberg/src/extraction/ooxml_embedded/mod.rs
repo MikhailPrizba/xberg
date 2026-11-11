@@ -15,6 +15,8 @@ use std::io::{Cursor, Read};
 /// Build a `ProcessingWarning` tagged with this module's conventional `<source_label>_embedded_objects` source.
 fn embedded_objects_warning(source_label: &str, message: String) -> ProcessingWarning {
     ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: Cow::Owned(format!("{}_embedded_objects", source_label)),
         message: Cow::Owned(message),
     }

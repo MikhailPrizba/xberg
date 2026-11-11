@@ -2342,6 +2342,8 @@ pub(super) fn ocr_paragraphs_plain_text(paragraphs: &[crate::pdf::structure::typ
 #[cfg(all(feature = "ocr-pipeline", feature = "pdf"))]
 pub(super) fn ocr_margin_filter_capability_warning() -> crate::types::ProcessingWarning {
     crate::types::ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: std::borrow::Cow::Borrowed("ocr"),
         message: std::borrow::Cow::Borrowed(
             "Configured PDF page margins could not be applied to some OCR text because the backend did not return \

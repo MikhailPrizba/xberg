@@ -29,9 +29,9 @@ pub(super) fn derive_pages(
         pages = Some(rerendered);
         reconciled = true;
         if !diverging.is_empty() {
-            crate::core::diagnostics::push_warning(
+            crate::core::diagnostics::push_info(
                 &mut doc.processing_warnings,
-                "page_boundaries",
+                "page_boundaries", "pages.boundaries_unavailable",
                 format!(
                     "Page byte ranges of pages {diverging:?} were measured on a different rendering of the text \
                      and could not be mapped onto the returned content, so they were omitted"
@@ -40,9 +40,9 @@ pub(super) fn derive_pages(
         }
     }
     if !reconciled && drop_unusable_page_boundaries(&mut doc.metadata, content) {
-        crate::core::diagnostics::push_warning(
+        crate::core::diagnostics::push_info(
             &mut doc.processing_warnings,
-            "page_boundaries",
+            "page_boundaries", "pages.boundaries_unavailable",
             "Page byte ranges were measured on a different rendering of the text and could not be \
              mapped onto the returned content, so they were omitted",
         );
@@ -238,6 +238,7 @@ pub(super) fn apply_page_content_format(
         && (matches!(output_format, OutputFormat::Html | OutputFormat::Djot)
             || matches!(output_format, OutputFormat::Custom(name) if name == "html"));
     let renderer: Option<fn(&InternalDocument) -> String> = match output_format {
+        OutputFormat::Custom(name) if name == "literal-markdown" => Some(crate::rendering::render_literal_markdown),
         OutputFormat::Markdown => Some(crate::rendering::render_markdown),
         OutputFormat::Djot => Some(crate::rendering::render_djot),
         OutputFormat::Html => Some(crate::rendering::render_html),

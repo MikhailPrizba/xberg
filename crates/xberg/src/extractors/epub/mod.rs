@@ -119,6 +119,8 @@ impl EpubExtractor {
                 Ok((converted, _)) => (trim_trailing_newlines(&converted).to_string(), true),
                 Err(err) => {
                     warnings.push(ProcessingWarning {
+                        code: "extraction.incomplete".into(),
+                        severity: "incomplete".into(),
                         source: std::borrow::Cow::Borrowed("epub"),
                         message: std::borrow::Cow::Owned(format!(
                             "XHTML conversion failed for spine item '{}'; falling back to plain text: {}",
@@ -138,6 +140,8 @@ impl EpubExtractor {
                 .is_empty()
         {
             warnings.push(ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: std::borrow::Cow::Borrowed("epub"),
                 message: std::borrow::Cow::Owned(format!(
                     "Document structure extraction produced no nodes for spine item '{}'; falling back to plain-text structure",
@@ -241,6 +245,8 @@ impl EpubExtractor {
         for (index, spine_doc) in spine_documents.iter().enumerate() {
             if budget.step().is_err() {
                 warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed(EPUB_WARNING_SOURCE),
                     message: Cow::Owned(format!(
                         "Iteration limit reached; {} of {} spine items were not extracted (first skipped: '{}')",
@@ -708,6 +714,8 @@ impl InternalDocumentExtractor for EpubExtractor {
             match read_file_from_zip(&mut archive, "META-INF/encryption.xml") {
                 Ok(xml) => encrypted_members = parse_encrypted_members(&xml),
                 Err(error) => processing_warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed(EPUB_WARNING_SOURCE),
                     message: Cow::Owned(format!(
                         "META-INF/encryption.xml could not be read ({}); encrypted members are not detected",

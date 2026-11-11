@@ -511,6 +511,13 @@ pub struct ProcessingWarning {
     pub source: Cow<'static, str>,
     /// Human-readable description of what went wrong.
     pub message: Cow<'static, str>,
+    /// Stable machine-readable diagnostic code. Unknown codes default to incomplete.
+    #[serde(default = "default_warning_code")]
+    pub code: Cow<'static, str>,
+    /// `info` for an observation/recovery, `incomplete` when content may be lost.
+    #[serde(default = "default_warning_severity")]
+    pub severity: Cow<'static, str>,
+
 }
 
 /// Token usage and cost data for a single LLM call made during extraction.
@@ -1438,5 +1445,13 @@ mod tests {
         let back: Chunk = serde_json::from_value(json).expect("deserialize");
         assert!(back.sparse_embedding.is_none());
         assert!(back.late_interaction.is_none());
+    }
+}
+
+fn default_warning_code() -> Cow<'static,str> { Cow::Borrowed("extraction.incomplete") }
+fn default_warning_severity() -> Cow<'static,str> { Cow::Borrowed("incomplete") }
+impl ProcessingWarning {
+    pub(crate) fn with_diagnostic(mut self, code: &'static str, severity: &'static str) -> Self {
+        self.code = Cow::Borrowed(code); self.severity = Cow::Borrowed(severity); self
     }
 }

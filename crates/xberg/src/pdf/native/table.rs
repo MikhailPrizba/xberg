@@ -119,6 +119,7 @@ enum HeuristicTableRejection {
     PostProcessing,
     TooFewRows,
     CodeListing,
+    ListLayout,
     NotWellFormed,
     EmptyMarkdown,
 }
@@ -307,6 +308,8 @@ fn append_page_tables(
 /// leaking internal file paths or system details.
 fn native_table_extraction_failure_warning(page_number: u32, error: &xberg_native_pdf::Error) -> ProcessingWarning {
     ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: std::borrow::Cow::Borrowed("pdf_tables"),
         message: std::borrow::Cow::Owned(format!(
             "table extraction failed for page {page_number}: {error}; tables on this page were skipped"
@@ -319,6 +322,8 @@ fn native_table_extraction_failure_warning(page_number: u32, error: &xberg_nativ
 /// actionable without leaking internal file paths or system details.
 fn bordered_table_extraction_failure_warning(page_number: u32, error: &xberg_native_pdf::Error) -> ProcessingWarning {
     ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: std::borrow::Cow::Borrowed("pdf_tables"),
         message: std::borrow::Cow::Owned(format!(
             "bordered table extraction failed for page {page_number}: {error}; bordered tables on \
@@ -1785,6 +1790,9 @@ fn reconstruct_region_table_with_column_gap(
         return Err(HeuristicTableRejection::TooFewRows);
     }
 
+    if looks_like_bullet_list(&cleaned) {
+        return Err(HeuristicTableRejection::ListLayout);
+    }
     if looks_like_code_listing(&cleaned) {
         return Err(HeuristicTableRejection::CodeListing);
     }
@@ -1812,6 +1820,39 @@ fn reconstruct_region_table_with_column_gap(
         bounding_box,
         ..Default::default()
     })
+}
+
+/// A bullet and its indented text are list layout, not a two-column data grid.
+/// Ruled tables use a separate source-backed path. Page-level horizontal rules
+/// may be separators elsewhere on the page and do not certify this candidate.
+fn looks_like_bullet_list(cells: &[Vec<String>]) -> bool {
+    let mut rows = 0usize;
+    let mut bullet_rows = 0usize;
+    let mut marker_only = 0usize;
+    let mut sparse = 0usize;
+    for row in cells {
+        let filled: Vec<_> = row
+            .iter()
+            .map(|s| s.trim_matches(|c: char| c.is_whitespace() || matches!(c, '\u{200b}' | '\u{feff}')))
+            .filter(|s| !s.is_empty())
+            .collect();
+        let Some(first) = filled.first() else { continue };
+        rows += 1;
+        let mut chars = first.chars();
+        if chars
+            .next()
+            .is_some_and(|c| matches!(c, '•' | '●' | '○' | '◦' | '▪' | '▫' | '‣' | '⁃'))
+        {
+            bullet_rows += 1;
+            if chars.all(|c| c.is_whitespace() || matches!(c, '\u{200b}' | '\u{feff}')) {
+                marker_only += 1;
+            }
+        }
+        if filled.len() == 1 {
+            sparse += 1;
+        }
+    }
+    rows >= 2 && bullet_rows == rows && (marker_only == rows || sparse * 2 >= rows)
 }
 
 fn region_bounding_box(region: &[crate::pdf::table_reconstruct::HocrWord], page_height: f32) -> Option<BoundingBox> {
@@ -5482,3 +5523,38 @@ mod tests {
 
 #[cfg(test)]
 mod ruled_tier_tests;
+
+#[cfg(test)]
+mod bullet_list_regressions {
+    use super::*;
+    fn grid(rows: &[&[&str]]) -> Vec<Vec<String>> {
+        rows.iter()
+            .map(|row| row.iter().map(|s| s.to_string()).collect())
+            .collect()
+    }
+    #[test]
+    fn bullets_in_their_own_track_are_not_data_columns() {
+        assert!(looks_like_bullet_list(&grid(&[
+            &["●\u{200b}", "OpenRouter"],
+            &["●\u{200b}", "kb-mcp"],
+            &["●\u{200b}", "PostgreSQL"]
+        ])));
+    }
+    #[test]
+    fn nested_bullets_are_not_a_sparse_table() {
+        assert!(looks_like_bullet_list(&grid(&[
+            &["● First point", ""],
+            &["● Second point", ""],
+            &["○", "nested text"],
+            &["● Last point", ""]
+        ])));
+    }
+    #[test]
+    fn table_data_with_bullets_remains_a_grid() {
+        assert!(!looks_like_bullet_list(&grid(&[
+            &["Task", "Owner"],
+            &["• First", "Alice"],
+            &["• Second", "Bob"]
+        ])));
+    }
+}

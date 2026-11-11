@@ -67,6 +67,8 @@ fn scan_for_dde_warnings(workbook: &crate::types::ExcelWorkbook) -> Vec<Processi
                     if !cell.is_empty() && pattern.is_match(cell) {
                         let kind = classify_formula(cell);
                         warnings.push(ProcessingWarning {
+                            code: "extraction.incomplete".into(),
+                            severity: "incomplete".into(),
                             source: Cow::Borrowed("excel_dde_scan"),
                             message: Cow::Owned(format!(
                                 "Cell [{sheet}!R{row}C{col}] contains \

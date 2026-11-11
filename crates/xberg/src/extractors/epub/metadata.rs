@@ -325,6 +325,8 @@ fn collect_guide_reference(node: roxmltree::Node<'_, '_>, opf_dir: &str, state: 
             state.package.guide_toc_paths.insert(resolved_href.path);
         }
         Err(error) => state.warnings.push(ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: std::borrow::Cow::Borrowed("epub"),
             message: std::borrow::Cow::Owned(format!("Skipping malformed guide reference '{}': {}", href, error)),
         }),

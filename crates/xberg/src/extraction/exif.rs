@@ -229,6 +229,7 @@ fn exif_parse_failure_reason(bytes: &[u8]) -> Option<String> {
     let bytes_owned = bytes::Bytes::copy_from_slice(bytes);
     let ms = match MediaSource::from_memory(bytes_owned) {
         Ok(ms) => ms,
+        Err(nom_exif::Error::UnsupportedFormat) => return None,
         Err(error) => return Some(format!("failed to read media source: {error}")),
     };
 
@@ -250,6 +251,8 @@ fn exif_parse_failure_reason(bytes: &[u8]) -> Option<String> {
 pub(crate) fn extract_exif_warning(bytes: &[u8]) -> Option<crate::types::ProcessingWarning> {
     let reason = exif_parse_failure_reason(bytes)?;
     Some(crate::types::ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: std::borrow::Cow::Borrowed("exif"),
         message: std::borrow::Cow::Owned(format!("EXIF metadata extraction failed: {reason}")),
     })
@@ -262,6 +265,8 @@ pub(crate) fn extract_exif_warning(bytes: &[u8]) -> Option<crate::types::Process
 
 pub(crate) fn extract_exif_warning(_bytes: &[u8]) -> Option<crate::types::ProcessingWarning> {
     Some(crate::types::ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: std::borrow::Cow::Borrowed("exif"),
         message: std::borrow::Cow::Borrowed(
             "EXIF/image metadata extraction unavailable: no ocr, ocr-wasm, or heic feature compiled in",

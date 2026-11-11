@@ -741,7 +741,7 @@ fn read_xls_bytes(
     if let Some(error) = skipped.name_collision_error(&workbook.sheet_names()) {
         return Err(error);
     }
-    let result = process_workbook(workbook, office_metadata, &mut warnings, skipped)?;
+    let result = process_xls_workbook(workbook, rewritten.as_deref().unwrap_or(data), office_metadata, &mut warnings, skipped, limits)?;
     Ok((result, warnings))
 }
 

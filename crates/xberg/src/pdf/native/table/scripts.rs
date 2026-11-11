@@ -38,6 +38,8 @@ pub(super) fn page_spans(doc: &NativeDocument, page: usize, warnings: &mut Vec<P
         }
         Err(error) => {
             warnings.push(ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: "pdf_tables".into(),
                 message: format!(
                     "table script geometry unavailable on page {}: {error}; cell text was preserved",

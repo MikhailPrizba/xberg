@@ -442,6 +442,8 @@ fn deduped_split_warnings(warnings: &[ProcessingWarning]) -> Vec<ProcessingWarni
         .iter()
         .filter(|warning| seen.insert((warning.source.clone(), warning.message.clone())))
         .map(|warning| ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: Cow::Owned(format!("split:{}", warning.source)),
             message: warning.message.clone(),
         })
@@ -766,6 +768,8 @@ mod enrichment_preservation_tests {
 
     fn warning(source: &'static str, message: &'static str) -> ProcessingWarning {
         ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: Cow::Borrowed(source),
             message: Cow::Borrowed(message),
         }

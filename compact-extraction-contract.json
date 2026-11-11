@@ -1,0 +1,33 @@
+{
+  "version": "1.4.0+textractor.1",
+  "python_target": "3.13",
+  "native_extraction": {
+    "excel": [
+      "XLSX/XLSM styles through calamine",
+      "bounded BIFF XF display styles for XLS",
+      "decimal half-up formatting, percent, currency, masks, fractions and scaling",
+      "date/time display formats",
+      "missing cached formula diagnostic without evaluating formulas",
+      "sparse XLSX preflight and coordinate validation"
+    ],
+    "docx": "literal-markdown renderer preserves paragraph tabs, hard breaks, tables and retained header/footer/footnote content",
+    "tiff": "native frame enumeration and sequential OCR with page/output/memory budgets; no PDF conversion",
+    "html": "BOM UTF-8/16/32, declared encodings, charset detection and search whitespace normalization",
+    "pdf": "selected-page OCR and source-order assembly; bullet-list candidates rejected independently of page separator rules",
+    "diagnostics": "additive ProcessingWarning.code and severity; missing legacy fields default to incomplete"
+  },
+  "service_responsibilities": [
+    "external OCR HTTP/auth/retries",
+    "OCR batch admission and concurrency",
+    "timeouts/cancellation",
+    "API/Kafka/storage",
+    "input/output limits"
+  ],
+  "retained_limitations": [
+    "DOCX numbering uses SDK only; no OOXML repair",
+    "ODS display-format loss remains accepted",
+    "formulas are not evaluated",
+    "PDFium remains optional and disabled by default"
+  ],
+  "validation_record": "recorded separately after integration tests"
+}

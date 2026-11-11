@@ -167,6 +167,8 @@ fn exact_pixel_buffer(w: u32, h: u32, channels: usize, pixels: &[u8], kind: &str
 /// output `images` array is shorter than the document's actual image count.
 fn unencodable_image_warning(image_index: u32, page_number: u32, error: &PdfError) -> crate::types::ProcessingWarning {
     crate::types::ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: std::borrow::Cow::Borrowed("pdf_images"),
         message: std::borrow::Cow::Owned(format!(
             "skipped image {image_index} on page {page_number}: could not be re-encoded from raw \

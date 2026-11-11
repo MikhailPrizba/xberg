@@ -86,9 +86,9 @@ fn reconcile_boundaries_with_rendering(result: &mut ExtractedDocument) {
     if let Some(structure) = result.metadata.pages.as_mut() {
         structure.boundaries = None;
     }
-    crate::core::diagnostics::push_warning(
+    crate::core::diagnostics::push_info(
         &mut result.processing_warnings,
-        "page_boundaries",
+        "page_boundaries", "pages.boundaries_unavailable",
         "Page byte ranges were measured on the plain text and could not be mapped onto the \
          requested output format, so they were omitted",
     );

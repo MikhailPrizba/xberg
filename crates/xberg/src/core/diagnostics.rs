@@ -41,8 +41,8 @@
 //!   names the offending item where one exists.
 //! - Always push through [`push_warning`] / [`push_warning_deduped`] so a
 //!   per-item failure repeated across a large document collapses to one entry.
-//! - Never add a field to `ProcessingWarning` — the struct is binding content.
-//!   Everything belongs in `message`.
+//! - Keep stable codes and severity independent of the human-readable message;
+//!   update the Python binding when extending this public contract.
 
 // Every consumer of these helpers is behind an extractor feature flag
 // (`xml`, `archives`, `office`, `pdf`, ...), so a build that enables none of
@@ -59,6 +59,8 @@ const MAX_NAMED_ENTRIES: usize = 10;
 /// Build a `ProcessingWarning` attributed to `source`.
 pub(crate) fn warning(source: &'static str, message: impl Into<String>) -> ProcessingWarning {
     ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: Cow::Borrowed(source),
         message: Cow::Owned(message.into()),
     }
@@ -216,6 +218,8 @@ mod tests {
 
     fn warning(source: &'static str, message: &str) -> ProcessingWarning {
         ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: Cow::Borrowed(source),
             message: Cow::Owned(message.to_string()),
         }
@@ -245,4 +249,14 @@ mod tests {
 
         assert_eq!(accumulated.len(), 2, "distinct sources must not collapse");
     }
+}
+
+/// Informational observations and completed recovery do not imply missing text.
+pub(crate) fn push_info(
+    accumulated: &mut Vec<ProcessingWarning>,
+    source: &'static str,
+    code: &'static str,
+    message: impl Into<String>,
+) {
+    push_warning_deduped(accumulated, warning(source, message).with_diagnostic(code, "info"));
 }

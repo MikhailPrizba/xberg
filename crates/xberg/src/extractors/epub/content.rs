@@ -45,6 +45,8 @@ struct SpineReadContext<'a> {
 
 fn push_epub_warning(warnings: &mut Vec<ProcessingWarning>, message: String) {
     warnings.push(ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: std::borrow::Cow::Borrowed("epub"),
         message: std::borrow::Cow::Owned(message),
     });

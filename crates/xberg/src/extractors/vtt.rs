@@ -443,6 +443,8 @@ fn numeric_reference_character(code: u32) -> Option<char> {
 
 fn warning(message: &'static str) -> ProcessingWarning {
     ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: Cow::Borrowed("vtt"),
         message: Cow::Borrowed(message),
     }

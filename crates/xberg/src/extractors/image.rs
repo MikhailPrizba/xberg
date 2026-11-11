@@ -8,6 +8,8 @@ use crate::types::internal::InternalDocument;
 use crate::types::internal_builder::InternalDocumentBuilder;
 use crate::types::metadata::Metadata;
 use async_trait::async_trait;
+#[cfg(feature = "ocr-pipeline")]
+mod tiff_frames;
 
 #[cfg(all(not(target_arch = "wasm32"), feature = "ocr-pipeline"))]
 const WHOLE_IMAGE_TESSERACT_PSM: i32 = 11;
@@ -1996,6 +1998,7 @@ impl Plugin for ImageExtractor {
 /// at most once per process, not once per extraction — same idiom as
 /// `DEFAULT_CAP_WARNED` in `core::config::concurrency`.
 
+#[cfg(any(test, not(feature = "ocr-pipeline")))]
 static UNENFORCED_TIFF_PAGE_LIMIT_WARNED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Emit the "`max_pages` is unenforced for TIFF in this build" warning at most
@@ -2007,6 +2010,7 @@ static UNENFORCED_TIFF_PAGE_LIMIT_WARNED: std::sync::atomic::AtomicBool = std::s
 /// `warn_default_thread_cap_once` in `core::config::concurrency`: asserting on
 /// the real global from more than one test would be unfixably racy.
 
+# [cfg(any(test, not(feature = "ocr-pipeline")))]
 fn warn_unenforced_tiff_page_limit_once(already_warned: &std::sync::atomic::AtomicBool, max_pages: usize) {
     if already_warned
         .compare_exchange(
@@ -2033,6 +2037,7 @@ fn warn_unenforced_tiff_page_limit_once(already_warned: &std::sync::atomic::Atom
 /// comment). A one-shot warning surfaces the gap instead of silently ignoring
 /// a limit the caller explicitly set.
 
+# [cfg(any(test, not(feature = "ocr-pipeline")))]
 fn enforce_image_page_limit(_content: &[u8], mime_type: &str, config: &ExtractionConfig) -> Result<()> {
     enforce_image_page_limit_stub_with_guard(mime_type, config, &UNENFORCED_TIFF_PAGE_LIMIT_WARNED)
 }
@@ -2040,6 +2045,7 @@ fn enforce_image_page_limit(_content: &[u8], mime_type: &str, config: &Extractio
 /// Pure core of the `not(feature = "ocr")` [`enforce_image_page_limit`], parameterized on the
 /// one-shot warning guard so tests can exercise it without touching process-global state.
 
+# [cfg(any(test, not(feature = "ocr-pipeline")))]
 fn enforce_image_page_limit_stub_with_guard(
     mime_type: &str,
     config: &ExtractionConfig,
@@ -2066,6 +2072,15 @@ impl InternalDocumentExtractor for ImageExtractor {
         config: &ExtractionConfig,
     ) -> Result<InternalDocument> {
         tracing::debug!(format = "image", size_bytes = content.len(), "extraction starting");
+        #[cfg(feature = "ocr-pipeline")]
+        if mime_type == "image/tiff" {
+            let limits = config.security_limits.clone().unwrap_or_default();
+            let frames = tiff_frames::offsets(content, &limits)?;
+            if frames.len() > 1 && !config.effective_disable_ocr() {
+                return tiff_frames::extract(self, content, config, frames).await;
+            }
+        }
+        #[cfg(not(feature = "ocr-pipeline"))]
         enforce_image_page_limit(content, mime_type, config)?;
         let default_security_limits = crate::extractors::security::SecurityLimits::default();
         let security_limits = config.security_limits.as_ref().unwrap_or(&default_security_limits);
@@ -3819,6 +3834,8 @@ mod tests {
             serde_json::Value::String("whole-image".to_string()),
         );
         whole.processing_warnings.push(crate::types::ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: std::borrow::Cow::Borrowed("ocr"),
             message: std::borrow::Cow::Borrowed("whole-image warning"),
         });
@@ -3895,6 +3912,8 @@ mod tests {
             serde_json::Value::String("layout".to_string()),
         );
         layout.processing_warnings.push(crate::types::ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: std::borrow::Cow::Borrowed("layout-ocr"),
             message: std::borrow::Cow::Borrowed("layout warning"),
         });

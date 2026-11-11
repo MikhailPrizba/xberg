@@ -180,6 +180,8 @@ pub(super) fn process_embedded_msg_attachment<F: std::io::Read + std::io::Seek>(
         // attachments at the same depth aren't spuriously capped too. ~keep
         ctx.budget.leave();
         ctx.warnings.push(ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: Cow::Borrowed("msg_embedded_message_extraction"),
             message: Cow::Owned(format!(
                 "Stopped extracting embedded message at '{path}': nesting depth cap reached; \

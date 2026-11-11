@@ -501,7 +501,7 @@ fn should_preserve_dense_xlsx_output_after_position_only_preflight() {
     let mut workbook = calamine::Xlsx::new(Cursor::new(bytes.as_slice())).unwrap();
 
     assert_eq!(
-        classify_xlsx_sheet_shape(&mut workbook, "Sheet1").unwrap(),
+        classify_xlsx_sheet_shape(&mut workbook, "Sheet1", &mut Vec::new()).unwrap(),
         XlsxSheetShape::Dense
     );
     let mut warnings = Vec::new();
@@ -538,7 +538,7 @@ fn should_preserve_pathological_sparse_xlsx_output_after_reopening_reader() {
     let mut workbook = calamine::Xlsx::new(Cursor::new(bytes.as_slice())).unwrap();
 
     assert_eq!(
-        classify_xlsx_sheet_shape(&mut workbook, "Sheet1").unwrap(),
+        classify_xlsx_sheet_shape(&mut workbook, "Sheet1", &mut Vec::new()).unwrap(),
         XlsxSheetShape::Sparse
     );
     let mut warnings = Vec::new();

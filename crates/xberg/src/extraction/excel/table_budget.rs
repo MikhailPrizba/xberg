@@ -282,6 +282,7 @@ fn validate_xlsx_sheet<R: Read + Seek>(
     budget: &mut SecurityBudget,
 ) -> Result<()> {
     let mut bounds = SheetAllocation::default();
+    let mut value_cells = 0usize;
     let mut shared_formula_capacity = 0usize;
     let mut formula_budget = SecurityBudget::from_limits(limits);
     let mut nonempty_shared = ahash::AHashSet::new();
@@ -299,6 +300,13 @@ fn validate_xlsx_sheet<R: Read + Seek>(
         .next_cell_with_formula_metadata()
         .map_err(|error| XbergError::parsing(format!("Failed to read worksheet '{name}': {error}")))?
     {
+        budget.step()?;
+        if cell.pos.0 >= 1_048_576 || cell.pos.1 >= 16_384 {
+            return Err(XbergError::validation(format!(
+                "Sheet '{name}' cell coordinates exceed Excel worksheet limits: {:?}",
+                cell.pos
+            )));
+        }
         if let Some(calamine::XlsxFormulaMetadata::Shared {
             shared_index,
             range: Some(_),
@@ -316,13 +324,29 @@ fn validate_xlsx_sheet<R: Read + Seek>(
             }
         }
         if !matches!(cell.value, DataRef::Empty) {
-            bounds.value(cell.pos, budget)?;
+            bounds.values.grow(cell.pos)?;
+            value_cells = value_cells
+                .checked_add(1)
+                .ok_or_else(|| XbergError::validation("XLSX cell count overflow"))?;
             account_xlsx_cell_text(&cell.value, budget)?;
         }
         if formula_occupies_range(cell.formula.as_ref(), &mut nonempty_shared)? {
-            bounds.formula(cell.pos, budget)?;
+            bounds.formulas.grow(cell.pos)?;
         }
     }
+    let rectangle = |bounds: &SheetBounds| -> usize {
+        bounds.bounds.map_or(0, |(r0, r1, c0, c1)| {
+            (u64::from(r1 - r0 + 1) * u64::from(c1 - c0 + 1)) as usize
+        })
+    };
+    let value_rectangle = rectangle(&bounds.values);
+    // This exact threshold selects the native sparse reader, which never builds a dense Range.
+    let value_allocation = if value_rectangle as u64 > super::MAX_BOUNDING_BOX_CELLS {
+        value_cells
+    } else {
+        value_rectangle
+    };
+    bounds.charge(value_allocation.max(rectangle(&bounds.formulas)), budget)?;
     Ok(())
 }
 

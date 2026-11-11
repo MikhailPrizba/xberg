@@ -278,6 +278,8 @@ pub(super) fn image_anchor(config: &ExtractionConfig) -> ImageAnchor {
 /// `table_stage_failure_warning_formats_the_message_it_promises`.
 fn table_stage_failure_warning(stage: &str, error: &impl std::fmt::Display) -> crate::types::ProcessingWarning {
     crate::types::ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: std::borrow::Cow::Borrowed("pdf_tables"),
         message: std::borrow::Cow::Owned(format!(
             "{stage} table extraction failed for the document: {error}; \
@@ -326,6 +328,8 @@ fn extract_annotations_with_empty_body_fallback(
     let (annotation_pages, recovered_count) = annotation_text_by_page(&annotations, page_count);
     if recovered_count > 0 {
         warnings.push(crate::types::ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: std::borrow::Cow::Borrowed("pdf_annotations"),
             message: std::borrow::Cow::Owned(format!(
                 "native PDF page text was empty; recovered {} text-bearing annotation(s) as document content",

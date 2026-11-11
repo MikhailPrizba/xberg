@@ -898,4 +898,4 @@ __all__ = [
     "verify_excerpt",
 ]
 
-__version__ = "1.4.0"
+__version__ = "1.4.0+textractor.1"

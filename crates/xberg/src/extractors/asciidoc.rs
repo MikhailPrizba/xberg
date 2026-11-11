@@ -650,6 +650,8 @@ impl<'a> AsciiDocParser<'a> {
 
     fn warn(&mut self, message: &'static str) {
         self.warnings.push(ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: Cow::Borrowed("asciidoc"),
             message: Cow::Borrowed(message),
         });

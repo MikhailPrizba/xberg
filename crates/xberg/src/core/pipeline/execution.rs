@@ -77,6 +77,8 @@ pub(super) async fn execute_processor_stages<R: crate::extraction::derive::surfa
                     Err(err) => {
                         let error_msg = err.to_string();
                         result.document_mut().processing_warnings.push(ProcessingWarning {
+                            code: "extraction.incomplete".into(),
+                            severity: "incomplete".into(),
                             source: Cow::Owned(processor_name.to_string()),
                             message: Cow::Owned(error_msg),
                         });

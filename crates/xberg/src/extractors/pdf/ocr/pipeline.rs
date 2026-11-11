@@ -245,6 +245,8 @@ fn push_mixed_ocr_page_failure_warning(
     crate::core::diagnostics::push_warning_deduped(
         warnings,
         crate::types::ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: std::borrow::Cow::Borrowed("ocr"),
             message: std::borrow::Cow::Owned(if recovered {
                 format!(
@@ -913,6 +915,8 @@ async fn extract_mixed_ocr_native_with_layout_inputs(
                         "content"
                     };
                     accumulated_warnings.push(crate::types::ProcessingWarning {
+                        code: "extraction.incomplete".into(),
+                        severity: "incomplete".into(),
                         source: std::borrow::Cow::Borrowed("ocr"),
                         message: std::borrow::Cow::Owned(format!(
                             "OCR of page {page_number} failed ({error}); its {recovered_kind} was recovered from the \
@@ -1804,6 +1808,8 @@ async fn extract_mixed_ocr_native_with_layout_inputs(
                     "content"
                 };
                 recovery_warnings.push((page_number, crate::types::ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: std::borrow::Cow::Borrowed("ocr"),
                     message: std::borrow::Cow::Owned(format!(
                         "OCR of page {page_number} failed ({error}); its {recovered_kind} was recovered from the page's \
@@ -3647,6 +3653,8 @@ pub(super) async fn extract_with_ocr_for_page(
                     pages_with_empty_xobject_retry.push(document_page_number);
                 }
                 let warning = crate::types::ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: std::borrow::Cow::Borrowed("ocr"),
                     message: std::borrow::Cow::Owned(if recovered {
                         let recovered_kind = if ocr_result.content.trim().is_empty() {
@@ -4602,6 +4610,8 @@ pub(super) fn attach_ocr_pipeline_stage_warnings(
 
     for backend in unavailable_backends {
         retained_doc.processing_warnings.push(crate::types::ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: std::borrow::Cow::Borrowed("ocr_pipeline"),
             message: std::borrow::Cow::Owned(format!(
                 "Requested OCR pipeline backend '{backend}' is unavailable and was skipped."
@@ -4610,6 +4620,8 @@ pub(super) fn attach_ocr_pipeline_stage_warnings(
     }
     for (backend, error) in stage_failures {
         retained_doc.processing_warnings.push(crate::types::ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: std::borrow::Cow::Borrowed("ocr_pipeline"),
             message: std::borrow::Cow::Owned(format!(
                 "OCR fallback backend '{backend}' failed and was skipped: {error}"
@@ -4684,6 +4696,8 @@ pub(super) fn xobject_fallback_warning(
         )
     };
     crate::types::ProcessingWarning {
+        code: "pdf.ocr_image_recovery".into(),
+        severity: "info".into(),
         source: std::borrow::Cow::Borrowed("ocr"),
         message: std::borrow::Cow::Owned(message),
     }
@@ -4863,6 +4877,8 @@ fn append_pipeline_xobject_page(
     if recovered_payload {
         let warning = if page_stages_failed {
             crate::types::ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: std::borrow::Cow::Borrowed("ocr"),
                 message: std::borrow::Cow::Owned(format!(
                     "Page {} contains {} image XObject(s); OCR was retried on the embedded image bytes after all page OCR stages failed.",
@@ -5957,6 +5973,8 @@ async fn run_ocr_pipeline_stages(
                 d
             });
             doc.processing_warnings.push(crate::types::ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: std::borrow::Cow::Borrowed("ocr_pipeline"),
                 message: std::borrow::Cow::Owned(format!(
                     "All OCR pipeline backends scored below the configured quality threshold \

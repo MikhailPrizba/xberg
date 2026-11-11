@@ -7,7 +7,6 @@ use crate::core::config::{ExtractionConfig, OutputFormat};
 use crate::extractors::SyncExtractor;
 use crate::extractors::security::SecurityBudget;
 use crate::plugins::{InternalDocumentExtractor, Plugin};
-use crate::text::utf8_validation;
 #[cfg(test)]
 use crate::types::Table;
 use crate::types::document_structure::TextAnnotation;
@@ -18,7 +17,7 @@ use crate::types::uri::{ExtractedUri, classify_uri};
 use crate::types::{HtmlMetadata, Metadata};
 use async_trait::async_trait;
 use bytes::Bytes;
-use encoding::declared_html_encoding;
+
 use html_to_markdown_rs::InlineImageFormat;
 use std::borrow::Cow;
 #[cfg(feature = "tokio-runtime")]
@@ -578,6 +577,11 @@ fn html_front_matter_end(raw: &str) -> Option<usize> {
 }
 
 pub(crate) fn normalize_html_markdown(raw: String) -> String {
+    let raw: String = raw.chars().filter_map(|c| match c {
+        '\u{00a0}' => Some(' '),
+        '\u{00ad}' | '\u{200b}'..='\u{200d}' | '\u{feff}' => None,
+        _ => Some(c),
+    }).collect();
     // ~keep YAML metadata is not Markdown prose: its delimiter can resemble a setext heading (#2295).
     let (front_matter, body) = raw.split_at(html_front_matter_end(&raw).unwrap_or(0));
     let normalized_body = normalize_html_markdown_body(body);
@@ -709,20 +713,7 @@ impl SyncExtractor for HtmlExtractor {
     fn extract_sync(&self, content: &[u8], mime_type: &str, config: &ExtractionConfig) -> Result<InternalDocument> {
         let _span = tracing::debug_span!("extract_html", element_count = tracing::field::Empty,).entered();
 
-        // A page that is not UTF-8 is decoded in the encoding its byte order mark or `<meta>`
-        // declares. Without a declaration it still extracts, but every undecodable byte has
-        // become U+FFFD by the time anything downstream sees it, so the caller is told the text
-        // was mangled instead of being handed silent mojibake (#171). ~keep
-        let (html, decoded_lossily) = match utf8_validation::from_utf8(content) {
-            Ok(valid) => (valid.to_string(), false),
-            Err(_) => match declared_html_encoding(content) {
-                Some(encoding) => {
-                    let (text, _, had_errors) = encoding.decode(content);
-                    (text.into_owned(), had_errors)
-                }
-                None => (String::from_utf8_lossy(content).into_owned(), true),
-            },
-        };
+        let (html, decoded_lossily) = encoding::decode_html(content);
 
         let html_options = crate::extraction::html::resolve_conversion_options(
             config.html_options.clone(),

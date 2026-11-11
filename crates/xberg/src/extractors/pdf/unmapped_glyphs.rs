@@ -201,6 +201,8 @@ pub(super) fn lost_glyph_warning(lost: usize, config: &ExtractionConfig) -> Opti
          that OCR did not replace."
     };
     Some(ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: std::borrow::Cow::Borrowed("pdf"),
         message: std::borrow::Cow::Borrowed(message),
     })

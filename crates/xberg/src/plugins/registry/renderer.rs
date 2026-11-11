@@ -65,6 +65,13 @@ impl InternalRenderer for MarkdownRenderer {
     }
 }
 
+/// Literal whitespace with Markdown tables, for extraction consumers.
+struct LiteralMarkdownRenderer;
+impl Plugin for LiteralMarkdownRenderer { fn name(&self) -> &str { "literal-markdown" } }
+impl InternalRenderer for LiteralMarkdownRenderer {
+    fn render(&self, doc: &InternalDocument) -> Result<String> { Ok(crate::rendering::render_literal_markdown(doc)) }
+}
+
 /// Built-in HTML renderer.
 struct HtmlRenderer;
 
@@ -246,6 +253,7 @@ impl InternalRenderer for PlainRenderer {
 /// by name — including `"dot"`, which is reachable only through `Custom` since
 /// `OutputFormat::from_str` never maps a string directly to a dedicated variant for it. ~keep
 const BUILTIN_RENDERER_NAMES: &[&str] = &[
+    "literal-markdown",
     "markdown",
     "html",
     "djot",
@@ -313,6 +321,7 @@ impl RendererRegistry {
 
     /// Register built-in renderers.
     fn register_builtins(&mut self) {
+        self.renderers.insert("literal-markdown".into(), RegisteredRenderer::internal(Arc::new(LiteralMarkdownRenderer)));
         self.renderers.insert(
             "markdown".to_string(),
             RegisteredRenderer::internal(Arc::new(MarkdownRenderer)),

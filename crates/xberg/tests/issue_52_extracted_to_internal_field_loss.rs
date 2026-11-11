@@ -44,6 +44,8 @@ fn source_document() -> ExtractedDocument {
         result: Box::new(ExtractedDocument::default()),
     }]);
     result.processing_warnings = vec![ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: Cow::Borrowed("chunking"),
         message: Cow::Borrowed("chunk stage skipped"),
     }];

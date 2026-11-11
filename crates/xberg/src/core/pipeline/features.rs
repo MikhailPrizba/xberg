@@ -287,6 +287,8 @@ pub(super) fn execute_chunking(
             && crate::chunking::semantic::semantic_uses_structural_fallback(chunking_config)
         {
             result.processing_warnings.push(ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: Cow::Borrowed("chunking"),
                 message: Cow::Borrowed(
                     "chunker_type='semantic' has no embedding model configured (or the crate was \
@@ -406,6 +408,8 @@ pub(super) fn execute_chunking(
                         "Embedding config provided but embeddings feature is not enabled. Recompile with --features embeddings."
                     );
                     result.processing_warnings.push(ProcessingWarning {
+                        code: "extraction.incomplete".into(),
+                        severity: "incomplete".into(),
                         source: Cow::Borrowed("embedding"),
                         message: Cow::Borrowed("Embeddings feature not enabled"),
                     });
@@ -416,6 +420,8 @@ pub(super) fn execute_chunking(
                         "Sparse-embedding config provided but sparse-embeddings feature is not enabled. Recompile with --features sparse-embeddings."
                     );
                     result.processing_warnings.push(ProcessingWarning {
+                        code: "extraction.incomplete".into(),
+                        severity: "incomplete".into(),
                         source: Cow::Borrowed("sparse_embedding"),
                         message: Cow::Borrowed("sparse-embeddings feature not enabled"),
                     });
@@ -426,6 +432,8 @@ pub(super) fn execute_chunking(
                         "Late-interaction config provided but late-interaction feature is not enabled. Recompile with --features late-interaction."
                     );
                     result.processing_warnings.push(ProcessingWarning {
+                        code: "extraction.incomplete".into(),
+                        severity: "incomplete".into(),
                         source: Cow::Borrowed("late_interaction"),
                         message: Cow::Borrowed("late-interaction feature not enabled"),
                     });
@@ -433,6 +441,8 @@ pub(super) fn execute_chunking(
             }
             Err(e) => {
                 result.processing_warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed("chunking"),
                     message: Cow::Owned(e.to_string()),
                 });
@@ -443,6 +453,8 @@ pub(super) fn execute_chunking(
     #[cfg(not(feature = "chunking"))]
     if config.chunking.is_some() {
         result.processing_warnings.push(ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: Cow::Borrowed("chunking"),
             message: Cow::Borrowed("Chunking feature not enabled"),
         });
@@ -463,6 +475,8 @@ pub(super) fn execute_language_detection(result: &mut ExtractedDocument, config:
             }
             Err(e) => {
                 result.processing_warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed("language_detection"),
                     message: Cow::Owned(e.to_string()),
                 });
@@ -473,6 +487,8 @@ pub(super) fn execute_language_detection(result: &mut ExtractedDocument, config:
     #[cfg(not(feature = "language-detection"))]
     if config.language_detection.is_some() {
         result.processing_warnings.push(ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: Cow::Borrowed("language_detection"),
             message: Cow::Borrowed("Language detection feature not enabled"),
         });
@@ -516,6 +532,8 @@ pub(super) fn execute_token_reduction(result: &mut ExtractedDocument, config: &E
 
             for message in warnings {
                 result.processing_warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed("token_reduction"),
                     message: Cow::Owned(message),
                 });
@@ -526,6 +544,8 @@ pub(super) fn execute_token_reduction(result: &mut ExtractedDocument, config: &E
     #[cfg(not(feature = "quality"))]
     if config.token_reduction.is_some() {
         result.processing_warnings.push(ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: Cow::Borrowed("token_reduction"),
             message: Cow::Borrowed("Token reduction requires the quality feature"),
         });

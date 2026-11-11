@@ -251,6 +251,8 @@ fn retain_budgeted_attachment_content(
             doc.elements.extend_from_slice(elements);
         } else {
             doc.processing_warnings.push(ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: Cow::Borrowed("email_attachment_inlining"),
                 message: Cow::Owned(format!(
                     "Skipped inlining attachment '{}': extracted text exceeds the remaining content security limit",
@@ -512,6 +514,8 @@ pub(crate) async fn extract_attachment_children(
             Some(data) if !data.is_empty() => data,
             _ => {
                 warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed("email_attachment_extraction"),
                     message: Cow::Owned(format!(
                         "Skipped attachment '{}': no attachment data available",
@@ -537,6 +541,8 @@ pub(crate) async fn extract_attachment_children(
             Some(m) if m != "application/octet-stream" => m,
             _ => {
                 warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed("email_attachment_extraction"),
                     message: Cow::Owned(format!(
                         "Skipped attachment '{}': could not determine MIME type",
@@ -553,6 +559,8 @@ pub(crate) async fn extract_attachment_children(
         {
             let cap = config.max_embedded_file_bytes.unwrap_or(0);
             warnings.push(ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: Cow::Borrowed("email_attachment_extraction"),
                 message: Cow::Owned(format!(
                     "Skipped attachment '{}': size {} bytes exceeds cap {} bytes",
@@ -577,6 +585,8 @@ pub(crate) async fn extract_attachment_children(
             }
             Err(e) => {
                 warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed("email_attachment_extraction"),
                     message: Cow::Owned(format!("Failed to extract '{}': {}", filename, e)),
                 });
@@ -608,6 +618,8 @@ async fn extract_nested_message_children(
         let Some(raw_bytes) = payload.data.as_ref() else {
             let cap = config.max_embedded_file_bytes.unwrap_or(0);
             warnings.push(ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: Cow::Borrowed("nested_message_extraction"),
                 message: Cow::Owned(format!(
                     "Skipped '{}': size {} bytes exceeds cap {} bytes",
@@ -630,6 +642,8 @@ async fn extract_nested_message_children(
             }
             Err(e) => {
                 warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed("nested_message_extraction"),
                     message: Cow::Owned(format!("Failed to extract '{}': {}", filename, e)),
                 });
@@ -682,6 +696,8 @@ async fn extract_nested_embedded_message_children(
             Ok(doc) => doc,
             Err(e) => {
                 warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed("msg_embedded_message_extraction"),
                     message: Cow::Owned(format!("Failed to extract embedded message '{}': {}", filename, e)),
                 });
@@ -705,6 +721,8 @@ async fn extract_nested_embedded_message_children(
             }
             Err(e) => {
                 warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed("msg_embedded_message_extraction"),
                     message: Cow::Owned(format!("Failed to extract embedded message '{}': {}", filename, e)),
                 });

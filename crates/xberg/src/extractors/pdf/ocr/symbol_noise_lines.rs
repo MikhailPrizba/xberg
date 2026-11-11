@@ -385,6 +385,8 @@ pub(super) fn prune_document_elements(document: &mut crate::types::internal::Int
 /// The warning that names a pruned page and how many lines it lost.
 pub(crate) fn pruned_lines_warning(page_number: usize, removed: usize) -> crate::types::ProcessingWarning {
     crate::types::ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: std::borrow::Cow::Borrowed("ocr"),
         message: format!(
             "Page {page_number}: removed {removed} symbol-noise line(s) from suspected OCR recognition noise; \

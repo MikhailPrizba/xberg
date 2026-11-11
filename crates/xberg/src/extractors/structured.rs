@@ -820,6 +820,8 @@ impl InternalDocumentExtractor for StructuredExtractor {
         };
         if summarize_geojson {
             doc.processing_warnings.push(crate::types::ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: Cow::Borrowed("geojson"),
                 message: Cow::Borrowed(
                     "GeoJSON was replaced by a bounded aggregate summary; inspect \

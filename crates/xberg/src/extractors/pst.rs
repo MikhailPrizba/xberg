@@ -274,10 +274,14 @@ mod tests {
         let mut doc = InternalDocument::new("pst");
         let warnings = vec![
             crate::types::ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: std::borrow::Cow::Borrowed("pst_extraction"),
                 message: std::borrow::Cow::Borrowed("warning one"),
             },
             crate::types::ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: std::borrow::Cow::Borrowed("pst_extraction"),
                 message: std::borrow::Cow::Borrowed("warning two"),
             },
@@ -296,6 +300,8 @@ mod tests {
         merge_pst_warnings(
             &mut doc,
             vec![crate::types::ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: std::borrow::Cow::Borrowed("pst_extraction"),
                 message: std::borrow::Cow::Borrowed("first batch"),
             }],
@@ -303,6 +309,8 @@ mod tests {
         merge_pst_warnings(
             &mut doc,
             vec![crate::types::ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: std::borrow::Cow::Borrowed("pst_extraction"),
                 message: std::borrow::Cow::Borrowed("second batch"),
             }],

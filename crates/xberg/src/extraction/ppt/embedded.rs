@@ -116,6 +116,8 @@ pub(crate) fn extract_ppt_embedded_objects(
 
 fn warning(message: String) -> ProcessingWarning {
     ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: Cow::Borrowed(PPT_WARNING_SOURCE),
         message: Cow::Owned(message),
     }

@@ -193,6 +193,8 @@ fn push_builtin_registration_warning(doc: &mut InternalDocument, registration_er
         return;
     };
     doc.processing_warnings.push(crate::types::ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: std::borrow::Cow::Borrowed(BUILTIN_REGISTRATION_SOURCE),
         message: std::borrow::Cow::Owned(format!(
             "built-in post-processor registration was incomplete ({error}); a configured \
@@ -224,6 +226,8 @@ async fn run_captioning_prepass(
         // feature is compiled out (e.g. the Docker `--features all` gap in #1382) or
         // otherwise unavailable. Surface it instead of silently no-opping.
         doc.processing_warnings.push(crate::types::ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: std::borrow::Cow::Borrowed("captioning"),
             message: std::borrow::Cow::Borrowed("captioning feature not enabled — rebuild with --features captioning"),
         });
@@ -606,6 +610,8 @@ async fn run_pipeline_impl(
 
     if config.structured_extraction.is_some() {
         result.processing_warnings.push(crate::types::ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: std::borrow::Cow::Borrowed("structured_extraction"),
             message: std::borrow::Cow::Borrowed("Structured extraction requires the 'liter-llm' feature"),
         });
@@ -965,6 +971,8 @@ fn apply_output_format_pass_with_security_limits(
             Ok(_) => {}
             Err(warning) => {
                 result.processing_warnings.push(crate::types::ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: std::borrow::Cow::Borrowed("image_encoder"),
                     message: std::borrow::Cow::Owned(warning.to_string()),
                 });

@@ -183,6 +183,8 @@ impl PptExtractor {
                     return (
                         Vec::new(),
                         vec![crate::types::ProcessingWarning {
+                            code: "extraction.incomplete".into(),
+                            severity: "incomplete".into(),
                             source: Cow::Borrowed(SOURCE),
                             message: Cow::Owned(format!("Failed to read embedded objects: {e}")),
                         }],
@@ -192,6 +194,8 @@ impl PptExtractor {
         if objects.len() > security_limits.max_files_in_archive {
             let skipped = objects.len() - security_limits.max_files_in_archive;
             warnings.push(crate::types::ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: Cow::Borrowed(SOURCE),
                 message: Cow::Owned(format!(
                     "Skipped {skipped} embedded object(s): max_files_in_archive ({}) reached",
@@ -214,6 +218,8 @@ impl PptExtractor {
                 crate::extraction::ooxml_embedded::extract_ole_embedded_object(&object.data)
             else {
                 warnings.push(crate::types::ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed(SOURCE),
                     message: Cow::Owned(format!(
                         "Skipped embedded object '{path}': format identification not supported"
@@ -228,6 +234,8 @@ impl PptExtractor {
                     result: Box::new(result),
                 }),
                 Err(e) => warnings.push(crate::types::ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed(SOURCE),
                     message: Cow::Owned(format!("Failed to extract embedded object '{path}': {e}")),
                 }),

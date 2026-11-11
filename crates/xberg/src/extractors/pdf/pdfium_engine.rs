@@ -195,6 +195,8 @@ fn unsupported_content_filter_warnings(config: &ExtractionConfig) -> Vec<Process
     };
     let mut warnings = Vec::with_capacity(3);
     let warning = |message: &'static str| ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: std::borrow::Cow::Borrowed(PDFIUM_WARNING_SOURCE),
         message: std::borrow::Cow::Borrowed(message),
     };
@@ -331,6 +333,8 @@ fn extract_blocking_serialized(
     );
 
     doc.processing_warnings.push(ProcessingWarning {
+        code: "extraction.incomplete".into(),
+        severity: "incomplete".into(),
         source: std::borrow::Cow::Borrowed(PDFIUM_WARNING_SOURCE),
         message: std::borrow::Cow::Borrowed(
             "the pdfium backend currently extracts text, page count, and Info-dictionary \

@@ -218,6 +218,8 @@ fn embedded_file_skip_warning(
         let ratio = file.data.len() as f64 / file.compressed_size as f64;
         if ratio > max_ratio as f64 {
             return Some(ProcessingWarning {
+                code: "extraction.incomplete".into(),
+                severity: "incomplete".into(),
                 source: Cow::Borrowed("pdf_embedded_files"),
                 message: Cow::Owned(format!(
                     "Skipped embedded file '{}': decompression ratio {:.0}x exceeds limit {}x \
@@ -235,6 +237,8 @@ fn embedded_file_skip_warning(
     if max_embedded_file_bytes.is_some_and(|cap| file.data.len() as u64 > cap) {
         let cap = max_embedded_file_bytes.unwrap_or(0);
         return Some(ProcessingWarning {
+            code: "extraction.incomplete".into(),
+            severity: "incomplete".into(),
             source: Cow::Borrowed("pdf_embedded_files"),
             message: Cow::Owned(format!(
                 "Skipped embedded file '{}': size {} bytes exceeds cap {} bytes",
@@ -313,6 +317,8 @@ pub(crate) async fn extract_and_process_embedded_files(
             }
             Err(e) => {
                 warnings.push(ProcessingWarning {
+                    code: "extraction.incomplete".into(),
+                    severity: "incomplete".into(),
                     source: Cow::Borrowed("pdf_embedded_files"),
                     message: Cow::Owned(format!("Failed to extract embedded '{}': {}", file.name, e)),
                 });
